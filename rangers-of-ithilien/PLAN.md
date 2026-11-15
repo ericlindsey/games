@@ -1,0 +1,319 @@
+# Rangers of Ithilien: Plan
+
+Status: **planning, awaiting answers to the open questions in section 9.**
+Nothing here is built yet. Choices marked **(default)** are what I will build
+unless told otherwise.
+
+---
+
+## 1. The game in one paragraph
+
+The War of the Ring has ended, but orcs and evil men who fled the King's army at
+the Black Gate have gone to ground across Ithilien. Before Gondor can resettle the
+land, Faramir's rangers must find and clear their camps, hideouts, and traps. You
+play one ranger. Home is Henneth Annûn, where Faramir and Éowyn wait in the cave
+behind the falls with tasks. Near the falls the woods are safe; the farther you
+range, the more numerous and dangerous the enemy. Gear comes from fallen enemies,
+from stashes in their camps, and from trade at the falls as reward for tasks.
+
+## 2. Scope of the first prototype
+
+The first playable build (**Milestone 1**) is exploration only:
+
+**In**
+
+- The whole play area as walkable terrain, with river, streams, mountains, roads.
+- Henneth Annûn: the falls, the pool, the cave behind the water, with Faramir and
+  Éowyn standing inside. Talking to them shows a short greeting (no quests yet).
+- Forest that changes character from region to region.
+- A handful of small ruins and named landmarks to discover.
+- Sky, sun, fog, water.
+- Desktop controls (keyboard and mouse) and mobile controls (touch).
+- Compass, "location discovered" notices, a simple map of discovered places.
+- Save and resume (position, discoveries, settings).
+
+**Out (later milestones)**
+
+- Enemies, combat, health, skills.
+- Quests, inventory, loot, trading.
+- Sound and music, day/night cycle, weather.
+- Character creation, animation beyond a simple walk.
+
+## 3. The world
+
+### 3.1 Size
+
+Tolkien's North Ithilien is on the order of 40 by 100 miles. The game compresses
+this to **3.2 km east–west by 4.8 km north–south (default)**, about 15 km².
+At a run of 7 m/s that is roughly 8 minutes river to mountains and 11 minutes
+north to south in a straight line, and much longer in practice through woods and
+gullies. Size is a single constant, so it is cheap to change once we can feel it.
+
+### 3.2 Layout
+
+North is up. Not to scale.
+
+```
+                 thinning forest, heath and thorn
+            (beyond: the desolation before the Black Gate)
+      +--------------------------------------------------------+
+      |~~  , , ,  . . northern heath . . . .     ‖    /\/\/\/\ |
+      |~~ , fens ,      .   .    .               ‖   /\/\/\/\/ |
+      |~~  , , ,                                 ‖   /\/\/\/\/ |
+      |~~                    ruin                ‖  /\/\/\/\/\ |
+      |(  )                                      ‖  /\ EPHEL \ |
+      |(CA)  Field of           HENNETH    ......‖../\ DÚATH  \|
+      |(  )  Cormallen <~~~~~~~~ ANNÛN <~~~~~~~~~‖~~~/\/\/\/\/ |
+      |~~        ~~~~~~~/     (falls face W)     ‖   /\/\/\/\/ |
+      |~~                                        ‖   /\/\/\/\/ |
+  A   |~~            ruin         old watch-     ‖  /\/\/\/\/\ |
+  N   |~~                         tower          ‖  /\/\/\/\/\ |
+  D   |~~      <~~~~~~~~~~~~~ stream ~~~~~~~~~~~~‖~~~/\/\/\/\/ |
+  U   |~~                                        ‖   /\/\/\/\/ |
+  I   |~~   ruin         great ilex woods        ‖  /\/\/\/\/\ |
+  N   |~~                                        ‖  /\/\/\/\/\ |
+      |~~       <~~~~~~~~~~~~ stream ~~~~~~~~~~~~‖~~/\/\/\/\/\ |
+      |~~                                    ring‖of trees     |
+      |[OSGILIATH]=========== road =========== CROSS-ROADS ===> Morgul Vale
+      +--------------------------------------------------------+   (barred)
+
+   ~~ Anduin   (CA) Cair Andros   ‖ Harad Road   /\ mountains   <~~ streams
+```
+
+### 3.3 Boundaries
+
+| Edge  | What it is | How it stops the player |
+|-------|------------|-------------------------|
+| West  | The Anduin | Wide deep water; the ranger will not swim it. |
+| East  | Ephel Dúath | Slopes steepen until unclimbable. |
+| South | Osgiliath–Minas Ithil road | The road itself is walkable; beyond it a soft turn-back ("Your charge lies north of the road."). The bridge at Osgiliath is broken; the Morgul Vale is barred. |
+| North | The forest thins to heath | Soft turn-back as the land empties toward the Black Gate. |
+
+Soft boundaries fade the player back with a line of text instead of an invisible wall.
+
+### 3.4 Landmarks for Milestone 1
+
+| Landmark | Where | Notes |
+|----------|-------|-------|
+| **Henneth Annûn** | Northern third, midway river to mountains | Start point and home. West-facing cliff, waterfall into a pool, cave behind the water reached by a hidden path. The view west through the falls is the showpiece. |
+| Field of Cormallen | West, where the Henneth Annûn stream meets the Anduin | Broad green lawns among beeches. Safe. |
+| Cair Andros | Island in the Anduin, north-west | Seen from the bank; not reachable in M1. |
+| Harad Road | North–south, near the foot of the mountains | Old straight paved road, overgrown. |
+| The Cross-roads | South-east corner | Ring of huge old trees; the seated stone king. |
+| Osgiliath (eastern edge) | South-west corner | Broken walls and the ruined bridge-head; scenery in M1. |
+| Morgul Vale mouth | East of the Cross-roads | Barred. A sickly glimpse, nothing more. |
+| Northern fens | North-west by the river | Reeds and standing water. |
+| 5–6 small ruins | Scattered | Old Gondorian works: a watch-tower stump, a fallen colonnade, a bridge pier, a roofless shrine, a stair to nowhere, a dry fountain court. Each a quiet place worth finding. |
+
+### 3.5 Regions and vegetation
+
+Ithilien is a garden gone wild: resinous woods, herbs, many streams.
+
+- **Riverside (west):** reeds, willows, open lawns near Cormallen.
+- **Northern heath:** ling, broom, thorn, scattered pines; open and windswept.
+- **Central woods (around Henneth Annûn):** fir, cedar, cypress, bay, olive;
+  glades thick with herbs and flowers. The friendliest country.
+- **Southern woods:** great ilexes, oak, and ash; darker, older, bigger trunks.
+- **Foothills (east):** scrub, bare rock, gorse; trees thin as the ground climbs.
+
+Region is a smooth function of position, so woods blend into one another.
+
+### 3.6 Danger (for later milestones, designed now)
+
+Danger tier is computed from distance to Henneth Annûn, raised near the mountains,
+the southern road, and the northern heath.
+
+| Tier | Roughly | Expect |
+|------|---------|--------|
+| 0 Refuge | within ~350 m of the falls | Nothing hostile. |
+| 1 Home woods | to ~900 m | Wolves, a lone starving orc. |
+| 2 The middle land | to ~1.8 km | Small orc camps, snares and pit traps. |
+| 3 The marches | beyond | War-bands, Southron and Easterling holdouts, large fortified camps. |
+| 4 The shadowed edges | Morgul road, mountain feet, far north | The worst of what fled the Gate. |
+
+Milestone 1 places empty camp sites (cold fire rings, a lean-to) at tier 2+ so we
+can judge spacing before enemies exist.
+
+## 4. Look and feel
+
+Target mood: a late-90s forest MMO zone and an early-2000s open-world RPG, with
+small serene ruins. Concretely:
+
+- **Low-poly, stylised, procedural (default).** Flat-shaded geometry with vertex
+  colours. Trees are simple trunks and layered canopies; rocks are faceted.
+- **Fog is the art director.** Warm distance haze that hides the far clip and
+  makes landmarks emerge gradually. Colour shifts by region (golden in the central
+  woods, grey-green in the south, pale on the heath).
+- **Low sun.** Fixed late-afternoon light in M1, with the sun in the west so that
+  it shines through the falls into the cave.
+- **Muted natural palette**: moss, bark, lichen stone, pale gold light. Ruins in
+  weathered white stone, half-swallowed by ivy and roots.
+- **Characters** are simple low-poly figures (hooded green-and-brown ranger;
+  Faramir and Éowyn distinguishable by colour and silhouette).
+- **UI**: parchment-and-ink panels, a serif typeface, sparse HUD.
+
+Everything is generated in code. No downloaded models, textures, or audio.
+
+## 5. Controls
+
+One abstract input state feeds the game; two front-ends fill it.
+
+| Action | Desktop | Touch |
+|--------|---------|-------|
+| Move | WASD / arrows | Left thumb virtual stick |
+| Look | Mouse (pointer lock; click canvas to capture) | Drag on right half of screen |
+| Run / walk | Shift toggles | Push the stick to its edge |
+| Jump | Space | Button |
+| Interact / talk | E | Context button that appears when near something |
+| Map | M | Button |
+| Menu / release mouse | Esc | Button |
+
+Camera: **third-person, over the shoulder, with a collision-aware boom (default)**;
+scroll wheel / pinch zooms, all the way in to first person.
+
+Touch devices are detected by capability, not user agent; a device with both gets both.
+
+## 6. Technical approach
+
+### 6.1 Stack
+
+- Three.js, vendored at a pinned version in `vendor/`, loaded by import map.
+- Vanilla ES modules, **no build step (default)**. Runs from any static server and
+  from GitHub Pages as-is.
+- HTML/CSS for all UI over a full-window canvas.
+
+### 6.2 Terrain
+
+- One pure function `heightAt(x, z)` defines the ground everywhere. It combines:
+  a west-to-east rise, seeded noise at several scales, a steep mountain wall in the
+  east, carved river and stream valleys, flattened roads, and hand-placed "stamps"
+  for landmarks (the Henneth Annûn cliff and pool, the Cormallen lawns, ruin sites).
+- Rendered as a grid of chunks (about 160 m square) built on demand around the
+  player and dropped behind, with a coarser ring for the distance. Fog hides the edge.
+- Ground colour comes from height, slope, and region, written to vertex colours.
+- Collision with the ground is just `heightAt`. Steep slopes cannot be climbed.
+
+### 6.3 Henneth Annûn (the one hard piece)
+
+A heightmap cannot make a cave, so the refuge is a hand-built set piece:
+
+- The terrain stamp makes a west-facing cliff with a notch and a pool at its foot.
+- The cave (floor, walls, roof, the rock lip the water falls past) is its own mesh
+  set into the notch, with its own floor-height function and wall colliders that
+  override the terrain inside a small volume.
+- The waterfall is a translucent, scrolling sheet across the cave mouth, with mist
+  at the base. You can see out through it.
+- A narrow path and stair lead from the cliff top down and round into the cave.
+
+### 6.4 Vegetation and props
+
+- `InstancedMesh` per species per chunk. Placement is deterministic from the world
+  seed and chunk coordinates, thinned by slope, water, roads, and region density.
+- Trees collide as circles. Grass and herbs do not collide.
+- Density scales with a quality setting (auto-lowered on phones).
+
+### 6.5 Water
+
+- The Anduin: a broad flat plane with a slow scrolling surface.
+- Streams: follow carved channels in the terrain; simple ribbon meshes.
+- Wading is allowed in shallows; deep water turns the player back.
+
+### 6.6 Player and NPCs
+
+- Capsule-style character: ground-following, slope limit, circle collisions with
+  trees and props, wall segments for ruins and the cave.
+- Simple procedural walk animation (limb swing), no skeletal assets.
+- NPCs in M1 stand in place, turn to face the player, and show a dialogue panel.
+
+### 6.7 Saving
+
+- `localStorage` rather than a cookie: larger, not sent over the network, simpler.
+- One key holding versioned JSON:
+  `{ version, savedAt, player: {x, z, heading}, discovered: [...], settings: {...} }`
+  with room for `quests`, `inventory`, `cleared` (camps), and `stats` later.
+- Autosave every 30 s and when the page is hidden or closed. "New game" in the menu.
+- Corrupt or missing save falls back to a fresh start at Henneth Annûn.
+- Saves are per browser. A later milestone can add export/import as a text code
+  for moving between devices.
+
+### 6.8 Performance
+
+- Targets: 60 fps laptop, 30 fps mid-range phone.
+- Device pixel ratio capped (2 on desktop, 1.5 on phones).
+- Three quality levels controlling view distance, vegetation density, and shadows
+  (shadows off on low). Chosen automatically, changeable in the menu.
+- A debug overlay (toggle with a key) showing fps, draw calls, triangles, position,
+  region, and danger tier.
+
+### 6.9 Testing
+
+- Node unit tests for pure logic: `heightAt` determinism, region/danger functions,
+  save round-trip and migration.
+- A Playwright smoke test: page loads with no console errors, the canvas draws,
+  holding "forward" moves the player, a reload restores the position. Run once
+  with a desktop viewport and once with a touch phone viewport.
+
+## 7. Milestones
+
+Each ends with something you can open and play.
+
+**M0. Skeleton.** Folder, vendored Three.js, page, render loop, resize handling,
+debug overlay, a flat test ground with a walking player on desktop and touch.
+
+**M1. The land (first prototype).** Everything in section 2 "In".
+Suggested build order, each step viewable:
+1. Terrain function and chunked rendering; fog and sky.
+2. Player controller and camera on real terrain; both control schemes.
+3. Anduin, streams, mountains, roads, boundaries.
+4. Vegetation by region.
+5. Henneth Annûn set piece; Faramir and Éowyn with greeting dialogue.
+6. Ruins, the Cross-roads, Osgiliath edge, empty camp sites.
+7. Compass, discovery notices, map, save/load, menu.
+8. Performance pass on a phone-sized profile; smoke tests.
+
+**M2. Tasks and things.** Dialogue trees, a quest log, a first handful of tasks
+from Faramir and Éowyn (scout a place, find a stash, light a beacon), inventory,
+stashes to open, items to carry home. Still playable on mobile.
+
+**M3. The enemy.** Health, melee and bow combat (keyboard and mouse), a few enemy
+types with simple AI (idle at camp, notice, pursue, attack, give up), camps that
+can be cleared and stay cleared, loot drops, traps, death and return to the falls.
+
+**M4. Gear and trade.** Weapons and armour with stats, equipment screen, trading
+at Henneth Annûn using renown earned from tasks, enemy tiers matched to danger.
+
+**M5. Atmosphere.** Sound and music, day/night, weather, more ruins and secrets,
+more animation, tuning.
+
+## 8. Risks
+
+- **The cave.** Getting collision and the see-through waterfall to feel right may
+  take a couple of passes. It is the home base, so it is worth it.
+- **Phone performance.** Forest density is the main cost. Fog distance and
+  instancing are the levers; I will measure early (M1 step 4).
+- **Emptiness.** A 15 km² map with six ruins could feel thin. If so, shrink the
+  map or add points of interest; both are cheap by design.
+- **Headless testing.** Automated screenshots use software rendering, so they
+  confirm correctness, not frame rate. Real-device feel needs you.
+
+## 9. Open questions
+
+Defaults are in brackets; I will proceed with them for anything left unanswered.
+
+1. **Camera.** Third-person over the shoulder with zoom into first person
+   [default], or first-person only?
+2. **Visual style.** Clean flat-shaded low-poly with vertex colours [default], or
+   a deliberately retro look with chunky low-resolution textures?
+3. **World size.** 3.2 × 4.8 km [default], or smaller/larger for the first pass?
+4. **Tooling.** No build step, plain files [default], or a Vite/npm project?
+5. **Hosting.** Should the repo be set up for GitHub Pages so you can open the
+   game on your phone from a URL? [default: yes, with a small landing page at the
+   repo root linking to each game]
+6. **Combat style (needed by M3, not now).** Real-time action (aim the bow, swing
+   and block) or old-MMO style (select a target, auto-attack, timed abilities)?
+7. **The player character.** A fixed, unnamed ranger [default], or a name and a
+   few appearance choices at the start?
+8. **Tone.** Grounded and melancholy, close to the books [default], or lighter?
+9. **Sharing.** Is this a personal project, or might it be published? The setting
+   and names belong to the Tolkien Estate, so a public release would be a fan
+   project; this affects nothing in the code but is worth knowing early.
