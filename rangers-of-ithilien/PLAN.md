@@ -1,8 +1,7 @@
 # Rangers of Ithilien: Plan
 
-Status: **planning, awaiting answers to the open questions in section 9.**
-Nothing here is built yet. Choices marked **(default)** are what I will build
-unless told otherwise.
+Status: **Milestone 1 is built and playable.** Next is Milestone 2 (tasks and things).
+Decisions made so far are recorded in section 9.
 
 ---
 
@@ -44,10 +43,10 @@ The first playable build (**Milestone 1**) is exploration only:
 ### 3.1 Size
 
 Tolkien's North Ithilien is on the order of 40 by 100 miles. The game compresses
-this to **3.2 km east–west by 4.8 km north–south (default)**, about 15 km².
-At a run of 7 m/s that is roughly 8 minutes river to mountains and 11 minutes
-north to south in a straight line, and much longer in practice through woods and
-gullies. Size is a single constant, so it is cheap to change once we can feel it.
+this to **3.2 km east–west by 6.4 km north–south**, about 20 km². At a run of
+7.5 m/s that is roughly 6 minutes river to mountains and 14 minutes north to
+south in a straight line. Henneth Annûn is 4.3 km from the southern road, so
+Osgiliath and the Cross-roads are a real journey. Size is a single constant, so it is cheap to change once we can feel it.
 
 ### 3.2 Layout
 
@@ -296,24 +295,44 @@ more animation, tuning.
 - **Headless testing.** Automated screenshots use software rendering, so they
   confirm correctness, not frame rate. Real-device feel needs you.
 
-## 9. Open questions
+## 9. Decisions
 
-Defaults are in brackets; I will proceed with them for anything left unanswered.
+| Question | Decision |
+|----------|----------|
+| Camera | Third person, zoom in to first person. |
+| Visual style | Modern clean low-poly, flat shaded, vertex colours. |
+| World size | 3.2 × 6.4 km. The south (Osgiliath, the Cross-roads) is far from home on purpose. |
+| Tooling | No build step. Three.js r170 vendored. |
+| Hosting | GitHub Pages from the repo root, with a landing page linking each game. |
+| Combat (M3) | Aimed, real-time, especially the bow. On touch, offer an auto-attack / aim-assist option. |
+| Player | A fixed, unnamed ranger for now. |
+| Tone | Upbeat: the war is won. Occupied land is grey and sour; cleared land turns bright and healthy again. |
+| Sharing | Personal project, not for publication. |
 
-1. **Camera.** Third-person over the shoulder with zoom into first person
-   [default], or first-person only?
-2. **Visual style.** Clean flat-shaded low-poly with vertex colours [default], or
-   a deliberately retro look with chunky low-resolution textures?
-3. **World size.** 3.2 × 4.8 km [default], or smaller/larger for the first pass?
-4. **Tooling.** No build step, plain files [default], or a Vite/npm project?
-5. **Hosting.** Should the repo be set up for GitHub Pages so you can open the
-   game on your phone from a URL? [default: yes, with a small landing page at the
-   repo root linking to each game]
-6. **Combat style (needed by M3, not now).** Real-time action (aim the bow, swing
-   and block) or old-MMO style (select a target, auto-attack, timed abilities)?
-7. **The player character.** A fixed, unnamed ranger [default], or a name and a
-   few appearance choices at the start?
-8. **Tone.** Grounded and melancholy, close to the books [default], or lighter?
-9. **Sharing.** Is this a personal project, or might it be published? The setting
-   and names belong to the Tolkien Estate, so a public release would be a fan
-   project; this affects nothing in the code but is worth knowing early.
+## 10. What Milestone 1 actually contains
+
+- Terrain, the Anduin, five streams, the Ephel Dúath, both roads, soft boundaries.
+- Henneth Annûn: cave, window, falls, pool, the stair on the south side; Faramir
+  and Éowyn with short branching dialogue.
+- Five forest regions, 15 plant species, fens, the lawns of Cormallen.
+- Seven small ruins, the Cross-roads, the edge of Osgiliath, the barred Morgul
+  Vale, Cair Andros across the water.
+- Twelve cold enemy camps. Each lays blight on the land; "Break up the camp"
+  clears it and the sky and light recover over a few seconds. This is a stand-in
+  for clearing by combat in M3.
+- Compass with a home marker, place names, discovery notices, a map of what has
+  been found, menu with detail levels, save/resume in localStorage.
+- Keyboard and mouse, and touch (stick, drag-look, pinch-zoom, buttons).
+
+### Known gaps to pick up
+
+- The blight changes sky, fog and light but not yet the colour of the ground and
+  plants themselves. Tinting those per camp is the natural next step for the
+  "land heals" idea.
+- Trees appear at the edge of the loaded radius without a fade.
+- Osgiliath is plain blocks. Cair Andros cannot be reached.
+- No sound. No day/night.
+- Performance has only been measured in software rendering; it needs a look on a
+  real phone.
+- The cave is lit by flat ambient light on low/medium detail (no shadows), so it
+  is brighter inside than it should be.

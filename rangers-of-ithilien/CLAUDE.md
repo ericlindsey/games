@@ -8,8 +8,7 @@ Ithilien of the orcs and evil men who fled the battle at the Black Gate.
 layout, and the open design questions. This file holds the rules that stay true
 across milestones.
 
-> Status: planning. No code yet. Sections below marked *(planned)* describe the
-> intended structure; update them to match reality as the code lands.
+> Status: Milestone 1 (the explorable land) is built. See PLAN.md for what is next.
 
 ## Design pillars
 
@@ -43,24 +42,41 @@ When a decision is unclear, choose the option that serves these, in this order:
   fog to bound view distance, `InstancedMesh` for vegetation, chunked terrain, and a
   capped device pixel ratio. Check draw calls and triangle count when adding content.
 
-## Code layout *(planned)*
+## Code layout
 
 ```
-index.html            canvas, import map, HUD and touch-control markup
+index.html            canvas, import map, HUD and panel markup
 css/style.css
-vendor/               three.module.js (pinned)
+vendor/               three.module.min.js (pinned; see vendor/VERSION)
 src/
-  main.js             boot, game loop, wiring
-  config.js           world size, seed, tunables (one place for magic numbers)
-  world/              terrain height function, chunks, water, vegetation,
-                      landmarks, ruins, Henneth Annûn, sky and fog, regions/danger
-  entities/           player, NPCs (later: enemies)
-  input/              keyboard+mouse, touch; both feed one abstract input state
-  ui/                 HUD, compass, dialogue, map, menus (HTML/CSS over the canvas)
-  systems/            save/load (later: quests, inventory, combat, loot)
-  util/               seeded RNG, noise, math helpers
-tests/                node unit tests for pure logic; Playwright smoke test
+  main.js             boot, wiring, the game loop
+  config.js           world size, seed, player and quality tunables
+  data/dialogue.js    what people say
+  world/
+    layout.js         WHERE THINGS ARE: landmarks, camps, roads, streams (pure)
+    terrain.js        heightAt(x, z) (pure)
+    regions.js        region weights, forest density, danger tier, blight (pure)
+    groundColor.js    ground colour by place, height, slope (pure)
+    collision.js      solids (boxes: wall + floor) and circles (trunks) (pure)
+    terrainMesh.js    near chunks + far backdrop
+    vegetation.js     tree and undergrowth species, per-chunk instancing
+    water.js          the Anduin and stream ribbons
+    atmosphere.js     sky, sun, fog, and the blight mood shift
+    hennethAnnun.js   the cave, falls and pool set piece
+    ruins.js          ruins and large landmarks
+    camps.js          enemy camp sites
+    build.js          GeoBuilder and other geometry helpers
+  entities/           player + camera rig, low-poly figures
+  input/input.js      keyboard, mouse and touch -> one input state
+  ui/                 hud.js (compass, notices, prompt), panels.js (dialogue, map, menu)
+  systems/save.js     the only code that touches localStorage
+  util/noise.js       hashing, value noise, seeded RNG
+tests/
+  unit.test.js        pure logic (node --test)
+  smoke.mjs           drives the real game in headless Chromium, desktop + phone
 ```
+
+Files marked (pure) must not import Three.js or touch the DOM, so they run in Node tests.
 
 Rules of thumb:
 
@@ -77,8 +93,9 @@ Rules of thumb:
 - 1 world unit = 1 metre. Y is up.
 - **+X is east, +Z is south** (so north is −Z, matching a north-up map viewed from above).
 - The Anduin is the west edge (low X); the Ephel Dúath is the east edge (high X).
-- World dimensions and all landmark positions are defined once in `src/config.js`
-  and `src/world/landmarks.js`. Never hard-code a position elsewhere.
+- World dimensions and all positions are defined once in `src/config.js` and
+  `src/world/layout.js`. Never hard-code a position elsewhere.
+- Yaw: forward = (sin yaw, 0, cos yaw), so north is yaw = PI. Figures face +Z at yaw 0.
 
 ## World and lore rules
 
@@ -91,6 +108,9 @@ Rules of thumb:
   run east to west.
 - Danger grows with distance from Henneth Annûn, and is worst toward the mountains,
   the Morgul road in the south, and the northern heath.
+- Occupied enemy camps lay a blight on the land around them (grey-green haze, dim
+  light). Clearing a camp heals it. The healthy land is bright and a little joyful:
+  the war is won. Keep that contrast as features are added.
 - The setting is the months after the fall of Sauron. Faramir and Éowyn are at
   Henneth Annûn as quest-givers (a deliberate liberty with the timeline).
 - Names of places and people follow the books. **All in-game text is our own
@@ -114,12 +134,15 @@ python3 -m http.server 8000     # open http://localhost:8000
 
 ## Verifying a change
 
-1. Serve the folder and load it in headless Chromium (Playwright is pre-installed
-   in the cloud environment; launch with no options).
-2. Confirm there are no console errors or failed requests.
-3. Take a screenshot and look at it. For world changes, take one at Henneth Annûn
-   and one at a location the change affects.
-4. For anything touching controls or UI, repeat with a phone-sized touch viewport.
-5. Run the tests in `tests/` *(planned)*.
+1. `node --test tests/unit.test.js`
+2. `node tests/smoke.mjs [dir-for-screenshots]` (starts its own server; needs the
+   pre-installed Playwright). It fails on any console error or failed request.
+3. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
+   the title, `?debug` shows the overlay, `?quality=low|medium|high`.
+   In the console, `roi.teleport(x, z, yaw)` moves the ranger; backtick toggles
+   the overlay; `G` toggles a fast debug run.
+4. Headless Chromium renders in software (single-digit fps), so it proves
+   behaviour, not performance. Say so rather than claiming a frame rate.
 
+Add a check to `tests/smoke.mjs` for each new player-facing behaviour.
 Report what was checked and what was not.
