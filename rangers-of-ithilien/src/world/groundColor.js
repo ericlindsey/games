@@ -6,6 +6,7 @@ import { WORLD } from '../config.js';
 import { regionWeights } from './regions.js';
 import { forestDensity } from './forest.js';
 import { inField } from './oldworks.js';
+import { pathWear } from './paths.js';
 import { roadDistance, streamDistance, ROAD_HALF_WIDTH, bankX, southRoadZ, HA } from './layout.js';
 
 const S = WORLD.seed;
@@ -14,7 +15,7 @@ const hex = (h) => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) /
 const C = {
   central: hex(0x7aa64a), lawn: hex(0x8fbf55), south: hex(0x56843f), heath: hex(0xa3a264),
   heather: hex(0x94708f), river: hex(0x86a85c), fen: hex(0x6f8450), foothill: hex(0x8b8562),
-  floor: hex(0x4b6a3a), meadow: hex(0x9dbb62),
+  floor: hex(0x4b6a3a), meadow: hex(0x9dbb62), track: hex(0xb3a37c),
   rock: hex(0x8f8877), darkRock: hex(0x5d5a61), mud: hex(0xa3966f), bed: hex(0x55604c),
   road: hex(0xb9ae93), canopy: hex(0x3f7436), canopySouth: hex(0x2f5c33), sick: hex(0x6b6f55),
 };
@@ -49,6 +50,12 @@ export function groundColor(x, z, h, slope, out) {
   // Mottling so large fields do not read as one flat colour.
   const m = 1 + noise2(x / 55, z / 55, S + 410) * 0.14 + noise2(x / 9, z / 9, S + 420) * 0.09;
   out[0] *= m; out[1] *= m; out[2] *= m;
+
+  // The old paths: a paler, trodden line that comes and goes.
+  if (x > bankX(z)) {
+    const wear = pathWear(x, z);
+    if (wear > 0) mix(out, C.track, Math.min(1, wear * 1.1));
+  }
 
   // Roads: pale paving, broken up by grass.
   const rd = roadDistance(x, z);

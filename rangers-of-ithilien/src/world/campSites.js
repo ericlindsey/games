@@ -7,6 +7,8 @@ import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, streamDistance, roadDista
 import { heightAt, slopeAt } from './terrain.js';
 import { dangerTier } from './regions.js';
 import { houseDistance } from './oldworks.js';
+import { pathDistance } from './paths.js';
+import { relicDistance } from './relicSites.js';
 
 export const CAMP_BLIGHT_RADIUS = 95;
 const SPACING = [0, 230, 185, 160, 150]; // by danger tier
@@ -22,6 +24,7 @@ function generate() {
     if (Math.abs(z - HA.z) < 40 && x > 600 && x < HA.x + 60) continue;
     if (inClearing(x, z) || streamDistance(x, z) < 12 || roadDistance(x, z) < 14 || houseDistance(x, z) < 11) continue;
     if (LANDMARKS.some((l) => Math.hypot(x - l.x, z - l.z) < l.r * 0.5 + 25)) continue;
+    if (pathDistance(x, z) < 9 || relicDistance(x, z) < 26) continue;
     if (heightAt(x, z) < 2 || slopeAt(x, z) > 0.28) continue;
     const gap = SPACING[tier];
     if (camps.some((c) => Math.abs(c.x - x) < gap && Math.abs(c.z - z) < gap && Math.hypot(c.x - x, c.z - z) < gap)) continue;

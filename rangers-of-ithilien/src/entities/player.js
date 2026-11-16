@@ -6,6 +6,7 @@ import { PLAYER, WORLD } from '../config.js';
 import { heightAt, WATER_LEVEL } from '../world/terrain.js';
 import { groundAt, terrainAt, blockedBySolid, resolveCircles, pointBlocked } from '../world/collision.js';
 import { southRoadZ } from '../world/layout.js';
+import { regionWeights } from '../world/regions.js';
 import { makeFigure, animateFigure, LOOKS } from './figure.js';
 
 /** Edges of the ranger's charge. Returns a line of text if (x, z) is out of bounds. */
@@ -125,7 +126,7 @@ export class Player {
   }
 }
 
-const _dir = new THREE.Vector3(), _target = new THREE.Vector3(), _look = { x: 0, y: 0, zoom: 0 };
+const _dir = new THREE.Vector3(), _target = new THREE.Vector3(), _look = { x: 0, y: 0, zoom: 0 }, _w = {};
 
 /** Third-person camera on a boom that shortens when something is in the way. */
 export class CameraRig {
@@ -162,12 +163,22 @@ export class CameraRig {
     }
     this.dist = free < this.dist ? free : this.dist + (free - this.dist) * Math.min(1, dt * 4);
 
+    // Among the tall heather the camera rides up over the bushes rather than
+    // pushing through them.
+    regionWeights(player.pos.x, player.pos.z, _w);
+    this.lift = (this.lift ?? 0) + (_w.foothill * 3.2 - (this.lift ?? 0)) * Math.min(1, dt * 2);
+
     const firstPerson = this.dist < 0.8;
     player.figure.visible = !firstPerson;
     const d = firstPerson ? -0.15 : this.dist;
     this.camera.position.set(_target.x - _dir.x * d, _target.y - _dir.y * d, _target.z - _dir.z * d);
     const c = this.camera.position;
-    this.camera.lookAt(c.x + _dir.x, c.y + _dir.y, c.z + _dir.z);
+    if (firstPerson) {
+      this.camera.lookAt(c.x + _dir.x, c.y + _dir.y, c.z + _dir.z);
+    } else {
+      c.y += this.lift * Math.min(1, this.dist / 4);
+      this.camera.lookAt(_target); // the ranger's head: the same as looking along the boom when there is no lift
+    }
   }
 
   /** Compass bearing in degrees, clockwise from north. */

@@ -132,7 +132,7 @@ export class Ground {
     group.add(mesh);
     const veg = buildVegetation(cx, cz, this.quality);
     for (const m of veg.meshes) group.add(m);
-    setChunkCircles(key, veg.circles, veg.bushes);
+    setChunkCircles(key, veg.circles);
     this.scene.add(group);
     this.chunks.set(key, { group, cx, cz });
   }

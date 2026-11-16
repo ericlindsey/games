@@ -7,6 +7,8 @@ import { CAMPS, blightAt } from './world/campSites.js';
 import { SITES } from './world/oldworks.js';
 import { forestDensity } from './world/forest.js';
 import { buildFarms } from './world/farms.js';
+import { buildRelics } from './world/relics.js';
+import { RELICS, RELIC_KINDS } from './world/relicSites.js';
 import { Motes } from './world/motes.js';
 import { heightAt } from './world/terrain.js';
 import { regionName, dangerTier } from './world/regions.js';
@@ -69,6 +71,7 @@ async function boot() {
   buildRuins(scene);
   await say('Laying the old walls\u2026');
   buildFarms(scene, quality.shadows);
+  buildRelics(scene, quality.shadows);
   const motes = new Motes(scene, quality.motes);
   const camps = new Camps(scene, (id) => state.cleared.includes(id));
 
@@ -98,7 +101,7 @@ async function boot() {
   // ---- interface ----
   const input = new Input(canvas);
   const hud = new Hud();
-  const ruinIds = LANDMARKS.filter((l) => l.kind && !['crossroads', 'osgiliath', 'morgul'].includes(l.kind)).map((l) => l.id);
+  const ruinIds = [...LANDMARKS.filter((l) => l.kind && !['crossroads', 'osgiliath', 'morgul'].includes(l.kind)).map((l) => l.id), ...RELICS.map((r) => r.id)];
   let started = false;
   const anyPanel = () => dialogue.open || map.open || menu.open;
   const resume = () => { input.enabled = started && !anyPanel(); document.body.classList.toggle('panel-open', anyPanel()); };
@@ -159,6 +162,12 @@ async function boot() {
       state.discovered.push(id);
       if (st.kind === 'hamlet') hud.toast('A ruined village', 'Hearths cold these many lives of men, and the trees coming in at the doors.');
       else if (!state.discovered.some((d) => d.startsWith('site:farm') && d !== id)) hud.toast('An old farmstead', 'Someone ploughed here once. The walls remember the fields.');
+      save();
+    }
+    for (const r of RELICS) {
+      if (state.discovered.includes(r.id) || Math.hypot(p.x - r.x, p.z - r.z) > 26) continue;
+      state.discovered.push(r.id);
+      hud.toast(...RELIC_KINDS[r.kind]);
       save();
     }
     for (const c of CAMPS) {
@@ -282,7 +291,7 @@ async function boot() {
   // For tests and for poking at the world from the console.
   window.roi = {
     ready: true, state, player, rig, input, camps, ground, renderer, heightAt, save, refuge,
-    landmarks: LANDMARKS, sites: SITES,
+    landmarks: LANDMARKS, sites: SITES, relics: RELICS,
     teleport(x, z, yaw = player.yaw, y = undefined) {
       player.place(x, z, yaw, y);
       rig.yaw = yaw;

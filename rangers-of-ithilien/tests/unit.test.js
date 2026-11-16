@@ -191,3 +191,17 @@ test('bad saves are rejected or repaired, never thrown', () => {
   storage.m.set(SAVE.key, '{not json');
   assert.equal(new SaveStore(storage).load(), null);
 });
+
+test('old paths join the places worth finding, and never lead over the cliff', async () => {
+  const { PATHS, pathDistance, pathWear } = await import('../src/world/paths.js');
+  const { RELICS } = await import('../src/world/relicSites.js');
+  assert.ok(PATHS.length > 80 && RELICS.length >= 30);
+  for (const r of RELICS) assert.ok(pathDistance(r.x, r.z + 7) < 3, `${r.id} is on a path`);
+  for (const s of SITES) assert.ok(pathDistance(s.x, s.z + (s.kind === 'hamlet' ? 0 : 9)) < 3, `${s.id} is on a path`);
+  assert.ok(pathDistance(HA.x - 29, HA.z + 26) < 3, 'a path starts at the head of the stair');
+  for (const pts of PATHS) for (const [x, z] of pts) {
+    assert.ok(!(x > 660 && x < HA.x + 30 && Math.abs(z - HA.z) < 20), 'no path crosses the pool or the cut');
+    const w = pathWear(x, z);
+    assert.ok(w >= 0.3 && w <= 1, 'a path always shows at least faintly along its line');
+  }
+});

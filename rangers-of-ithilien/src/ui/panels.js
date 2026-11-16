@@ -6,6 +6,8 @@ import { groundColor } from '../world/groundColor.js';
 import { LANDMARKS, haradRoadX, southRoadZ, bankX, streamZ, STREAM_COUNT, STREAM_END_X } from '../world/layout.js';
 import { CAMPS } from '../world/campSites.js';
 import { SITES } from '../world/oldworks.js';
+import { PATHS } from '../world/paths.js';
+import { RELICS } from '../world/relicSites.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -102,6 +104,7 @@ export class MapPanel {
       for (let x = STREAM_END_X - 100; x > bankX(streamZ(i, x)); x -= 15) pts.push([x, streamZ(i, x)]);
       line(pts, 'rgba(70,120,140,0.8)', 1.4);
     }
+    for (const pts of PATHS) line(pts, 'rgba(110,85,50,0.42)', 1, [2, 3]); // the old ways, faintly
     const harad = [], south = [];
     for (let z = 0; z <= WORLD.length; z += 40) harad.push([haradRoadX(z), z]);
     for (let x = bankX(3875); x <= WORLD.width; x += 40) south.push([x, southRoadZ(x)]);
@@ -127,6 +130,11 @@ export class MapPanel {
       for (const h of st.houses) ctx.fillRect(h.x * scale - 1.5, h.z * scale - 1.5, 3, 3);
       ctx.strokeStyle = 'rgba(90,70,45,0.5)'; ctx.lineWidth = 1;
       for (const f of st.fields) ctx.strokeRect(f.minX * scale, f.minZ * scale, (f.maxX - f.minX) * scale, (f.maxZ - f.minZ) * scale);
+    }
+    ctx.fillStyle = '#5a4630';
+    for (const r of RELICS) {
+      if (!state.discovered.includes(r.id)) continue;
+      ctx.beginPath(); ctx.moveTo(r.x * scale, r.z * scale - 3.5); ctx.lineTo(r.x * scale + 3, r.z * scale + 2.5); ctx.lineTo(r.x * scale - 3, r.z * scale + 2.5); ctx.fill();
     }
     for (const c of CAMPS) {
       if (!state.discovered.includes('camp:' + c.id)) continue;
