@@ -120,8 +120,8 @@ body.panel-open #btn-jump, body.panel-open #stick, body.panel-open #toast, body.
 #health { height: 9px; border: 1px solid rgba(255, 248, 228, 0.7); border-radius: 5px; background: rgba(0, 0, 0, 0.35); overflow: hidden; }
 #health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #a8322a, #cf5a3c); transition: width 0.25s; }
 #weapon { margin-top: 4px; }
-#tracker { margin-top: 3px; font-style: italic; opacity: 0.95; }
-#tracker.done { color: #ffe08a; }
+#tracker { margin-top: 3px; font-style: italic; opacity: 0.95; line-height: 1.35; }
+#tracker .done { color: #ffe08a; }
 #debug { top: 78px; }
 #crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -4px 0 0 -4px; border-radius: 50%;
   border: 1px solid rgba(255, 248, 228, 0.9); box-shadow: 0 0 3px rgba(0, 0, 0, 0.8); }
@@ -155,8 +155,6 @@ body.panel-open #btn-attack, body.panel-open #btn-heal, body.panel-open #crossha
 
 #hitmark { position: absolute; left: 50%; top: calc(50% - 46px); transform: translateX(-50%); color: #ffe08a; font-size: 20px; font-style: italic;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; }
-#hitmark.show { animation: hitmark 1.1s ease-out; }
-@keyframes hitmark { 0% { opacity: 1; transform: translate(-50%, 6px); } 100% { opacity: 0; transform: translate(-50%, -18px); } }
 #btn-aim { position: absolute; right: max(132px, calc(env(safe-area-inset-right) + 110px)); bottom: calc(max(34px, env(safe-area-inset-bottom)) + 104px);
   width: 64px; height: 64px; border-radius: 50%; background: rgba(239, 228, 200, 0.55); font-size: 13px; }
 #btn-aim.on { background: rgba(255, 224, 138, 0.9); }
@@ -165,3 +163,7 @@ body.panel-open #btn-aim, body.panel-open #hitmark { display: none !important; }
   box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.25); transform: rotate(1.5deg); }
 #dialogue-picture svg { display: block; width: 100%; height: auto; }
 #dialogue-picture figcaption { text-align: center; font-size: 12px; font-style: italic; color: var(--ink-soft); }
+.row-item.owned .what { opacity: 0.45; }
+#map-hint { font-size: 13px; font-style: italic; color: var(--ink-soft); text-align: center; max-width: 420px; }
+#map-canvas { cursor: pointer; }
+.version { margin-top: 22px; font-size: 12px; letter-spacing: 0.1em; opacity: 0.5; }

@@ -14,11 +14,21 @@ export const HA = {
   floor: 31,        // floor of the basin and the head of the cut
   caveFloor: 40,
   basin: { minX: 968, halfZ: 14, wall: 4, southSetBack: 2 }, // the south wall stands back to make room for the stair            // floor: x in [minX, x], |z - HA.z| < halfZ
-  gorge: { endX: 540, halfFloor: 6, halfTop: 10, fall: 0.01, channelOffset: -2.5 },
+  // The cut: a narrow slot, gently winding, that fades into an open valley at
+  // `endX` (fully gone by endX - 40). The stream keeps to its north side.
+  gorge: { endX: 760, halfFloor: 3.6, halfTop: 6.5, fall: 0.022, channelOffset: -1.4, wind: 3.2 },
   pool: { x: 985, z: 1187, r: 12 },
   rock: { minX: 1000, maxX: 1036, minZ: 1168, maxZ: 1212 }, // the mass that holds the cave
   spawn: { x: 1022, z: 1192, heading: -Math.PI / 2 },
 };
+
+/** Z of the middle of the cut below the pool at a given x: it winds a little. */
+export function gorgeZ(x) {
+  const run = HA.basin.minX - x; // metres down the cut
+  if (run <= 0) return HA.z;
+  const ease = run < 30 ? run / 30 : 1;
+  return HA.z + HA.gorge.wind * ease * (Math.sin(run / 26) + 0.45 * Math.sin(run / 11 + 1.3));
+}
 
 /** X of the Anduin's east bank at a given z. */
 export function bankX(z) {
@@ -91,9 +101,8 @@ export const LANDMARKS = [
 export function inClearing(x, z) {
   // the basin and the cut at Henneth Annûn (the woods crowd right up to the rim)
   const dz = Math.abs(z - HA.z);
-  if (dz < 25 && x > 640 && x < HA.x + 3) {
-    if (x > HA.basin.minX - 6 || dz < HA.gorge.halfTop + 1.5) return true;
-  }
+  if (dz < 25 && x > HA.basin.minX - 6 && x < HA.x + 3) return true;
+  if (x > HA.gorge.endX - 40 && x < HA.basin.minX && Math.abs(z - gorgeZ(x)) < HA.gorge.halfTop + 1.5) return true;
   for (const l of LANDMARKS) {
     if (l.clear && Math.abs(x - l.x) < l.clear && Math.abs(z - l.z) < l.clear &&
         Math.hypot(x - l.x, z - l.z) < l.clear) return true;

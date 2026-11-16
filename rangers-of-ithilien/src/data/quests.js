@@ -16,7 +16,7 @@ export const QUESTS = [
     remind: 'The nearest camp, ranger. It is marked on your map. Come back when it is cold for good.',
     done: 'Good. One fire the fewer, and the woods about our door are our own again. Take this; you will want it for the next.',
     objective: { type: 'clearCamp', camp: 'nearest' },
-    reward: { silver: 30, items: { draught: 2 }, arrows: 12, renown: 1 },
+    reward: { silver: 20, items: { draught: 2 }, arrows: 10, renown: 1 },
   },
   {
     id: 'f2', giver: 'faramir', requires: ['f1'], title: 'The home woods',
@@ -24,7 +24,7 @@ export const QUESTS = [
     remind: 'Five camps in all. Work outward from the falls.',
     done: 'Five. I walked out to one of them yesterday and there were flowers in the ash. Here is something to turn a blade; the next ones will bite harder.',
     objective: { type: 'clearCount', count: 5 },
-    reward: { silver: 50, items: { mailShirt: 1 }, renown: 1 },
+    reward: { silver: 30, items: { mailShirt: 1 }, renown: 1 },
   },
   {
     id: 'f3', giver: 'faramir', requires: ['f2'], title: 'The road under the mountains',
@@ -32,7 +32,7 @@ export const QUESTS = [
     remind: 'Find the Harad Road, and break a camp in the heather beyond it.',
     done: 'So the heather can be won too. I was not sure of it. Arrows, and silver for Mablung’s table.',
     objective: { type: 'all', of: [{ type: 'discover', ids: ['haradroad'] }, { type: 'clearWhere', where: 'heather', count: 1 }] },
-    reward: { silver: 70, arrows: 30, renown: 1 },
+    reward: { silver: 40, arrows: 20, renown: 1 },
   },
   {
     id: 'f4', giver: 'faramir', requires: ['f2'], title: 'The stockade',
@@ -40,7 +40,7 @@ export const QUESTS = [
     remind: 'A camp with a stockade and a captain. They lie well out from here. Go armed, and go mended.',
     done: 'A captain down. The rest will hear of it, and sleep the worse. This was my brother’s gift to the company, to be given for a deed like that. It is yours.',
     objective: { type: 'clearWhere', where: 'stockade', count: 1 },
-    reward: { silver: 60, items: { gondorBlade: 1 }, renown: 2 },
+    reward: { silver: 40, items: { gondorBlade: 1 }, renown: 2 },
   },
   {
     id: 'f5', giver: 'faramir', requires: ['f3'], title: 'The Cross-roads',
@@ -48,7 +48,7 @@ export const QUESTS = [
     remind: 'South, a long way, where the road from the river crosses the road from the Gate.',
     done: 'Still crowned with flowers? Then some things mend that I never looked to see mended. Thank you for the long walk.',
     objective: { type: 'discover', ids: ['crossroads'] },
-    reward: { silver: 90, items: { draught: 3 }, renown: 1 },
+    reward: { silver: 50, items: { draught: 3 }, renown: 1 },
   },
   {
     id: 'f6', giver: 'faramir', requires: ['f5'], title: 'The broken city',
@@ -56,7 +56,7 @@ export const QUESTS = [
     remind: 'Osgiliath: west along the southern road until you come to the river.',
     done: 'Broken, but not dead. We shall build it again, and I think you will carry stone for it. Until then, carry this.',
     objective: { type: 'discover', ids: ['osgiliath'] },
-    reward: { silver: 60, items: { greatBow: 1 }, renown: 2 },
+    reward: { silver: 40, items: { greatBow: 1 }, renown: 2 },
   },
   {
     id: 'f7', giver: 'faramir', requires: ['f4'], title: 'Thirty fires out',
@@ -64,7 +64,7 @@ export const QUESTS = [
     remind: 'Thirty in all. The map will show you what you have done.',
     done: 'Thirty! Then the letter goes south tonight. The White Company wears this; so shall you.',
     objective: { type: 'clearCount', count: 30 },
-    reward: { silver: 150, items: { ithilienMail: 1 }, renown: 2 },
+    reward: { silver: 90, items: { ithilienMail: 1 }, renown: 2 },
   },
   {
     id: 'f8', giver: 'faramir', requires: ['f7'], title: 'The garden of Gondor',
@@ -72,7 +72,7 @@ export const QUESTS = [
     remind: 'Every camp. Take the time it takes.',
     done: 'It is done, then. I did not think to say so in my lifetime. Go and look at the land, ranger. Walk it slowly. You have earned the sight of it more than any of us.',
     objective: { type: 'clearCount', count: 'all' },
-    reward: { silver: 500, renown: 5 },
+    reward: { silver: 300, items: { citadelMail: 1 }, renown: 5 },
   },
 
   {
@@ -85,11 +85,11 @@ export const QUESTS = [
   },
   {
     id: 'e2', giver: 'eowyn', title: 'The old places',
-    offer: 'I am making a map of what Ithilien was. Not the camps; Faramir has that map, and welcome to it. The old things: arches, shrines, standing stones, whatever was built here before the Shadow. Find me four of them.',
+    offer: 'I am making a map of what Ithilien was. Not the camps; Faramir has that map, and welcome to it. The old things: arches, shrines, standing stones, whatever was built here before the Shadow. They lie in every quarter of the land, and the old roads ran between them; the rangers still know those ways, and once you have found a place you can come and go by them. Find me four.',
     remind: 'Four of the old places. The old paths lead to most of them, if you can keep to a path.',
     done: 'Four! Sit, and tell me each one. … I shall draw them in tonight. This is for your trouble, and for the telling.',
     objective: { type: 'discoverCount', set: 'ruins', count: 4 },
-    reward: { silver: 40, items: { waybread: 4 }, renown: 1 },
+    reward: { silver: 25, items: { waybread: 4 }, renown: 1 },
   },
   {
     id: 'e3', giver: 'eowyn', requires: ['e2'], title: 'A village in the trees',
@@ -97,7 +97,7 @@ export const QUESTS = [
     remind: 'A ruined village: houses in a ring, a well, a broken cross. The lanes of great beeches lead to them.',
     done: 'A well, and a market cross? Then people will live there again; I mean to see to it. Thank you.',
     objective: { type: 'discoverCount', set: 'villages', count: 1 },
-    reward: { silver: 60, items: { draught: 2 }, renown: 1 },
+    reward: { silver: 35, items: { draught: 2 }, renown: 1 },
   },
   {
     id: 'e4', giver: 'eowyn', requires: ['e3'], title: 'The map of old Ithilien',
@@ -105,6 +105,6 @@ export const QUESTS = [
     remind: 'Fifteen of the old places in all.',
     done: 'Fifteen. Look: it is a country now, not a wilderness with names. I had this made for the one who filled it in.',
     objective: { type: 'discoverCount', set: 'ruins', count: 15 },
-    reward: { silver: 160, items: { hornBow: 1, draught: 4 }, renown: 2 },
+    reward: { silver: 90, items: { lebenninBow: 1, draught: 4 }, renown: 2 },
   },
 ];

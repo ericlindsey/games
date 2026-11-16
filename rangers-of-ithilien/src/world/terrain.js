@@ -4,7 +4,7 @@
 import { fbm, noise2, smoothstep, lerp } from '../util/noise.js';
 import { WORLD } from '../config.js';
 import {
-  HA, bankX, ANDUIN_WIDTH, haradRoadX, southRoadZ, CAIR_ANDROS, LANDMARKS,
+  HA, bankX, ANDUIN_WIDTH, haradRoadX, southRoadZ, CAIR_ANDROS, LANDMARKS, gorgeZ,
 } from './layout.js';
 import { fenWeight } from './regions.js';
 
@@ -58,7 +58,10 @@ const FLATS = LANDMARKS.filter((l) => l.flat).map((l) => ({ x: l.x, z: l.z, r0: 
 /** The land with the rock shelf of Henneth Annûn raised on it. */
 function shelved(x, z) {
   let h = natural(x, z);
-  const r = Math.hypot(x - (HA.x - 70), z - HA.z);
+  // The shelf falls away sooner to the west, so the cut below the pool is not
+  // too long before the land comes down to meet it.
+  const ox = x - (HA.x - 70);
+  const r = Math.hypot(ox < 0 ? ox * 1.6 : ox, z - HA.z);
   if (r < 310) h = lerp(h, HA.plateau, 1 - smoothstep(130, 310, r));
   return h;
 }
@@ -127,37 +130,81 @@ const nearHenneth = (x, z) => x > 600 && x < HA.x + 90 && Math.abs(z - HA.z) < 7
  */
 export const STREAMS = [];
 
-function trace(x, z, dirX, dirZ, firm = 0) {
+/**
+ * Pools: where a stream, walking downhill, comes round in a loop it has found a
+ * hollow. The loop is cut out of its course and a pool lies there instead, like
+ * the one at Henneth Annûn on a smaller scale. { x, z, r, stream, index, bed }.
+ */
+export const POOLS = [];
+
+/** @param home true for the home stream below the cut, which may pass near the refuge and its own upper course */
+function trace(x, z, dirX, dirZ, firm = 0, home = false) {
   const pts = [{ x, z }];
+  const pools = [];
   const STEP = 9, e = 7;
-  let best = x, stalled = 0;
+  let best = x, stalled = 0, escape = 0;
   for (let n = 0; n < 420; n++) {
     let gx = tracingHeight(x - e, z) - tracingHeight(x + e, z), gz = tracingHeight(x, z - e) - tracingHeight(x, z + e);
     const g = Math.hypot(gx, gz) || 1;
     const sure = Math.min(1, (g / (2 * e)) * 12); // on flat ground the slope says little: trust it less
     gx /= g; gz /= g;
     if (x < best - 1) { best = x; stalled = 0; } else stalled++;
-    const west = 0.2 + (1 - sure) * 0.5 + Math.min(2, stalled * 0.06); // and when going nowhere, make for the river
+    const west = 0.2 + (1 - sure) * 0.5 + Math.min(2, stalled * 0.06) + (escape > 0 ? 1.4 : 0); // and when going nowhere, make for the river
+    escape--;
     const keep = n < firm ? 3 : 0.55; // `firm` steps hold the starting course
     dirX = dirX * keep + gx * 0.6 * sure - west + noise2(n * 0.21, pts[0].z * 0.01, S + 700) * 0.18;
     dirZ = dirZ * keep + gz * 0.6 * sure + noise2(n * 0.17, pts[0].z * 0.013, S + 701) * 0.3;
+    // Streams that may not be joined (the home stream above its fall) push others away.
+    for (const st of STREAMS) {
+      if (!st.noJoin || home) continue;
+      for (const p of st.points) {
+        const ax = x - p.x, az = z - p.z, d2 = ax * ax + az * az;
+        if (d2 < 1600 && d2 > 1) { const k = (40 - Math.sqrt(d2)) / 40 * 1.5 / Math.sqrt(d2); dirX += ax * k; dirZ += az * k; }
+      }
+    }
     const d = Math.hypot(dirX, dirZ) || 1;
     dirX /= d; dirZ /= d;
     x += dirX * STEP; z += dirZ * STEP;
-    if (z < 50 || z > WORLD.length - 50 || (n >= firm && nearHenneth(x, z))) { if (globalThis.TRACE_DEBUG) console.log('lost at', n, x.toFixed(0), z.toFixed(0)); return null; } // lost, or blundering into the refuge
+    if (z < 50 || z > WORLD.length - 50 || (!home && n >= firm && nearHenneth(x, z))) { return null; } // lost, or blundering into the refuge
+    // Come round in a loop? Then this hollow holds a pool: cut the loop out,
+    // set the pool in it, and go on from where the loop began, west.
+    let looped = -1;
+    for (let k = pts.length - 5; k >= 0; k--) {
+      if (Math.abs(pts[k].x - x) < 14 && Math.abs(pts[k].z - z) < 14 && Math.hypot(pts[k].x - x, pts[k].z - z) < 14) { looped = k; break; }
+    }
+    if (looped >= 0) {
+      const loop = pts.slice(looped).concat([{ x, z }]);
+      let cx = 0, cz = 0;
+      for (const p of loop) { cx += p.x; cz += p.z; }
+      cx /= loop.length; cz /= loop.length;
+      let r = 0;
+      for (const p of loop) r = Math.max(r, Math.hypot(p.x - cx, p.z - cz));
+      r = Math.max(6, Math.min(13, r * 0.75));
+      const k = pts[looped], toK = Math.hypot(k.x - cx, k.z - cz);
+      if (toK > r - 2) { const t = (toK - (r - 2)) / toK; cx += (k.x - cx) * t; cz += (k.z - cz) * t; } // the stream must run through it
+      for (let q = pools.length - 1; q >= 0; q--) if (Math.hypot(pools[q].x - cx, pools[q].z - cz) < pools[q].r + r) pools.splice(q, 1); // one pool to a hollow
+      pools.push({ x: cx, z: cz, r, index: looped });
+      pts.length = looped + 1;
+      for (let q = pools.length - 1; q >= 0; q--) if (pools[q].index > looped) pools.splice(q, 1); // they lay on the course just cut away
+      x = k.x; z = k.z; dirX = -1; dirZ = 0; escape = 6;
+      continue;
+    }
     pts.push({ x, z });
-    if (x < bankX(z) - 8) return { points: pts, joins: null };   // reached the Great River
-    for (let si = 0; si < STREAMS.length; si++) {                 // or another stream
-      const other = STREAMS[si].points;
-      for (let i = 0; i < other.length; i++) {
-        if (Math.abs(other[i].x - x) < 11 && Math.abs(other[i].z - z) < 11 && !other[i].fixed) {
-          pts.push({ x: other[i].x, z: other[i].z });
-          return { points: pts, joins: { stream: si, index: i } };
+    if (x < bankX(z) - 8) return { points: pts, joins: null, pools };   // reached the Great River
+    if (n > 2) {
+      for (let si = 0; si < STREAMS.length; si++) {                 // or another stream, near enough to run together
+        if (STREAMS[si].noJoin) continue;
+        const other = STREAMS[si].points;
+        for (let i = 0; i < other.length; i++) {
+          const ax = other[i].x - x, az = other[i].z - z;
+          if (Math.abs(ax) < 28 && Math.abs(az) < 28 && ax * ax + az * az < 28 * 28 && !other[i].fixed) {
+            pts.push({ x: other[i].x, z: other[i].z });
+            return { points: pts, joins: { stream: si, index: i }, pools };
+          }
         }
       }
     }
   }
-  if (globalThis.TRACE_DEBUG) console.log('ran out at', x.toFixed(0), z.toFixed(0));
   return null;
 }
 
@@ -170,19 +217,22 @@ function buildStreams() {
     upper.push({ x, z: HA.z + m });
   }
   for (const x of [HA.x + 48, HA.x + 36, HA.x + 24, HA.x + 12, HA.x + 4]) upper.push({ x, z: HA.z, fixed: true });
-  STREAMS.push({ points: upper, joins: null, home: 'upper' });
+  STREAMS.push({ points: upper, joins: null, home: 'upper', noJoin: true }); // its bed is held up to the lip: nothing may join it
 
   // Through the pool and the cut the terrain is shaped by cutHenneth(); this
   // entry gives the water its line, and cuts the broad upper valley above the slot.
-  const g = HA.gorge, cutEnd = 650, cz = HA.z + g.channelOffset;
+  const g = HA.gorge, cutEnd = g.endX - 20;
   const cut = [];
-  for (let x = HA.basin.minX + 2; x >= cutEnd; x -= 6) {
-    cut.push({ x, z: cz, bed: HA.floor - g.fall * (HA.basin.minX - x) - 0.6, cut: HOME_BED, fixed: true });
+  for (let x = HA.basin.minX + 2; x >= cutEnd; x -= 5) {
+    const bed = HA.floor - g.fall * Math.max(0, HA.basin.minX - x) - 0.6;
+    // Along the slot the valley above it is cut only to the shelf's stream level;
+    // where the slot ends, the valley comes down to the water and opens out.
+    cut.push({ x, z: gorgeZ(x) + g.channelOffset, bed, cut: x < g.endX + 12 ? bed : HOME_BED, fixed: true });
   }
-  STREAMS.push({ points: cut, joins: null, home: 'cut' });
+  STREAMS.push({ points: cut, joins: null, home: 'cut', noJoin: true });
 
   // Below the cut it finds its own way to the river.
-  const lower = trace(cutEnd, cz, -1, 0, 12);
+  const lower = trace(cutEnd, cut[cut.length - 1].z, -1, 0, 6, true);
   lower.points[0].bed = cut[cut.length - 1].bed;
   STREAMS.push({ ...lower, home: 'lower' });
 
@@ -193,6 +243,9 @@ function buildStreams() {
   for (const [x, z] of springs) {
     const s = trace(x, z, -1, 0);
     if (s && s.points.length > 6) STREAMS.push(s);
+  }
+  for (let si = 0; si < STREAMS.length; si++) {
+    for (const p of STREAMS[si].pools ?? []) POOLS.push({ ...p, stream: si });
   }
 
   // Beds: below the untouched ground, and never rising on the way down.
@@ -224,8 +277,35 @@ function buildStreams() {
       bed -= 0.012;
     }
   }
+  // A pool's floor is the bed where its stream enters it.
+  for (const p of POOLS) p.bed = STREAMS[p.stream].points[p.index].bed;
 }
 buildStreams();
+
+const _pool = { p: null, d: 0 };
+/** The pool nearest a point, if within reach of its banks. */
+function nearestPool(x, z) {
+  _pool.p = null;
+  let best = Infinity;
+  for (const p of POOLS) {
+    const dx = x - p.x, dz = z - p.z, reach = p.r + VALLEY_REACH;
+    if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
+    const d = Math.hypot(dx, dz) - p.r;
+    if (d < VALLEY_REACH && d < best) { best = d; _pool.p = p; _pool.d = d; }
+  }
+  return _pool.p;
+}
+/** Ground shape of a pool: a shallow bowl below the bed, then a bank. d is distance from its edge. */
+function poolProfile(p, d) {
+  if (d < 0) return p.bed - 1.1 * (1 - smoothstep(-p.r * 0.6, 0, d));
+  if (d < 3) return p.bed + 0.9 * smoothstep(0, 3, d);
+  return p.bed + 0.9 + 0.28 * (d - 3);
+}
+/** True inside the water of a pool (used to keep the stream ribbon out of it). */
+export function inPool(x, z) {
+  for (const p of POOLS) if (Math.hypot(x - p.x, z - p.z) < p.r + 0.8) return true;
+  return false;
+}
 
 // Segments of every stream, in a grid, for finding the nearest stream to a point.
 const SCELL = 32;
@@ -290,8 +370,8 @@ export function streamDistance(x, z) {
  * the floor runs on without a step into the open valley: that is the way out.
  */
 function cutHenneth(x, z, h) {
-  const dz = Math.abs(z - HA.z);
-  if (x > HA.x || x < 610 || dz > 24) return h;
+  if (x > HA.x || x < HA.gorge.endX - 40 || Math.abs(z - HA.z) > 30) return h;
+  const dz = Math.abs(z - (x < HA.basin.minX ? gorgeZ(x) : HA.z));
   const b = HA.basin, g = HA.gorge;
   if (x > b.minX - b.wall) {
     const edge = b.halfZ + (z > HA.z ? b.southSetBack : 0);
@@ -301,9 +381,9 @@ function cutHenneth(x, z, h) {
   }
   if (x < b.minX + 4) {
     let floor = HA.floor - g.fall * Math.max(0, b.minX - x);
-    floor -= 0.6 * (1 - smoothstep(2.6, 3.6, Math.abs(z - (HA.z + g.channelOffset)))); // the stream's bed
+    floor -= 0.6 * (1 - smoothstep(1.6, 2.6, Math.abs(z - (gorgeZ(x) + g.channelOffset)))); // the stream's bed
     // the slot fades out over the last stretch, where the open valley begins
-    if (floor < h) h = lerp(h, floor, (1 - smoothstep(g.halfFloor, g.halfTop, dz)) * smoothstep(610, 650, x));
+    if (floor < h) h = lerp(h, floor, (1 - smoothstep(g.halfFloor, g.halfTop, dz)) * smoothstep(g.endX - 40, g.endX, x));
   }
   return h;
 }
@@ -314,6 +394,11 @@ export function heightAt(x, z) {
   if (nearestStream(x, z)) {
     const target = _near.cut + valleyProfile(_near.d);
     if (target < h) h = lerp(target, h, smoothstep(VALLEY_REACH * 0.62, VALLEY_REACH, _near.d));
+  }
+  const pool = nearestPool(x, z);
+  if (pool) {
+    const target = poolProfile(pool, _pool.d);
+    if (target < h) h = lerp(target, h, smoothstep(VALLEY_REACH * 0.62, VALLEY_REACH, _pool.d));
   }
   return cutHenneth(x, z, h);
 }

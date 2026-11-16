@@ -159,6 +159,9 @@ Rules of thumb:
 - Tasks are data (`data/quests.js`). Progress is computed from the saved state
   each time it is asked for, so there are no counters to keep in step. A new
   kind of objective needs a case in `systems/quests.js` `progress()`.
+- The economy is deliberately lean (loot tables in `systems/inventory.js`, prices
+  in `data/items.js`, quest rewards in `data/quests.js`). After playtest, 23 camps
+  gave 126 arrows and 767 silver, which was too much; keep that in mind when adding loot.
 - Water runs downhill. Stream beds come from `STREAMS` in terrain.js and never
   rise along a stream; draw water from those beds, never from a formula of your own.
 - Anything built on the ground is levelled to the ground as it stands there

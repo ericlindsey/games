@@ -64,12 +64,18 @@ export function sellPrice(id) {
 }
 export function buyPrice(entry) { return entry.price ?? ITEMS[entry.item].value; }
 
+/** True if the ranger already has this piece of gear, worn or in the pack. */
+export function owns(state, id) {
+  return Object.values(state.equipped).includes(id) || count(state, id) > 0;
+}
+
 /** What Mablung will sell at the ranger's present renown. */
 export function shopFor(state) { return SHOP.filter((e) => e.renown <= state.renown); }
 
 export function buy(state, entry) {
   const price = buyPrice(entry);
   if (state.silver < price || entry.renown > state.renown) return false;
+  if (ITEMS[entry.item]?.slot && owns(state, entry.item)) return false; // one of each is enough
   state.silver -= price;
   addItem(state, entry.item, entry.count ?? 1);
   return true;
@@ -86,26 +92,29 @@ export function describeLoot(loot) {
   return loot.map(([id, n]) => (id === 'silver' ? `${n} silver` : id === 'arrows' ? `${n} arrows` : n > 1 ? `${ITEMS[id].name} ×${n}` : ITEMS[id].name)).join(', ');
 }
 
-/** Loot from a fallen enemy: a list of [id, count]. `rand` gives floats in [0, 1). */
+/** Loot from a fallen enemy: a list of [id, count]. `rand` gives floats in [0, 1). Kept lean on purpose. */
 export function enemyLoot(type, tier, rand) {
   const loot = [];
-  if (rand() < 0.6) loot.push(['silver', 1 + Math.floor(rand() * (3 + tier * 3))]);
-  if (type === 'archer' ? rand() < 0.9 : rand() < 0.3) loot.push(['arrows', 2 + Math.floor(rand() * 5)]);
-  if (rand() < 0.35) loot.push([type === 'haradrim' ? (rand() < 0.4 ? 'haradGold' : 'blackCoin') : rand() < 0.75 ? 'orcTrinket' : 'blackCoin', 1]);
-  if (rand() < 0.07) loot.push(['waybread', 1]);
-  const gear = { snaga: ['orcScimitar', 0.05], archer: ['orcBow', 0.07], uruk: ['orcScimitar', 0.14], haradrim: ['haradBlade', 0.08], chief: ['haradBlade', 0.3] }[type];
+  if (rand() < 0.4) loot.push(['silver', 1 + Math.floor(rand() * (1 + tier * 1.5))]);
+  if (type === 'archer' ? rand() < 0.6 : rand() < 0.12) loot.push(['arrows', 1 + Math.floor(rand() * (type === 'archer' ? 3 : 2))]);
+  if (rand() < 0.25) loot.push([type === 'haradrim' ? (rand() < 0.4 ? 'haradGold' : 'blackCoin') : rand() < 0.75 ? 'orcTrinket' : 'blackCoin', 1]);
+  if (rand() < 0.04) loot.push(['waybread', 1]);
+  const gear = { snaga: ['orcScimitar', 0.03], archer: ['orcBow', 0.05], uruk: ['orcScimitar', 0.08], haradrim: ['haradBlade', 0.05], chief: ['haradBlade', 0.2] }[type];
   if (gear && rand() < gear[1]) loot.push([gear[0], 1]);
-  if (type === 'chief') loot.push(['silver', 20 + Math.floor(rand() * 20)], ['draught', 1]);
+  if (type === 'chief') {
+    loot.push(['silver', 10 + Math.floor(rand() * 12)]);
+    if (rand() < 0.5) loot.push(['draught', 1]);
+  }
   return loot;
 }
 
 /** What is worth taking from a camp once it is broken up. */
 export function stashLoot(camp, rand) {
-  const loot = [['silver', 4 + camp.size * 5 + Math.floor(rand() * (6 + camp.tier * 4))]];
-  if (rand() < 0.7) loot.push(['arrows', 4 + Math.floor(rand() * 8)]);
-  if (rand() < 0.3 + camp.size * 0.15) loot.push([rand() < 0.5 ? 'waybread' : 'draught', 1]);
-  if (rand() < 0.5) loot.push([rand() < 0.7 ? 'orcTrinket' : 'blackCoin', 1 + Math.floor(rand() * camp.size)]);
-  if (camp.size === 3) loot.push([rand() < 0.5 ? 'haradGold' : 'mailShirt', 1]);
-  else if (rand() < 0.06 * camp.tier) loot.push([rand() < 0.5 ? 'leatherJerkin' : 'hornBow', 1]);
+  const loot = [['silver', 2 + camp.size * 3 + Math.floor(rand() * (2 + camp.tier * 2))]];
+  if (rand() < 0.45) loot.push(['arrows', 2 + Math.floor(rand() * 5)]);
+  if (rand() < 0.2 + camp.size * 0.12) loot.push([rand() < 0.6 ? 'waybread' : 'draught', 1]);
+  if (rand() < 0.4) loot.push([rand() < 0.7 ? 'orcTrinket' : 'blackCoin', 1 + Math.floor(rand() * camp.size)]);
+  if (camp.size >= 3 && rand() < 0.5) loot.push(['haradGold', 1]);
+  if (camp.size === 4) loot.push([['brigandine', 'lebenninBow', 'dunedainSword'][Math.floor(rand() * 3)], 1]);
   return loot;
 }

@@ -75,6 +75,7 @@ export class Enemies {
         hp: def.hp * tough, maxHp: def.hp * tough, damage: def.damage * (1 + 0.14 * (camp.tier - 1)),
         state: 'idle', timer: rand() * 3, cooldown: 0, speed: 0, alerted: false, flash: 0, dead: false, deathT: 0,
         side: rand() < 0.5 ? -1 : 1, stuck: 0,
+        vy: 0, air: false, check: { t: 0, x, z }, stuckFor: 0,
       });
     });
   }
@@ -139,8 +140,38 @@ export class Enemies {
     if (ok(nx, e.z)) e.x = nx;
     if (ok(e.x, nz)) e.z = nz;
     resolveCircles(e, 0.4, 'stake');
-    e.y = groundAt(e.x, e.z, e.y);
+    if (!e.air) e.y = groundAt(e.x, e.z, e.y);
     return Math.hypot(e.x - x0, e.z - z0) > 1e-4;
+  }
+
+  /**
+   * Getting unstuck. Every second, see how far an enemy that wants to move has
+   * got. After a second of going nowhere it jumps (which clears a low wall);
+   * after four it is set down a step or two aside, on open ground, toward
+   * where it was trying to go.
+   */
+  unstick(e, tx, tz, dt) {
+    const c = e.check;
+    c.t += dt;
+    if (c.t < 1) return;
+    const moved = Math.hypot(e.x - c.x, e.z - c.z);
+    c.t = 0; c.x = e.x; c.z = e.z;
+    if (moved > 1.2) { e.stuckFor = 0; return; }
+    e.stuckFor++;
+    if (e.stuckFor >= 1 && !e.air) { e.vy = 6.8; e.air = true; }
+    if (e.stuckFor >= 4) {
+      const want = Math.atan2(tx - e.x, tz - e.z);
+      for (const off of [0, 0.7, -0.7, 1.4, -1.4, 2.2, -2.2, Math.PI]) {
+        for (const r of [1.6, 2.4, 3.2]) {
+          const nx = e.x + Math.sin(want + off) * r, nz = e.z + Math.cos(want + off) * r;
+          const g = groundAt(nx, nz, e.y + 1);
+          if (Math.abs(g - e.y) < 2 && !blockedBySolid(nx, nz, g, 0.45)) {
+            e.x = nx; e.z = nz; e.y = g; e.air = false; e.vy = 0; e.stuckFor = 0;
+            return;
+          }
+        }
+      }
+    }
   }
 
   moveToward(e, tx, tz, speed, dt) {
@@ -157,6 +188,7 @@ export class Enemies {
     const s = Math.min(d, speed * dt);
     const x0 = e.x, z0 = e.z;
     this.step(e, e.x + dx * s, e.z + dz * s);
+    if (d > 1.5) this.unstick(e, tx, tz, dt);
     if (Math.hypot(e.x - x0, e.z - z0) < s * 0.35 && e.stuck <= 0) { e.stuck = 0.7; e.side = -e.side; }
     e.speed = speed;
     this.face(e, dx, dz, dt);
@@ -216,6 +248,12 @@ export class Enemies {
       const fromCamp = pat ? Math.abs(e.x - haradRoadX(e.z)) : Math.hypot(e.x - e.camp.x, e.z - e.camp.z);
       e.cooldown -= dt;
       e.speed = 0;
+      if (e.air) { // in the air: fall back to whatever is underfoot
+        e.vy -= 20 * dt;
+        e.y += e.vy * dt;
+        const g = groundAt(e.x, e.z, e.y);
+        if (e.y <= g && e.vy <= 0) { e.y = g; e.vy = 0; e.air = false; }
+      }
 
       if (!e.alerted && alive && dy < 6 && dist < (quiet ? SIGHT_QUIET : SIGHT)) {
         for (const o of this.list) if (o.camp === e.camp && !o.dead) { o.alerted = true; if (o.state === 'idle') o.state = 'chase'; }

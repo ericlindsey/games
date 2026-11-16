@@ -87,6 +87,17 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate(() => roi.state.quests.active.includes('f1')), 'the task is taken');
   check((await page.textContent('#tracker')).includes('nearest fire'), 'and shown on the HUD');
 
+  // Take Éowyn's first task too: both show, each on its own line.
+  await page.evaluate(() => roi.teleport(roi.refuge.eowyn.x + 1.6, roi.refuge.eowyn.z - 0.6, 1, 40));
+  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('owyn'), null, { timeout: 20000 });
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('#dialogue:not([hidden])');
+  await page.click('#dialogue-options button:first-child');
+  check(await page.isVisible('#dialogue-picture svg'), 'Éowyn shows a drawing of kingsfoil');
+  await page.click('#dialogue-options button:first-child');
+  check(await page.evaluate(() => document.querySelectorAll('#tracker div').length === 2), 'every task in hand shows on the HUD');
+  check((await page.textContent('#tracker')).includes('Kingsfoil (0/5)'), 'with its count');
+
   // Mablung keeps the stores.
   await page.evaluate(() => { roi.state.silver = 40; roi.teleport(roi.refuge.mablung.x - 1.6, roi.refuge.mablung.z + 0.6, 1.5, 40); });
   await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('Mablung'), null, { timeout: 20000 });
@@ -98,6 +109,11 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   const purse = await page.evaluate(() => ({ silver: roi.state.silver, bread: roi.state.items.waybread ?? 0 }));
   await page.click('#trade-buy button');
   const bought = await page.evaluate(() => ({ silver: roi.state.silver, bread: roi.state.items.waybread ?? 0 }));
+  await page.evaluate(() => { roi.state.silver = 400; roi.state.renown = 2; roi.trade.draw(); });
+  await page.click('#trade-buy .row-item:has-text("Leather jerkin") button');
+  const jerkin = page.locator('#trade-buy .row-item:has-text("Leather jerkin") button');
+  check(await jerkin.isDisabled() && (await jerkin.textContent()).includes('have one'), 'gear already bought is greyed out and cannot be bought twice');
+  await page.evaluate((s) => { roi.state.silver = s.silver; roi.state.renown = 0; roi.state.items.leatherJerkin = 0; delete roi.state.items.leatherJerkin; roi.trade.draw(); }, bought);
   check(bought.bread === purse.bread + 1 && bought.silver < purse.silver, 'buying from Mablung costs silver and fills the pack');
   await page.click('#trade-sell button');
   check(await page.evaluate((s) => roi.state.silver > s, bought.silver), 'selling to him pays');
@@ -139,12 +155,26 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(off && Math.abs(top.y - (await page.evaluate((p) => roi.heightAt(p.x, p.z), top))) < 0.05 && top.y > head.y - 1.5,
     `and from its head you walk off into the forest (z ${top.z.toFixed(0)}, y ${top.y.toFixed(1)})`);
 
-  // The way out: from the pool, down the cut, to open ground in the woods.
-  await page.evaluate(() => { roi.teleport(970, 1193, -Math.PI / 2, 31); roi.rig.yaw = -Math.PI / 2; roi.input.haste = true; });
+  // The way out: from the pool, down the winding cut beside the stream, to open ground.
+  // A little steering helper keeps the ranger beside the water, as a person would.
+  await page.evaluate(() => {
+    const course = [...roi.streams.find((s) => s.home === 'cut').points, ...roi.streams.find((s) => s.home === 'lower').points.slice(0, 14)]
+      .map((p) => ({ x: p.x, z: p.z + 1.6 }));
+    window.courseEnd = course[course.length - 1];
+    roi.teleport(970, 1194, -Math.PI / 2, 31);
+    roi.input.haste = true;
+    window.steer = setInterval(() => {
+      const p = roi.player.pos;
+      let i = 0, bd = Infinity;
+      course.forEach((c, k) => { const d = Math.hypot(c.x - p.x, c.z - p.z); if (d < bd) { bd = d; i = k; } });
+      const t = course[Math.min(course.length - 1, i + 2)];
+      roi.rig.yaw = Math.atan2(t.x - p.x, t.z - p.z);
+    }, 16);
+  });
   await page.keyboard.down('KeyW');
-  const out = await page.waitForFunction(() => roi.player.pos.x < 610, null, { timeout: 60000 }).then(() => true, () => false);
+  const out = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - courseEnd.x, roi.player.pos.z - courseEnd.z) < 6, null, { timeout: 90000 }).then(() => true, () => false);
   await page.keyboard.up('KeyW');
-  await page.evaluate(() => { roi.input.haste = false; });
+  await page.evaluate(() => { clearInterval(steer); roi.input.haste = false; });
   const exit = await pos(page);
   check(out, `the cut leads out downstream (reached x ${exit.x.toFixed(0)})`);
   check(await page.evaluate((p) => roi.heightAt(p.x, p.z + 25) - p.y < 9 && !roi.refuge.isInside(roi.player.pos), exit), 'and the banks there are low enough to climb');
@@ -222,18 +252,22 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.keyboard.press('KeyR');
   await page.waitForFunction(() => roi.enemies.list.some((e) => !e.dead), null, { timeout: 30000 });
   const shots = await page.evaluate(() => {
+    // shoot from beside each target, with nothing in between, and hold them still
     const foes = roi.enemies.list.filter((e) => !e.dead && e.type !== 'chief');
-    const loose = (e, up, aimed) => roi.combat.shoot({ x: e.x + 6, y: e.y + 1.5, z: e.z }, { x: e.x, y: e.y + up * 1.78 * e.def.scale, z: e.z }, 5, 60, true, aimed);
+    const loose = (e, up, aimed) => roi.combat.shoot({ x: e.x + 2.5, y: e.y + up * 1.78 * e.def.scale, z: e.z }, { x: e.x, y: e.y + up * 1.78 * e.def.scale, z: e.z }, 5, 60, true, aimed);
     const [a, b] = foes;
+    for (const e of [a, b]) if (e) { e.def = { ...e.def, speed: 0 }; e.state = 'strike'; e.timer = 99; }
     loose(a, 0.92, true);          // an aimed shot at the head
     if (b) loose(b, 0.92, false);  // the same shot, not aimed (as the one-button attack makes)
+    window.shotA = a; window.shotB = b;
     return { a: a.type, hasB: !!b };
   });
-  await page.waitForFunction(() => roi.enemies.list.filter((e) => e.hp < e.maxHp).length >= 1 && roi.combat.arrows.length === 0, null, { timeout: 30000 });
-  const zones = await page.evaluate(() => roi.enemies.list.map((e) => ({ dead: e.dead, hurt: e.hp < e.maxHp })));
+  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 30000 });
+  const zones = await page.evaluate(() => [shotA, shotB].filter(Boolean).map((e) => ({ dead: e.dead, hurt: e.hp < e.maxHp })));
   check(zones[0].dead, 'an aimed arrow to the head kills');
   if (shots.hasB) check(zones[1].hurt && !zones[1].dead, 'the same arrow unaimed only wounds');
   check((await page.textContent('#hitmark')).includes('Head'), 'and the hit is called out');
+  check(await page.evaluate(() => Number(getComputedStyle(document.getElementById('hitmark')).opacity) > 0.2), 'at once, without waiting for anything else to redraw');
 
   // The trunk of a great tree stops an arrow.
   const stopped = await page.evaluate(() => {
@@ -263,6 +297,34 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   const clearedBefore = await page.evaluate(() => roi.state.cleared.length);
   await page.evaluate(() => { for (const e of roi.enemies.list.filter((e) => e.camp === band)) roi.enemies.damage(e, 9999); roi.combat.god = false; roi.enemies.reset(); });
   check(await page.evaluate((n) => roi.state.cleared.length === n, clearedBefore), 'beating a band does not count as clearing a camp');
+
+  // An enemy shut in a roofless house gets out: it jumps, and failing that is set aside.
+  const freed = await page.evaluate(() => {
+    roi.enemies.reset();
+    const h = roi.sites.find((s) => s.kind === 'farm').houses[0];
+    roi.teleport(h.x + h.w / 2 + 9, h.z, -Math.PI / 2);
+    roi.combat.god = true;
+    roi.enemies.spawnCamp({ id: 'test-house', x: h.x, z: h.z, tier: 1, size: 1 }, ['snaga']);
+    const e = roi.enemies.list.find((e) => e.camp.id === 'test-house');
+    e.x = h.x; e.z = h.z; e.y = roi.heightAt(h.x, h.z);
+    e.alerted = true; e.state = 'chase';
+    window.house = h;
+    return true;
+  });
+  const out2 = await page.waitForFunction(() => { const e = roi.enemies.list.find((e) => e.camp.id === 'test-house'); return e && (Math.abs(e.x - house.x) > house.w / 2 + 0.5 || Math.abs(e.z - house.z) > house.d / 2 + 0.5); }, null, { timeout: 60000 }).then(() => true, () => false);
+  check(freed && out2, 'an enemy stuck inside walls finds its way out');
+  await page.evaluate(() => { roi.enemies.reset(); roi.combat.god = false; });
+
+  // Old places found can be travelled to from the map.
+  await page.evaluate(() => { const r = roi.relics[5]; if (!roi.state.discovered.includes(r.id)) roi.state.discovered.push(r.id); window.dest = r; roi.teleport(700, 1000, 0); });
+  await page.keyboard.press('KeyM');
+  await page.waitForSelector('#map:not([hidden])');
+  check((await page.textContent('#map-hint')).includes('travel'), 'the map says old places can be travelled to');
+  const mbox = await page.locator('#map-canvas').boundingBox();
+  const dest = await page.evaluate(() => ({ x: dest.x / 2000, z: dest.z / 4000 }));
+  await page.mouse.click(mbox.x + mbox.width * dest.x, mbox.y + mbox.height * dest.z);
+  const went = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - dest.x, roi.player.pos.z - dest.z) < 25, null, { timeout: 30000 }).then(() => true, () => false);
+  check(went && await page.isHidden('#map'), 'clicking a found old place on the map goes there');
 
   // Quick travel home from the menu; beginning anew only at home.
   await page.evaluate(() => { roi.enemies.reset(); roi.teleport(700, 1000, 0); });

@@ -1,14 +1,14 @@
 // Panels that sit over the world: dialogue, the map, the menu and the title.
 
 import { WORLD } from '../config.js';
-import { heightAt, STREAMS } from '../world/terrain.js';
+import { heightAt, STREAMS, POOLS } from '../world/terrain.js';
 import { groundColor } from '../world/groundColor.js';
 import { LANDMARKS, haradRoadX, southRoadZ, bankX } from '../world/layout.js';
 import { CAMPS } from '../world/campSites.js';
 import { SITES } from '../world/oldworks.js';
 import { PATHS } from '../world/paths.js';
 import { RELICS } from '../world/relicSites.js';
-import { ITEMS } from '../data/items.js';
+import { ITEMS, SHOP } from '../data/items.js';
 import * as inv from '../systems/inventory.js';
 import * as quests from '../systems/quests.js';
 
@@ -73,10 +73,20 @@ export class MapPanel {
     $('map-close').onclick = () => this.close();
     /** If set, called with world (x, z) when the map is clicked (used by the testing page). */
     this.onPick = null;
+    /** Called with a travel place ({ name, x, z }) when one is clicked on the map. */
+    this.onTravel = null;
+    this.places = [];
     this.canvas.addEventListener('click', (e) => {
-      if (!this.onPick) return;
       const r = this.canvas.getBoundingClientRect();
-      this.onPick(((e.clientX - r.left) / r.width) * WORLD.width, ((e.clientY - r.top) / r.height) * WORLD.length);
+      const x = ((e.clientX - r.left) / r.width) * WORLD.width, z = ((e.clientY - r.top) / r.height) * WORLD.length;
+      if (this.onPick) { this.onPick(x, z); return; }
+      const reach = 18 * (WORLD.length / r.height); // about 18 screen pixels
+      let best = null, bd = reach;
+      for (const p of this.places) {
+        const d = Math.hypot(p.x - x, p.z - z);
+        if (d < bd) { bd = d; best = p; }
+      }
+      if (best && this.onTravel) this.onTravel(best);
     });
     this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
   }
@@ -106,8 +116,16 @@ export class MapPanel {
     this.base = c;
   }
 
-  /** @param state the saved-game state; player has x, z, yaw */
-  show(state, player) {
+  /**
+   * @param state the saved-game state; player has x, z, yaw
+   * @param places old places the ranger may travel to: [{ id, name, x, z }]
+   * @param inFight true if the enemy has seen the ranger (no travelling then)
+   */
+  show(state, player, places = [], inFight = false) {
+    this.places = places;
+    const hint = $('map-hint');
+    hint.textContent = !places.length ? 'The old places you find are marked here. You can travel to them by the old ways.'
+      : inFight ? 'Not while the enemy has seen you.' : 'Click an old place to travel there, or Henneth Ann\u00fbn to go home.';
     if (!this.base) this.drawBase();
     const scale = 0.3; // canvas pixels per metre
     const cv = this.canvas, W = WORLD.width * scale, H = WORLD.length * scale;
@@ -122,6 +140,8 @@ export class MapPanel {
       ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash); ctx.stroke();
       ctx.setLineDash([]);
     };
+    ctx.fillStyle = 'rgba(70,120,140,0.75)';
+    for (const p of POOLS) { ctx.beginPath(); ctx.arc(p.x * scale, p.z * scale, Math.max(2, p.r * scale), 0, 7); ctx.fill(); }
     for (const st of STREAMS) line(st.points.filter((p) => p.x > bankX(p.z)).map((p) => [p.x, p.z]), 'rgba(70,120,140,0.8)', 1.3);
     for (const pts of PATHS) line(pts, 'rgba(110,85,50,0.42)', 1, [2, 3]); // the old ways, faintly
     const harad = [], south = [];
@@ -155,10 +175,10 @@ export class MapPanel {
       if (!state.discovered.includes(r.id)) continue;
       ctx.beginPath(); ctx.moveTo(r.x * scale, r.z * scale - 3.5); ctx.lineTo(r.x * scale + 3, r.z * scale + 2.5); ctx.lineTo(r.x * scale - 3, r.z * scale + 2.5); ctx.fill();
     }
-    const goal = quests.tracker(state)?.target; // where the present task points
-    if (goal) {
-      ctx.strokeStyle = '#2f6b2a'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(goal.x * scale, goal.z * scale, 9, 0, 7); ctx.stroke();
+    for (const t of quests.trackers(state)) { // where each task in hand points
+      if (!t.target) continue;
+      ctx.strokeStyle = t.done ? '#b8902a' : '#2f6b2a'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(t.target.x * scale, t.target.z * scale, 9, 0, 7); ctx.stroke();
     }
     for (const c of CAMPS) {
       if (!state.discovered.includes('camp:' + c.id)) continue;
@@ -168,6 +188,10 @@ export class MapPanel {
       if (done) { ctx.arc(x, y, 4, 0, 7); } else { ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4); ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4); }
       ctx.stroke();
     }
+    // ways back by the old roads: a ring round each place the ranger can travel to
+    ctx.strokeStyle = 'rgba(58,47,31,0.85)'; ctx.lineWidth = 1.4;
+    for (const p of places) { ctx.beginPath(); ctx.arc(p.x * scale, p.z * scale, 6.5, 0, 7); ctx.stroke(); }
+
     // the ranger: an arrow pointing the way they face
     ctx.save();
     ctx.translate(player.pos.x * scale, player.pos.z * scale);
@@ -330,9 +354,13 @@ export class TradePanel {
     $('trade-purse').textContent = `You have ${st.silver} silver. Renown ${st.renown}: finish tasks and he will bring out better things.`;
     const buy = $('trade-buy'); buy.replaceChildren();
     for (const e of inv.shopFor(st)) {
-      const price = inv.buyPrice(e), it = ITEMS[e.item];
-      row(buy, e.name ?? it.name, it ? itemNote(it) : 'For the bow.', [[`Buy \u00b7 ${price}`, () => { inv.buy(st, e); this.h.onChange(); this.draw(); }, st.silver < price]]);
+      const price = inv.buyPrice(e), it = ITEMS[e.item], owned = it?.slot && inv.owns(st, e.item);
+      const el = row(buy, e.name ?? it.name, it ? itemNote(it) : 'For the bow.',
+        [[owned ? 'You have one' : `Buy \u00b7 ${price}`, () => { inv.buy(st, e); this.h.onChange(); this.draw(); }, owned || st.silver < price]]);
+      if (owned) el.classList.add('owned');
     }
+    const next = SHOP.find((e) => e.renown > st.renown);
+    if (next) empty(buy, `More when your renown reaches ${next.renown}.`);
     const sell = $('trade-sell'); sell.replaceChildren();
     const ids = Object.keys(st.items);
     for (const id of ids) {

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { heightAt } from '../src/world/terrain.js';
-import { HA, LANDMARKS, bankX, CROSSROADS, inClearing, haradRoadX } from '../src/world/layout.js';
+import { HA, LANDMARKS, bankX, CROSSROADS, inClearing, haradRoadX, gorgeZ } from '../src/world/layout.js';
 import { regionWeights, dangerTier } from '../src/world/regions.js';
 import { forestDensity, thicketDensity } from '../src/world/forest.js';
 import { CAMPS, blightAt, campNear } from '../src/world/campSites.js';
@@ -41,25 +41,41 @@ test('Henneth Annûn: a walled pool, a deep cut, and a way out downstream', () =
   assert.ok(depth(600) < 4, 'and has run out to ground level downstream');
 });
 
-test('you can walk out of the cut: from the pool, downstream, and up into the woods', () => {
+test('you can walk out of the cut: from the pool, down the stream, and up into the woods', async () => {
+  const { STREAMS } = await import('../src/world/terrain.js');
   // Walk as the player does: small steps, refusing any rise steeper than maxSlope.
-  const walk = (x, z, dx, dz, dist) => {
-    for (let d = 0; d < dist; d += 0.25) {
-      const nx = x + dx * 0.25, nz = z + dz * 0.25;
+  let x = HA.basin.minX + 4, z = HA.z + 3;
+  const walkTo = (tx, tz) => {
+    for (let n = 0; n < 400; n++) {
+      const dx = tx - x, dz = tz - z, d = Math.hypot(dx, dz);
+      if (d < 0.3) return;
+      const s = Math.min(0.25, d), nx = x + (dx / d) * s, nz = z + (dz / d) * s;
       const rise = heightAt(nx, nz) - heightAt(x, z);
-      assert.ok(rise / 0.25 <= PLAYER.maxSlope, `blocked at (${nx.toFixed(1)}, ${nz.toFixed(1)}): rise ${rise.toFixed(2)} m`);
+      assert.ok(rise / s <= PLAYER.maxSlope, `blocked at (${nx.toFixed(1)}, ${nz.toFixed(1)}): rise ${rise.toFixed(2)} m`);
       x = nx; z = nz;
     }
-    return [x, z];
   };
-  // from the foot of the stair, across the basin floor to the mouth of the cut
-  let [x, z] = walk(HA.basin.minX + 4, HA.z + 3, -1, 0, 8);
-  // down the cut, on the path south of the stream, until the walls are gone
-  [x, z] = walk(x, z, -1, 0, 380);
-  assert.ok(x < 600);
-  // and out to either side, onto open ground
-  walk(x, z, 0, 1, 70);
-  walk(x, z, 0, -1, 70);
+  // down the cut beside the stream, then on along the stream below it
+  const course = [...STREAMS.find((s) => s.home === 'cut').points, ...STREAMS.find((s) => s.home === 'lower').points.slice(0, 30)];
+  for (const p of course) walkTo(p.x, p.z + 1.6);
+  assert.ok(x < HA.gorge.endX - 40, 'well past the end of the slot');
+  // and out of the valley to either side, onto open ground
+  const [x0, z0] = [x, z];
+  walkTo(x0, z0 + 60);
+  x = x0; z = z0;
+  walkTo(x0, z0 - 60);
+});
+
+test('the cut is a narrow winding slot, deep near the pool and gone within 260 m', () => {
+  const g = HA.gorge;
+  const depth = (x) => Math.min(heightAt(x, gorgeZ(x) + g.halfTop + 6), heightAt(x, gorgeZ(x) - g.halfTop - 6)) - heightAt(x, gorgeZ(x) + 1.5);
+  assert.ok(depth(900) > 15, 'deep near the pool');
+  assert.ok(depth(g.endX - 40) < 4, 'run out by its end');
+  assert.ok(HA.basin.minX - (g.endX - 40) < 260, 'and not too long');
+  let lo = Infinity, hi = -Infinity;
+  for (let x = g.endX; x < HA.basin.minX; x += 4) { lo = Math.min(lo, gorgeZ(x)); hi = Math.max(hi, gorgeZ(x)); }
+  assert.ok(hi - lo > 4, 'it winds');
+  assert.ok(g.halfTop * 2 < 15, 'and is narrow');
 });
 
 test('every landmark stands on dry land inside the world', () => {
@@ -222,7 +238,8 @@ test('old paths join the places worth finding, and never lead over the cliff', a
   for (const s of SITES) assert.ok(pathDistance(s.x, s.z + (s.kind === 'hamlet' ? 0 : 9)) < 3, `${s.id} is on a path`);
   assert.ok(pathDistance(HA.x - 29, HA.z + 26) < 3, 'a path starts at the head of the stair');
   for (const pts of PATHS) for (const [x, z] of pts) {
-    assert.ok(!(x > 660 && x < HA.x + 30 && Math.abs(z - HA.z) < 20), 'no path crosses the pool or the cut');
+    assert.ok(!(x > HA.basin.minX - 6 && x < HA.x + 30 && Math.abs(z - HA.z) < 20), 'no path crosses the pool');
+    assert.ok(!(x > HA.gorge.endX && x < HA.basin.minX && Math.abs(z - gorgeZ(x)) < HA.gorge.halfTop + 2), 'or the cut');
     const w = pathWear(x, z);
     assert.ok(w >= 0.3 && w <= 1, 'a path always shows at least faintly along its line');
   }
@@ -251,14 +268,22 @@ test('the pack: carrying, wearing, using, buying and selling', async () => {
   assert.equal(inv.quickHeal(s), 'waybread', 'scratched: the small one will do');
   assert.equal(inv.useItem(s, 'waybread'), 10, 'healing stops at full health');
 
-  s.silver = 10; s.renown = 0;
+  s.silver = 14; s.renown = 0;
   const mail = SHOP.find((e) => e.item === 'mailShirt');
   assert.ok(!inv.shopFor(s).includes(mail), 'better gear waits on renown');
   assert.ok(!inv.buy(s, mail));
   assert.ok(inv.buy(s, SHOP.find((e) => e.item === 'arrows')));
   assert.equal(s.arrows, 34);
   assert.equal(s.silver, 2);
+  inv.addItem(s, 'mailShirt');
+  s.renown = 2; s.silver = 500;
+  assert.ok(!inv.buy(s, mail), 'gear already owned is not sold twice');
+  assert.ok(inv.owns(s, 'rangerSword'), 'worn gear counts as owned');
+  assert.equal(s.silver, 500);
+  s.silver = 2;
   assert.ok(!inv.buy(s, SHOP.find((e) => e.item === 'draught')), 'cannot buy without the silver');
+  assert.ok(SHOP.every((e) => e.item === 'arrows' || ITEMS[e.item]), 'everything in the shop is a real item');
+  assert.ok(Math.max(...SHOP.map((e) => e.renown)) >= 12, 'and there is something to work toward');
   inv.addItem(s, 'haradGold');
   assert.ok(inv.sell(s, 'haradGold'));
   assert.equal(s.silver, 2 + ITEMS.haradGold.value);
@@ -292,7 +317,7 @@ test('tasks: offered in order, tracked, and rewarded once', async () => {
   assert.ok(q.tracker(s).done);
   const loot = q.turnIn(s, 'f1');
   assert.ok(loot.some(([id]) => id === 'silver'));
-  assert.equal(s.silver, 30);
+  assert.equal(s.silver, 20);
   assert.equal(s.renown, 1);
   assert.equal(q.turnIn(s, 'f1'), null, 'and only once');
   assert.equal(q.offerFrom('faramir', s).id, 'f2');

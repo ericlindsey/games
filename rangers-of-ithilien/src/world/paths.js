@@ -4,7 +4,8 @@
 
 import { noise2, smoothstep } from '../util/noise.js';
 import { WORLD } from '../config.js';
-import { HA, LANDMARKS, haradRoadX, southRoadZ, bankX } from './layout.js';
+import { HA, LANDMARKS, haradRoadX, southRoadZ, bankX, gorgeZ } from './layout.js';
+import { STREAMS } from './terrain.js';
 import { SITES } from './oldworks.js';
 import { RELICS } from './relicSites.js';
 
@@ -14,7 +15,8 @@ const S = WORLD.seed;
 const nodes = [];
 const node = (x, z, road = false) => nodes.push({ x, z, road });
 node(HA.x - 29, HA.z + 26);      // the head of the stair at Henneth Annûn
-node(636, HA.z + 4);             // where the stream runs out of the cut
+const outOfCut = STREAMS.find((s) => s.home === 'lower').points[3];
+node(outOfCut.x, outOfCut.z + 5); // where the stream runs out of the cut
 for (const s of SITES) node(s.x, s.z + (s.kind === 'hamlet' ? 0 : 9));
 for (const l of LANDMARKS) if (l.kind && l.kind !== 'morgul' && l.kind !== 'osgiliath' && l.kind !== 'crossroads') node(l.x, l.z + (l.flat ?? 10) * 0.6);
 node(LANDMARKS.find((l) => l.id === 'cormallen').x, HA.z + 30);
@@ -26,7 +28,8 @@ for (let x = 420; x < 1500; x += 300) node(x, southRoadZ(x), true);
 function crossesCut(a, b) {
   for (let t = 0; t <= 1; t += 0.05) {
     const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
-    if (x > 655 && x < HA.x + 40 && Math.abs(z - HA.z) < 22) return true;
+    if (x > HA.basin.minX - 8 && x < HA.x + 40 && Math.abs(z - HA.z) < 22) return true;
+    if (x > HA.gorge.endX - 25 && x <= HA.basin.minX - 8 && Math.abs(z - gorgeZ(x)) < 16) return true;
   }
   return false;
 }
