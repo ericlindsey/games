@@ -53,18 +53,23 @@ src/
   config.js           world size, seed, player and quality tunables
   data/dialogue.js    what people say
   world/
-    layout.js         WHERE THINGS ARE: landmarks, camps, roads, streams (pure)
-    terrain.js        heightAt(x, z) (pure)
-    regions.js        region weights, forest density, danger tier, blight (pure)
+    layout.js         WHERE THINGS ARE: Henneth Annûn, landmarks, roads, streams (pure)
+    regions.js        region weights, danger tier (pure)
+    terrain.js        heightAt(x, z), incl. the basin and cut at Henneth Annûn (pure)
+    oldworks.js       old farms and hamlets: houses, fields, lanes, planted rows (pure)
+    campSites.js      100+ enemy camps, blight (pure)
+    forest.js         forest density, heather thicket density (pure)
     groundColor.js    ground colour by place, height, slope (pure)
-    collision.js      solids (boxes: wall + floor) and circles (trunks) (pure)
-    terrainMesh.js    near chunks + far backdrop
-    vegetation.js     tree and undergrowth species, per-chunk instancing
+    collision.js      solids (boxes: wall + floor), circles (trunks), hollows (cave) (pure)
+    terrainMesh.js    near chunks, far backdrop, far forest roof
+    vegetation.js     all plant species, per-chunk instancing
     water.js          the Anduin and stream ribbons
-    atmosphere.js     sky, sun, fog, and the blight mood shift
-    hennethAnnun.js   the cave, falls and pool set piece
-    ruins.js          ruins and large landmarks
-    camps.js          enemy camp sites
+    atmosphere.js     sky, sun, fog; blight, under-canopy shade, cave dimming
+    motes.js          drifting motes of light under the trees
+    hennethAnnun.js   the cave rock, the stair, the fall and pool
+    ruins.js          named ruins and large landmarks
+    farms.js          builds the old farms and hamlets from oldworks.js
+    camps.js          builds the camps from campSites.js
     build.js          GeoBuilder and other geometry helpers
   entities/           player + camera rig, low-poly figures
   input/input.js      keyboard, mouse and touch -> one input state
@@ -77,6 +82,8 @@ tests/
 ```
 
 Files marked (pure) must not import Three.js or touch the DOM, so they run in Node tests.
+Their import order is fixed, to avoid cycles:
+layout -> regions -> terrain -> oldworks -> campSites -> forest -> groundColor.
 
 Rules of thumb:
 
@@ -101,9 +108,19 @@ Rules of thumb:
 
 - Play area: bounded by the Anduin (west), the Ephel Dúath (east), the
   Osgiliath–Minas Ithil road (south), and the thinning of the forest (north).
+- The world is 2 km east-west by 4 km north-south.
 - Henneth Annûn sits in the northern third, about halfway between river and
-  mountains. The fall faces **west** (it is the Window of the Sunset); its stream
-  runs west to the Anduin.
+  mountains. The fall faces **west** (it is the Window of the Sunset). The pool is
+  walled in by cliffs and cannot be seen until you stand over it. The stream leaves
+  by a deep narrow cut running west; the stair to the cave is inside the cut, and
+  the cut runs out to ground level about 300 m downstream.
+- Ithilien was the garden of Gondor: farmland and villages, now long abandoned and
+  half taken back by forest. Great trees "planted long ago" stand 25-38 m tall over
+  a riot of younger growth; old field walls, roofless houses and rows of planted
+  trees show through. Woods with wide glades in the north, closing to deep forest
+  in the south. Herbs and flowers everywhere.
+- East of the Harad Road the country is tall heather and gorse, over head height,
+  with winding ways between.
 - The land rises from the river in the west to the mountains in the east. Streams
   run east to west.
 - Danger grows with distance from Henneth Annûn, and is worst toward the mountains,

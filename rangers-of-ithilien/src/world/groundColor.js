@@ -4,14 +4,17 @@
 import { noise2, smoothstep, lerp } from '../util/noise.js';
 import { WORLD } from '../config.js';
 import { regionWeights } from './regions.js';
-import { roadDistance, streamDistance, ROAD_HALF_WIDTH, bankX, southRoadZ } from './layout.js';
+import { forestDensity } from './forest.js';
+import { inField } from './oldworks.js';
+import { roadDistance, streamDistance, ROAD_HALF_WIDTH, bankX, southRoadZ, HA } from './layout.js';
 
 const S = WORLD.seed;
 const hex = (h) => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];
 
 const C = {
   central: hex(0x7aa64a), lawn: hex(0x8fbf55), south: hex(0x56843f), heath: hex(0xa3a264),
-  heather: hex(0x94708f), river: hex(0x86a85c), fen: hex(0x6f8450), foothill: hex(0x90905f),
+  heather: hex(0x94708f), river: hex(0x86a85c), fen: hex(0x6f8450), foothill: hex(0x8b8562),
+  floor: hex(0x4b6a3a), meadow: hex(0x9dbb62),
   rock: hex(0x8f8877), darkRock: hex(0x5d5a61), mud: hex(0xa3966f), bed: hex(0x55604c),
   road: hex(0xb9ae93), canopy: hex(0x3f7436), canopySouth: hex(0x2f5c33), sick: hex(0x6b6f55),
 };
@@ -37,6 +40,11 @@ export function groundColor(x, z, h, slope, out) {
   }
   mix(out, C.fen, w.fen * 0.8);
   mix(out, C.lawn, w.lawn * 0.85);
+  // Old fields are still paler meadow; under the trees the floor is dark and mossy.
+  if (x > bankX(z)) {
+    if (inField(x, z)) mix(out, C.meadow, 0.45);
+    mix(out, C.floor, forestDensity(x, z) * 0.6);
+  }
 
   // Mottling so large fields do not read as one flat colour.
   const m = 1 + noise2(x / 55, z / 55, S + 410) * 0.14 + noise2(x / 9, z / 9, S + 420) * 0.09;
@@ -55,11 +63,17 @@ export function groundColor(x, z, h, slope, out) {
   if (h < 1.6) mix(out, C.mud, 1 - smoothstep(0.4, 1.6, h));
   if (h < 0.2) mix(out, C.bed, 1 - smoothstep(-2.5, 0.2, h));
 
+  // The floor of the basin and the cut at Henneth Annûn is wet stone and shingle.
+  if (h < HA.plateau - 9 && Math.abs(z - HA.z) < 22 && x > HA.gorge.endX + 40 && x < HA.x + 1) {
+    mix(out, C.rock, 0.75);
+    out[0] *= 0.82; out[1] *= 0.84; out[2] *= 0.84;
+  }
+
   // Bare rock on steep ground; the mountains are dark stone.
   if (slope > 0.45) mix(out, C.rock, smoothstep(0.45, 0.85, slope));
-  if (x > 2600) {
-    const morgul = 1 - smoothstep(80, 320, Math.abs(z - southRoadZ(x)));
-    mix(out, C.darkRock, smoothstep(2700, 2950, x) * (0.75 + 0.25 * morgul));
+  if (x > 1640) {
+    const morgul = 1 - smoothstep(60, 220, Math.abs(z - southRoadZ(x)));
+    mix(out, C.darkRock, smoothstep(1700, 1880, x) * (0.75 + 0.25 * morgul));
   }
 }
 

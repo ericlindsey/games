@@ -2,9 +2,14 @@
 
 import * as THREE from 'three';
 import { QUALITY, SAVE } from './config.js';
-import { HA, LANDMARKS, CAMPS } from './world/layout.js';
+import { HA, LANDMARKS } from './world/layout.js';
+import { CAMPS, blightAt } from './world/campSites.js';
+import { SITES } from './world/oldworks.js';
+import { forestDensity } from './world/forest.js';
+import { buildFarms } from './world/farms.js';
+import { Motes } from './world/motes.js';
 import { heightAt } from './world/terrain.js';
-import { regionName, dangerTier, blightAt } from './world/regions.js';
+import { regionName, dangerTier } from './world/regions.js';
 import { Ground } from './world/terrainMesh.js';
 import { Atmosphere } from './world/atmosphere.js';
 import { Water } from './world/water.js';
@@ -62,6 +67,9 @@ async function boot() {
   await say('Hollowing the cave…');
   const refuge = buildHennethAnnun(scene, water);
   buildRuins(scene);
+  await say('Laying the old walls\u2026');
+  buildFarms(scene, quality.shadows);
+  const motes = new Motes(scene, quality.motes);
   const camps = new Camps(scene, (id) => state.cleared.includes(id));
 
   // ---- people ----
@@ -145,9 +153,17 @@ async function boot() {
       hud.toast(l.name, l.blurb);
       save();
     }
+    for (const st of SITES) {
+      const id = 'site:' + st.id;
+      if (state.discovered.includes(id) || Math.hypot(p.x - st.x, p.z - st.z) > 45) continue;
+      state.discovered.push(id);
+      if (st.kind === 'hamlet') hud.toast('A ruined village', 'Hearths cold these many lives of men, and the trees coming in at the doors.');
+      else if (!state.discovered.some((d) => d.startsWith('site:farm') && d !== id)) hud.toast('An old farmstead', 'Someone ploughed here once. The walls remember the fields.');
+      save();
+    }
     for (const c of CAMPS) {
       const id = 'camp:' + c.id;
-      if (state.discovered.includes(id) || Math.hypot(p.x - c.x, p.z - c.z) > 32) continue;
+      if (state.discovered.includes(id) || Math.hypot(p.x - c.x, p.z - c.z) > 28) continue;
       state.discovered.push(id);
       hud.toast('An enemy camp', state.cleared.includes(c.id) ? 'Cleared, and mending.' : 'The fire is cold. Whoever laired here is not far.');
       save();
@@ -205,7 +221,7 @@ async function boot() {
   if (params.has('debug')) hud.debug.hidden = false;
 
   // ---- loop ----
-  let last = performance.now(), time = 0, slow = 0, autosave = 0, fps = 60;
+  let last = performance.now(), time = 0, slow = 0, autosave = 0, fps = 60, shade = 0;
   const loop = (now) => {
     requestAnimationFrame(loop);
     const elapsed = (now - last) / 1000;
@@ -222,7 +238,10 @@ async function boot() {
     ground.update(player.pos.x, player.pos.z, 1);
     camps.update(dt);
     const blight = blightAt(player.pos.x, player.pos.z, camps.strength);
-    atmosphere.update(camera, player.pos, blight, dt);
+    const inside = refuge.isInside(player.pos);
+    shade += ((inside ? 0 : forestDensity(player.pos.x, player.pos.z)) - shade) * Math.min(1, dt * 1.5);
+    atmosphere.update(camera, player.pos, blight, dt, shade, inside);
+    motes.update(time, camera, player.pos.y, inside ? 0 : shade * (1 - blight));
     water.update(time);
     refuge.update(time);
 
@@ -262,7 +281,8 @@ async function boot() {
 
   // For tests and for poking at the world from the console.
   window.roi = {
-    ready: true, state, player, rig, input, camps, ground, renderer, heightAt, save,
+    ready: true, state, player, rig, input, camps, ground, renderer, heightAt, save, refuge,
+    landmarks: LANDMARKS, sites: SITES,
     teleport(x, z, yaw = player.yaw, y = undefined) {
       player.place(x, z, yaw, y);
       rig.yaw = yaw;

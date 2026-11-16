@@ -3,7 +3,9 @@
 import { WORLD } from '../config.js';
 import { heightAt } from '../world/terrain.js';
 import { groundColor } from '../world/groundColor.js';
-import { LANDMARKS, CAMPS, haradRoadX, southRoadZ, bankX, streamZ, STREAM_COUNT, STREAM_END_X } from '../world/layout.js';
+import { LANDMARKS, haradRoadX, southRoadZ, bankX, streamZ, STREAM_COUNT, STREAM_END_X } from '../world/layout.js';
+import { CAMPS } from '../world/campSites.js';
+import { SITES } from '../world/oldworks.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -56,7 +58,7 @@ export class MapPanel {
 
   /** The land itself, drawn once: 20 m to the pixel, tinted like an old chart. */
   drawBase() {
-    const step = 20, w = WORLD.width / step, h = WORLD.length / step;
+    const step = 10, w = WORLD.width / step, h = WORLD.length / step;
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const ctx = c.getContext('2d');
@@ -66,10 +68,10 @@ export class MapPanel {
       for (let i = 0; i < w; i++) {
         const x = (i + 0.5) * step, z = (j + 0.5) * step;
         const y = heightAt(x, z);
-        const gx = heightAt(x + 12, z) - y, gz = heightAt(x, z + 12) - y;
+        const gx = heightAt(x + 8, z) - y, gz = heightAt(x, z + 8) - y;
         if (y < 0) { rgb[0] = 0.55; rgb[1] = 0.7; rgb[2] = 0.75; }
-        else groundColor(x, z, y, Math.hypot(gx, gz) / 12, rgb);
-        const shade = Math.max(0.55, Math.min(1.15, 1 + (gx - gz * 0.4) * 0.035)); // lit from the west
+        else groundColor(x, z, y, Math.hypot(gx, gz) / 8, rgb);
+        const shade = Math.max(0.55, Math.min(1.15, 1 + (gx - gz * 0.4) * 0.05)); // lit from the west
         const o = (j * w + i) * 4;
         for (let k = 0; k < 3; k++) img.data[o + k] = 255 * Math.min(1, (rgb[k] * 0.62 + paper[k] * 0.38) * shade);
         img.data[o + 3] = 255;
@@ -82,7 +84,7 @@ export class MapPanel {
   /** @param state the saved-game state; player has x, z, yaw */
   show(state, player) {
     if (!this.base) this.drawBase();
-    const scale = 4 / 20; // canvas pixels per metre
+    const scale = 0.3; // canvas pixels per metre
     const cv = this.canvas, W = WORLD.width * scale, H = WORLD.length * scale;
     cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d');
@@ -97,12 +99,12 @@ export class MapPanel {
     };
     for (let i = 0; i < STREAM_COUNT; i++) {
       const pts = [];
-      for (let x = STREAM_END_X - 100; x > bankX(streamZ(i, x)); x -= 25) pts.push([x, streamZ(i, x)]);
+      for (let x = STREAM_END_X - 100; x > bankX(streamZ(i, x)); x -= 15) pts.push([x, streamZ(i, x)]);
       line(pts, 'rgba(70,120,140,0.8)', 1.4);
     }
     const harad = [], south = [];
     for (let z = 0; z <= WORLD.length; z += 40) harad.push([haradRoadX(z), z]);
-    for (let x = bankX(6200); x <= WORLD.width; x += 40) south.push([x, southRoadZ(x)]);
+    for (let x = bankX(3875); x <= WORLD.width; x += 40) south.push([x, southRoadZ(x)]);
     line(harad, 'rgba(90,60,30,0.75)', 1.5, [5, 3]);
     line(south, 'rgba(90,60,30,0.75)', 1.5, [5, 3]);
 
@@ -117,6 +119,14 @@ export class MapPanel {
       const tx = x + 6 + tw > W - 4 ? x - 6 - tw : x + 6;
       ctx.strokeStyle = 'rgba(239,228,200,0.85)'; ctx.lineWidth = 3; ctx.strokeText(text, tx, y);
       ctx.fillText(text, tx, y);
+    }
+    // old farms and hamlets appear once you have walked near them
+    ctx.fillStyle = 'rgba(90,70,45,0.85)';
+    for (const st of SITES) {
+      if (!state.discovered.includes('site:' + st.id)) continue;
+      for (const h of st.houses) ctx.fillRect(h.x * scale - 1.5, h.z * scale - 1.5, 3, 3);
+      ctx.strokeStyle = 'rgba(90,70,45,0.5)'; ctx.lineWidth = 1;
+      for (const f of st.fields) ctx.strokeRect(f.minX * scale, f.minZ * scale, (f.maxX - f.minX) * scale, (f.maxZ - f.minZ) * scale);
     }
     for (const c of CAMPS) {
       if (!state.discovered.includes('camp:' + c.id)) continue;

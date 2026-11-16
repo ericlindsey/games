@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { PLAYER, WORLD } from '../config.js';
 import { heightAt, WATER_LEVEL } from '../world/terrain.js';
-import { groundAt, blockedBySolid, resolveCircles, pointBlocked } from '../world/collision.js';
+import { groundAt, terrainAt, blockedBySolid, resolveCircles, pointBlocked } from '../world/collision.js';
 import { southRoadZ } from '../world/layout.js';
 import { makeFigure, animateFigure, LOOKS } from './figure.js';
 
@@ -12,7 +12,7 @@ import { makeFigure, animateFigure, LOOKS } from './figure.js';
 function boundary(x, z) {
   if (z < 60) return 'North lies only the waste before the Black Gate. Your charge is Ithilien.';
   if (z > southRoadZ(x) + 70) return 'Your charge lies north of the road.';
-  if (x > 2870) return 'The way into the mountains is barred, and wisely.';
+  if (x > 1782) return 'The way into the mountains is barred, and wisely.';
   if (x > WORLD.width - 20 || x < -40) return 'You can go no farther.';
   return null;
 }
@@ -43,17 +43,19 @@ export class Player {
   canStand(nx, nz) {
     const p = this.pos;
     if (blockedBySolid(nx, nz, p.y, PLAYER.radius)) return false;
-    const h = heightAt(nx, nz);
-    if (h < WATER_LEVEL - PLAYER.maxWadeDepth) {
+    if (heightAt(nx, nz) < WATER_LEVEL - PLAYER.maxWadeDepth) {
       this.notice('The Great River is too deep and swift to cross here.');
       return false;
     }
     const why = boundary(nx, nz);
     if (why) { this.notice(why); return false; }
-    // Too steep to climb? Only matters when walking on the terrain itself.
+    // Rising ground: walkable only if we are on the terrain and it is not too steep.
+    const h = terrainAt(nx, nz, p.y);
     if (this.onGround && h > p.y + 0.02) {
+      const here = terrainAt(p.x, p.z, p.y);
+      if (Math.abs(here - p.y) > 0.1) return h <= p.y + PLAYER.stepHeight; // on a built floor: the ground ahead is a wall
       const run = Math.hypot(nx - p.x, nz - p.z);
-      if (run > 1e-5 && (h - heightAt(p.x, p.z)) / run > PLAYER.maxSlope) return false;
+      if (run > 1e-5 && (h - here) / run > PLAYER.maxSlope) return false;
     }
     return true;
   }

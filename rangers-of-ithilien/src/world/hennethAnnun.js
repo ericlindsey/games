@@ -1,12 +1,14 @@
-// Henneth Annûn, the Window of the Sunset: a rock mass holding a cave, with the
-// stream falling past its western window into a pool. A hand-built set piece,
-// because a height field cannot make a cave.
+// Henneth Annûn, the Window of the Sunset. The stream crosses a shelf of rock
+// and falls into a pool walled in by cliffs; the cave lies behind the fall.
+// The terrain function cuts the basin and the gorge (see terrain.js); this
+// builds the rock that holds the cave, the stair in the cut, and the water.
+// Local coordinates below: X east from the cliff face, Z south from the stream.
 
 import * as THREE from 'three';
 import { HA } from './layout.js';
 import { heightAt } from './terrain.js';
-import { addSolid, addCircle } from './collision.js';
-import { GeoBuilder, rockDisplace, makeNoiseTexture, materials } from './build.js';
+import { addSolid, addCircle, addHollow } from './collision.js';
+import { GeoBuilder, rockDisplace, makeNoiseTexture } from './build.js';
 import { rng } from '../util/noise.js';
 import { STREAM_DEPTH } from './water.js';
 
@@ -14,54 +16,58 @@ const _v = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3
 const _n = new THREE.Vector3(), _col = new THREE.Color();
 
 export function buildHennethAnnun(scene, water) {
-  const o = HA.outcrop;
-  const topY = heightAt(o.maxX + 4, HA.z);   // the stream bed on the upper level
-  const floorY = topY - 8.5;
-  const ceilY = topY - 3;
-  const base = HA.lowLevel - 14;
+  const fx = HA.x, fz = HA.z;
+  const topY = heightAt(fx + 6, fz) - 0.1;   // just under the stream bed overhead
+  const floorY = HA.caveFloor;
+  const ceilY = floorY + 5.5;
+  const base = HA.floor - 6;
 
-  const room = { minX: 1576, maxX: 1600, minZ: 1891, maxZ: 1909 };
-  const win = { minX: o.minX, maxX: room.minX, minZ: 1895, maxZ: 1905, ceil: floorY + 4.6 };
-  const door = { minX: 1588, maxX: 1592, minZ: room.maxZ, maxZ: o.maxZ, ceil: floorY + 3 };
-  const ramp = { minX: 1552, maxX: 1586, minZ: o.maxZ, maxZ: o.maxZ + 4 };
-  const rampFoot = heightAt(ramp.minX, ramp.minZ + 2) - 0.25;
-  const rampTop = (x) => rampFoot + (floorY - rampFoot) * Math.min(1, Math.max(0, (x - ramp.minX) / (ramp.maxX - ramp.minX)));
+  // Voids in the rock, in local coordinates.
+  const room = { x0: 6, x1: 30, z0: -9, z1: 9 };
+  const win = { x0: 0, x1: 6, z0: -5, z1: 5, ceil: floorY + 4.6 };
+  const hall = { x0: 0, x1: 10, z0: 11, z1: 14, ceil: floorY + 3 };   // in from the stair
+  const turn = { x0: 7, x1: 10, z0: 9, z1: 11, ceil: floorY + 3 };    // and round into the cave
+  const R = { x0: 0, x1: 36, z0: -22, z1: 22 };
 
-  const box = (minX, maxX, minZ, maxZ, bottom, top, extra) => ({ minX, maxX, minZ, maxZ, bottom, top, ...extra });
+  const box = (x0, x1, z0, z1, bottom, top, extra) =>
+    ({ minX: fx + x0, maxX: fx + x1, minZ: fz + z0, maxZ: fz + z1, bottom, top, ...extra });
   const rock = [
-    // walls, from deep underground to the top of the outcrop
-    box(o.minX, o.maxX, o.minZ, room.minZ, base, topY),
-    box(o.minX, door.minX, room.maxZ, o.maxZ, base, topY),
-    box(door.maxX, o.maxX, room.maxZ, o.maxZ, base, topY),
-    box(room.maxX, o.maxX, room.minZ, room.maxZ, base, topY),
-    box(o.minX, room.minX, room.minZ, win.minZ, base, topY),
-    box(o.minX, room.minX, win.maxZ, room.maxZ, base, topY),
+    box(R.x0, R.x1, R.z0, room.z0, base, topY),                 // north
+    box(room.x1, R.x1, room.z0, R.z1, base, topY),              // east
+    box(R.x0, room.x0, room.z0, win.z0, base, topY),            // piers either side of the window
+    box(R.x0, room.x0, win.z1, room.z1, base, topY),
+    box(R.x0, turn.x0, room.z1, hall.z0, base, topY),           // between the cave and the hall
+    box(turn.x1, room.x1, room.z1, hall.z1, base, topY),
+    box(R.x0, room.x1, hall.z1, R.z1, base, topY),              // south
     // floors
-    box(room.minX, room.maxX, room.minZ, room.maxZ, base, floorY),
-    box(win.minX, win.maxX, win.minZ, win.maxZ, base, floorY),
-    box(door.minX, door.maxX, door.minZ, door.maxZ, base, floorY),
+    box(room.x0, room.x1, room.z0, room.z1, base, floorY),
+    box(win.x0, win.x1, win.z0, win.z1, base, floorY),
+    box(hall.x0, hall.x1, hall.z0, hall.z1, base, floorY),
+    box(turn.x0, turn.x1, turn.z0, turn.z1, base, floorY),
     // roofs
-    box(room.minX, room.maxX, room.minZ, room.maxZ, ceilY, topY),
-    box(win.minX, win.maxX, win.minZ, win.maxZ, win.ceil, topY),
-    box(door.minX, door.maxX, door.minZ, door.maxZ, door.ceil, topY),
+    box(room.x0, room.x1, room.z0, room.z1, ceilY, topY),
+    box(win.x0, win.x1, win.z0, win.z1, win.ceil, topY),
+    box(hall.x0, hall.x1, hall.z0, hall.z1, hall.ceil, topY),
+    box(turn.x0, turn.x1, turn.z0, turn.z1, turn.ceil, topY),
   ];
-  const stair = [
-    box(ramp.minX, ramp.maxX, ramp.minZ, ramp.maxZ, base, (x) => rampTop(x), { topMax: floorY }),
-    box(ramp.maxX, door.maxX + 2, ramp.minZ, ramp.maxZ, base, floorY),
-  ];
+  // The stair: a ramp of worn steps along the south wall of the basin, from
+  // the floor of the cut up to the hidden door.
+  const stairX0 = HA.basin.minX + 3 - fx, stairX1 = -2;
+  const stairTop = (x) => HA.floor + (floorY - HA.floor) * Math.min(1, Math.max(0, (x - fx - stairX0) / (stairX1 - stairX0)));
+  const stair = [box(stairX0, 0, 10.5, 14.2, base, stairTop, { topMax: floorY })];
   for (const s of [...rock, ...stair]) addSolid(s);
+  // Inside the rock the terrain overhead is not the ground.
+  addHollow({ minX: fx + R.x0, maxX: fx + R.x1, minZ: fz + R.z0, maxZ: fz + R.z1, ceiling: topY - 0.3 });
 
   // --- Rock: every solid drawn as a box with its faces roughened. ---
   const rand = rng(77);
-  const inside = (p) =>
-    p.y > floorY - 0.6 && p.y < ceilY + 1.2 &&
-    ((p.x > room.minX - 0.9 && p.x < room.maxX + 0.9 && p.z > room.minZ - 0.9 && p.z < room.maxZ + 0.9) ||
-     (p.x > win.minX + 1.5 && p.x < win.maxX + 1 && p.z > win.minZ - 0.9 && p.z < win.maxZ + 0.9) ||
-     (p.x > door.minX - 0.9 && p.x < door.maxX + 0.9 && p.z > door.minZ - 1 && p.z < door.maxZ - 1.5));
+  const within = (p, v, pad) => p.x > fx + v.x0 - pad && p.x < fx + v.x1 + pad && p.z > fz + v.z0 - pad && p.z < fz + v.z1 + pad;
+  const inside = (p) => p.x > fx + 1.4 && p.y > floorY - 0.6 && p.y < ceilY + 1.2 &&
+    (within(p, room, 0.9) || within(p, win, 0.9) || within(p, hall, 0.9) || within(p, turn, 0.9));
   const paintRock = (p, n) => {
     if (inside(p)) return n.y > 0.6 ? 0x6f6657 : n.y < -0.6 ? 0x4a443c : 0x5d554a;
-    if (n.y > 0.6) return p.y > topY - 0.5 ? 0x7c8a5c : 0x8a8672;
-    return p.y < HA.lowLevel - 2 ? 0x6f6a5e : 0x8d8575;
+    if (n.y > 0.6) return 0x7c8a5c;
+    return p.y < HA.floor + 5 ? 0x6b675c : 0x8d8575; // darker where the spray wets it
   };
   const paintStair = (p, n) => (n.y > 0.5 ? 0xa39a86 : 0x8a8272);
 
@@ -78,8 +84,8 @@ export function buildHennethAnnun(scene, water) {
       const isTop = Math.abs(out.y - topMax) < 1e-3;
       if (isTop && typeof s.top === 'function') out.y = s.top(out.x, out.z);
       const y = out.y;
-      const outer = out.x < o.minX + 0.01 || out.z < o.minZ + 0.01 || (out.z > o.maxZ - 0.01 && out.x > o.minX + 0.01 && s.bottom === base && s.top === topY);
-      rockDisplace(out, outer && amp > 0.3 ? amp * 2.2 : amp);
+      // the cliff face behind the fall is rougher than the walls within
+      rockDisplace(out, out.x < fx + 0.01 && amp > 0.3 ? amp * 2 : amp);
       if (isTop) out.y = y; // walkable tops stay true to the collision shape
       return out;
     };
@@ -95,98 +101,89 @@ export function buildHennethAnnun(scene, water) {
       }
     }
   };
-  for (const s of rock) addRock(s, paintRock, 0.55);
-  for (const s of stair) addRock(s, paintStair, 0.22);
+  for (const s of rock) addRock(s, paintRock, 0.5);
+  for (const s of stair) addRock(s, paintStair, 0.2);
   scene.add(builder.mesh());
 
   // --- Furnishings of the refuge. ---
   const f = new GeoBuilder(9, 0.06);
   const WOOD = 0x6e5236, DARK_WOOD = 0x4d3a28;
-  // table with a map on it
-  const tx = 1590, tz = 1895.5;
+  const tx = fx + 16, tz = fz - 6.5; // table with a map on it
   f.box(3, 0.12, 1.4, tx, floorY + 0.85, tz, WOOD);
   for (const [dx, dz] of [[-1.3, -0.55], [1.3, -0.55], [-1.3, 0.55], [1.3, 0.55]]) f.box(0.14, 0.85, 0.14, tx + dx, floorY, tz + dz, DARK_WOOD);
   f.box(1.3, 0.02, 0.9, tx - 0.3, floorY + 0.97, tz, 0xd9c99a, 0.2);
   f.box(0.5, 0.45, 0.5, tx - 1, floorY, tz + 1.3, DARK_WOOD);
   f.box(0.5, 0.45, 0.5, tx + 0.9, floorY, tz + 1.4, DARK_WOOD, 0.4);
-  addSolid(box(tx - 1.5, tx + 1.5, tz - 0.7, tz + 0.7, floorY, floorY + 0.97));
-  // barrels and crates in the north-east corner
-  for (const [bx, bz, r] of [[1598, 1893, 0.55], [1596.7, 1892.6, 0.5], [1598.2, 1894.4, 0.5]]) {
-    f.cyl(r * 0.9, r, 1.1, bx, floorY, bz, WOOD, 9);
-    f.cyl(r * 0.93, r * 0.93, 0.08, bx, floorY + 0.75, bz, 0x3a3530, 9);
-    addCircle(bx, bz, r);
+  addSolid({ minX: tx - 1.5, maxX: tx + 1.5, minZ: tz - 0.7, maxZ: tz + 0.7, bottom: floorY, top: floorY + 0.97 });
+  for (const [dx, dz, r] of [[28, -7, 0.55], [26.7, -7.4, 0.5], [28.2, -5.6, 0.5]]) { // barrels
+    f.cyl(r * 0.9, r, 1.1, fx + dx, floorY, fz + dz, WOOD, 9);
+    f.cyl(r * 0.93, r * 0.93, 0.08, fx + dx, floorY + 0.75, fz + dz, 0x3a3530, 9);
+    addCircle(fx + dx, fz + dz, r);
   }
-  f.box(1.1, 0.8, 1.1, 1594.6, floorY, 1892.4, DARK_WOOD, 0.2);
-  f.box(0.9, 0.6, 0.9, 1594.5, floorY + 0.8, 1892.5, WOOD, 0.5);
-  addCircle(1594.6, 1892.4, 0.8);
-  // bedrolls along the south wall
-  for (let i = 0; i < 4; i++) {
-    f.box(0.8, 0.14, 1.9, 1578.5 + i * 1.5, floorY, 1907.4, [0x5c6b45, 0x6b5a45, 0x4f5f6b, 0x6b4f45][i]);
-    f.box(0.6, 0.12, 0.4, 1578.5 + i * 1.5, floorY + 0.12, 1908, 0xcfc6ae);
+  f.box(1.1, 0.8, 1.1, fx + 24.6, floorY, fz - 7.6, DARK_WOOD, 0.2);
+  f.box(0.9, 0.6, 0.9, fx + 24.5, floorY + 0.8, fz - 7.5, WOOD, 0.5);
+  addCircle(fx + 24.6, fz - 7.6, 0.8);
+  for (let i = 0; i < 5; i++) { // bedrolls along the south wall
+    f.box(0.8, 0.14, 1.9, fx + 14 + i * 1.5, floorY, fz + 7.4, [0x5c6b45, 0x6b5a45, 0x4f5f6b, 0x6b4f45, 0x5a5a48][i]);
+    f.box(0.6, 0.12, 0.4, fx + 14 + i * 1.5, floorY + 0.12, fz + 8, 0xcfc6ae);
   }
-  // a stone basin by the window, fed by the spray
-  f.cyl(0.9, 0.7, 0.7, 1578.2, floorY, 1893.6, 0x8f897a, 8);
-  f.cyl(0.75, 0.75, 0.06, 1578.2, floorY + 0.66, 1893.6, 0x6fa3b0, 8);
-  addCircle(1578.2, 1893.6, 0.9);
-  // the banner of the Stewards' rangers on the east wall: a white tree on black
-  const wx = room.maxX - 0.75;
-  f.box(0.06, 3.4, 2.2, wx, floorY + 1.3, 1900, 0x16161a);
-  f.box(0.04, 1.5, 0.16, wx - 0.05, floorY + 1.7, 1900, 0xf2f0e6);
+  f.cyl(0.9, 0.7, 0.7, fx + 8.2, floorY, fz - 6.4, 0x8f897a, 8); // a stone basin fed by the spray
+  f.cyl(0.75, 0.75, 0.06, fx + 8.2, floorY + 0.66, fz - 6.4, 0x6fa3b0, 8);
+  addCircle(fx + 8.2, fz - 6.4, 0.9);
+  const wx = fx + room.x1 - 0.75; // the white tree on black, on the east wall
+  f.box(0.06, 3.4, 2.2, wx, floorY + 1.3, fz, 0x16161a);
+  f.box(0.04, 1.5, 0.16, wx - 0.05, floorY + 1.7, fz, 0xf2f0e6);
   for (const [dy, dz, len] of [[2.5, 0.35, 0.8], [2.5, -0.35, 0.8], [3.0, 0.3, 0.7], [3.0, -0.3, 0.7], [3.5, 0, 0.5]]) {
-    f.box(0.04, 0.14, len, wx - 0.05, floorY + dy + 0.5, 1900 + dz, 0xf2f0e6, 0, dz > 0 ? 0.5 : dz < 0 ? -0.5 : 0);
+    f.box(0.04, 0.14, len, wx - 0.05, floorY + dy + 0.5, fz + dz, 0xf2f0e6, 0, dz > 0 ? 0.5 : dz < 0 ? -0.5 : 0);
   }
-  // torch brackets
-  const torches = [[room.minX + 4, room.minZ + 0.7], [room.maxX - 5, room.minZ + 0.7], [room.minX + 5, room.maxZ - 0.7], [room.maxX - 2.5, room.maxZ - 0.7]];
-  for (const [x, z] of torches) f.box(0.12, 0.5, 0.12, x, floorY + 1.9, z, 0x3a3028);
+  const torches = [[10, -8.3], [25, -8.3], [14, 8.3], [27.5, 8.3], [5, 13.6]];
+  for (const [dx, dz] of torches) f.box(0.12, 0.5, 0.12, fx + dx, floorY + 1.9, fz + dz, 0x3a3028);
   scene.add(f.mesh());
 
   const flames = new THREE.Group();
   const flameMat = new THREE.MeshBasicMaterial({ color: 0xffb347, fog: false });
-  for (const [x, z] of torches) {
+  for (const [dx, dz] of torches) {
     const fl = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.42, 5), flameMat);
-    fl.position.set(x, floorY + 2.6, z);
+    fl.position.set(fx + dx, floorY + 2.6, fz + dz);
     flames.add(fl);
   }
   scene.add(flames);
-  const lamp = new THREE.PointLight(0xffb060, 45, 34, 1.6);
-  lamp.position.set((room.minX + room.maxX) / 2 + 3, floorY + 3.4, HA.z);
+  const lamp = new THREE.PointLight(0xffb060, 60, 36, 1.5);
+  lamp.position.set(fx + 19, floorY + 3.6, fz);
   scene.add(lamp);
 
-  // --- Water: the stream across the top, the fall, the pool, the mist. ---
-  const waterY = topY + STREAM_DEPTH * 0.7;
-  const fallX = o.minX - 1.7;
-  const poolY = heightAt(HA.pool.x, HA.pool.z) + 1.25;
-  scene.add(water.ribbon([o.maxX + 5, heightAt(o.maxX + 5, HA.z) + STREAM_DEPTH, HA.z, o.maxX, waterY, HA.z, fallX, waterY, HA.z], 5));
+  // --- Water: the fall, the pool, the mist. (The stream itself is in water.js.) ---
+  const waterY = topY + 0.1 + STREAM_DEPTH;
+  const fallX = fx - 1.5;
+  const poolY = HA.floor - 0.12;
+  scene.add(water.ribbon([fx + 4, waterY, fz, fallX, waterY, fz], 4.5));
 
   const fallTex = [makeNoiseTexture(128, 21, true), makeNoiseTexture(128, 22, true)];
-  const fallH = waterY - poolY + 0.6;
-  const falls = [];
+  const fallH = waterY - poolY + 0.4;
   fallTex.forEach((tex, i) => {
     tex.repeat.set(2 + i, 1.5);
     const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(10 - i * 1.2, fallH, 1, 1),
+      new THREE.PlaneGeometry(9 - i * 1.2, fallH, 1, 1),
       new THREE.MeshBasicMaterial({
         color: i ? 0xffffff : 0xd6ecf2, map: tex, transparent: true, opacity: i ? 0.3 : 0.5,
         side: THREE.DoubleSide, depthWrite: false,
       }),
     );
     m.rotation.y = Math.PI / 2;
-    m.position.set(fallX - i * 0.5, waterY - fallH / 2 + 0.1, HA.z);
+    m.position.set(fallX - i * 0.5, waterY - fallH / 2 + 0.1, fz);
     m.renderOrder = 3 + i;
     scene.add(m);
-    falls.push(tex);
   });
 
   const pool = new THREE.Mesh(
-    new THREE.CircleGeometry(HA.pool.r + 1.5, 24),
-    new THREE.MeshLambertMaterial({ color: 0x6fa7b4, map: water.ripples, transparent: true, opacity: 0.8, depthWrite: false }),
+    new THREE.CircleGeometry(HA.pool.r + 0.5, 24),
+    new THREE.MeshLambertMaterial({ color: 0x6fa7b4, map: water.ripples, transparent: true, opacity: 0.82, depthWrite: false }),
   );
   pool.rotation.x = -Math.PI / 2;
   pool.position.set(HA.pool.x, poolY, HA.pool.z);
   pool.renderOrder = 1;
   scene.add(pool);
 
-  // mist at the foot of the fall
   const MIST = 48;
   const mistPos = new Float32Array(MIST * 3), mistSeed = [];
   for (let i = 0; i < MIST; i++) mistSeed.push([rand(), rand(), rand()]);
@@ -207,41 +204,50 @@ export function buildHennethAnnun(scene, water) {
   mist.renderOrder = 6;
   scene.add(mist);
 
-  // Boulders heaped against the rock so it sits in the land, and to screen the stair.
+  // --- Boulders along the rim of the basin and the cut, so the edge is broken
+  // and the pool cannot be seen until you stand over it. ---
   const rocks = new GeoBuilder(13, 0.08);
-  const heap = [
-    [o.minX - 1, o.minZ - 2, 5.5], [o.minX + 9, o.minZ - 4, 6.5], [o.minX + 20, o.minZ - 4, 7], [o.minX + 31, o.minZ - 3, 6],
-    [o.minX - 2.5, o.minZ + 6, 4], [o.minX - 2.5, o.maxZ - 5, 4.2], [o.minX + 4, o.maxZ + 8, 3.2],
-    [o.maxX - 8, o.maxZ + 4, 4.5], [o.maxX - 14, o.maxZ + 8.5, 3.6], [o.maxX - 5, o.minZ - 3, 4],
-  ];
-  heap.forEach(([x, z, r], i) => {
-    const gy = heightAt(x, z);
-    rocks.blob(r, x, gy + r * 0.25 + (i % 3) * 1.4, z, i % 4 === 1 ? 0x7d8762 : 0x8d8575, 1.15, 0.85 + (i % 3) * 0.2, 1, 1);
-    addCircle(x, z, r * 0.85);
-  });
-  for (const [x, z, r] of [[1550, 1929, 1.6], [1547.5, 1925.5, 1.2], [1556, 1930, 1.1], [1566, 1874, 1.8], [1563, 1927.5, 0.9]]) {
-    rocks.blob(r, x, heightAt(x, z) + r * 0.3, z, 0x8a8474, 1, 0.7, 1);
+  const rim = (x, z, r) => {
+    const y = heightAt(x, z);
+    rocks.blob(r, x, y + r * 0.2, z, rand() < 0.4 ? 0x7d8762 : 0x8d8575, 1.2, 0.75, 1, 0);
     addCircle(x, z, r * 0.8);
+  };
+  const b = HA.basin, edge = b.halfZ + b.wall + 2;
+  for (let x = b.minX - 8; x < fx + 4; x += 5.5) {
+    if (rand() < 0.75) rim(x + rand() * 2, fz - edge - rand() * 2, 1.6 + rand() * 1.6);
+    if (rand() < 0.75) rim(x + rand() * 2, fz + edge + rand() * 2, 1.6 + rand() * 1.6);
   }
-  scene.add(rocks.mesh(materials.flat));
+  for (let z = fz - edge + 6; z < fz + edge - 5; z += 6) {
+    if (Math.abs(z - fz) > HA.gorge.halfTop + 2) rim(b.minX - b.wall - 2.5, z, 1.8 + rand() * 1.4);
+  }
+  for (let x = HA.gorge.endX + 90; x < b.minX - 10; x += 9) {
+    for (const s of [-1, 1]) if (rand() < 0.5) rim(x + rand() * 5, fz + s * (HA.gorge.halfTop + 2.5 + rand() * 2), 1.2 + rand() * 1.5);
+  }
+  for (let i = 0; i < 9; i++) { // fallen rock at the foot of the walls
+    const x = b.minX + 2 + rand() * 26, z = fz - b.halfZ + 1.5 + rand() * 2.5;
+    rocks.blob(0.8 + rand() * 1.2, x, heightAt(x, z) + 0.2, z, 0x6f6a5e, 1.2, 0.7, 1);
+  }
+  scene.add(rocks.mesh());
 
   return {
     floorY,
-    faramir: { x: 1589.2, z: 1897.6, heading: -2.2 },
-    eowyn: { x: 1581, z: 1903.2, heading: 1.3 },
+    faramir: { x: fx + 15.2, z: fz - 4.4, heading: -2.2 },
+    eowyn: { x: fx + 8.5, z: fz + 3.2, heading: 1.3 },
+    /** True inside the cave or its passages. */
+    isInside: (p) => p.x > fx && p.x < fx + R.x1 && Math.abs(p.z - fz) < 22 && p.y < topY - 0.3,
     update(time) {
-      falls[0].offset.y = time * 0.9;
-      falls[1].offset.y = time * 1.3;
+      fallTex[0].offset.y = time * 0.9;
+      fallTex[1].offset.y = time * 1.3;
       for (let i = 0; i < MIST; i++) {
         const s = mistSeed[i];
         const life = (time * (0.12 + s[0] * 0.1) + s[1]) % 1;
         mistPos[i * 3] = fallX - 1 - life * 7 * s[2];
-        mistPos[i * 3 + 1] = poolY + 0.4 + life * 4.5;
-        mistPos[i * 3 + 2] = HA.z + (s[1] - 0.5) * 11 + Math.sin(time + i) * 0.4;
+        mistPos[i * 3 + 1] = poolY + 0.4 + life * 5;
+        mistPos[i * 3 + 2] = fz + (s[1] - 0.5) * 10 + Math.sin(time + i) * 0.4;
       }
       mistGeo.attributes.position.needsUpdate = true;
       flames.children.forEach((fl, i) => fl.scale.setScalar(0.9 + 0.18 * Math.sin(time * 9 + i * 2.1)));
-      lamp.intensity = 45 + 5 * Math.sin(time * 7.3);
+      lamp.intensity = 60 + 6 * Math.sin(time * 7.3);
     },
   };
 }
