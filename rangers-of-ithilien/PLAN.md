@@ -208,9 +208,11 @@ Touch devices are detected by capability, not user agent; a device with both get
   behind the fall, and an L-shaped passage to a door in the cliff. A "hollow"
   in `collision.js` tells the game to ignore the ground overhead when inside.
 - The terrain mesh leaves a slot where the cliff face is built by hand.
-- A stair of worn stone climbs the south wall of the basin from the floor of the
-  cut to the door. The way home is: find where the stream runs out of the cut,
-  walk up it.
+- A stair of worn stone climbs the south wall of the basin from the floor to the
+  cave door. A second stair on the north wall climbs from beside the pool to the
+  rim, straight up into the forest.
+- So there are two ways home: down the north stair from the rim, or up the cut
+  from where the stream runs out of it, about 350 m downstream.
 - Inside the cave the sun and sky light are dimmed, so torchlight carries it.
 
 ### 6.4 Vegetation and props

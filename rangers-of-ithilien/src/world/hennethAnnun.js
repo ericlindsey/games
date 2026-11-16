@@ -55,6 +55,14 @@ export function buildHennethAnnun(scene, water) {
   const stairX0 = HA.basin.minX + 3 - fx, stairX1 = -2;
   const stairTop = (x) => HA.floor + (floorY - HA.floor) * Math.min(1, Math.max(0, (x - fx - stairX0) / (stairX1 - stairX0)));
   const stair = [box(stairX0, 0, 10.5, 14.2, base, stairTop, { topMax: floorY })];
+  // A second stair on the north wall climbs from beside the pool to the rim,
+  // and so straight up into the forest. It is built back into the cliff, so
+  // its head meets the turf at the top.
+  const rimZ = -(HA.basin.halfZ + HA.basin.wall + 0.6);
+  const rimY = heightAt(fx - 3, fz + rimZ - 0.5) - 0.05;
+  const upX0 = stairX0, upX1 = -6;
+  const upTop = (x) => HA.floor + (rimY - HA.floor) * Math.min(1, Math.max(0, (x - fx - upX0) / (upX1 - upX0)));
+  stair.push(box(upX0, 0, rimZ, -10.5, base, upTop, { topMax: rimY }));
   for (const s of [...rock, ...stair]) addSolid(s);
   // Inside the rock the terrain overhead is not the ground.
   addHollow({ minX: fx + R.x0, maxX: fx + R.x1, minZ: fz + R.z0, maxZ: fz + R.z1, ceiling: topY - 0.3 });
@@ -214,7 +222,8 @@ export function buildHennethAnnun(scene, water) {
   };
   const b = HA.basin, edge = b.halfZ + b.wall + 2;
   for (let x = b.minX - 8; x < fx + 4; x += 5.5) {
-    if (rand() < 0.75) rim(x + rand() * 2, fz - edge - rand() * 2, 1.6 + rand() * 1.6);
+    // (none at the head of the north stair)
+    if (rand() < 0.75 && x < fx + upX1 - 6) rim(x + rand() * 2, fz - edge - rand() * 2, 1.6 + rand() * 1.6);
     if (rand() < 0.75) rim(x + rand() * 2, fz + edge + rand() * 2, 1.6 + rand() * 1.6);
   }
   for (let z = fz - edge + 6; z < fz + edge - 5; z += 6) {
@@ -234,6 +243,8 @@ export function buildHennethAnnun(scene, water) {
     faramir: { x: fx + 15.2, z: fz - 4.4, heading: -2.2 },
     eowyn: { x: fx + 8.5, z: fz + 3.2, heading: 1.3 },
     /** True inside the cave or its passages. */
+    /** Foot and head of the stair from the pool up to the forest. */
+    rimStair: { footX: fx + upX0 + 1, headX: fx - 3, z: fz - 12.5, rimY },
     isInside: (p) => p.x > fx && p.x < fx + R.x1 && Math.abs(p.z - fz) < 22 && p.y < topY - 0.3,
     update(time) {
       fallTex[0].offset.y = time * 0.9;
