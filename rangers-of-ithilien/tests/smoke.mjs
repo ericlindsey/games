@@ -94,22 +94,21 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate(() => roi.refuge.isInside(roi.player.pos)), 'and leads inside the rock');
   await shot(page, 'hall');
 
-  // The short way out: the stair on the north wall, from beside the pool up to the forest.
-  await page.evaluate(() => { const st = roi.refuge.rimStair; roi.teleport(st.footX, st.z, Math.PI / 2, 31); roi.rig.yaw = Math.PI / 2; });
-  check(Math.abs((await pos(page)).y - 31) < 1.5, 'the rim stair starts on the floor beside the pool');
+  // At the door the stair forks: the upper flight doubles back and climbs to the forest.
+  await page.evaluate(() => { const st = roi.refuge.forestStair; roi.teleport(st.landingX, st.z, -Math.PI / 2, 40); roi.rig.yaw = -Math.PI / 2; });
+  check(Math.abs((await pos(page)).y - 40) < 0.3, 'the upper flight starts level with the cave door');
   await page.keyboard.down('KeyW');
-  await page.waitForFunction(() => roi.player.pos.x > roi.refuge.rimStair.headX, null, { timeout: 90000 });
+  await page.waitForFunction(() => roi.player.pos.x < roi.refuge.forestStair.headX, null, { timeout: 90000 });
   await page.keyboard.up('KeyW');
   const head = await pos(page);
-  check(await page.evaluate((y) => Math.abs(y - roi.refuge.rimStair.rimY) < 0.3, head.y), `the rim stair climbs to the top of the cliff (y ${head.y.toFixed(1)})`);
-  await page.evaluate(() => { roi.rig.yaw = Math.PI; }); // turn north, away from the pool
+  check(await page.evaluate((y) => Math.abs(y - roi.refuge.forestStair.rimY) < 0.3, head.y), `it climbs to the top of the cliff (y ${head.y.toFixed(1)})`);
+  await page.evaluate(() => { roi.rig.yaw = 0; }); // turn south, away from the pool
   await page.keyboard.down('KeyW');
-  const off = await page.waitForFunction(() => roi.player.pos.z < roi.refuge.rimStair.z - 22, null, { timeout: 60000 }).then(() => true, () => false);
+  const off = await page.waitForFunction(() => roi.player.pos.z > roi.refuge.forestStair.exitZ + 14, null, { timeout: 60000 }).then(() => true, () => false);
   await page.keyboard.up('KeyW');
   const top = await pos(page);
   check(off && Math.abs(top.y - (await page.evaluate((p) => roi.heightAt(p.x, p.z), top))) < 0.05 && top.y > head.y - 1.5,
     `and from its head you walk off into the forest (z ${top.z.toFixed(0)}, y ${top.y.toFixed(1)})`);
-  await shot(page, 'rim-stair-top');
 
   // The way out: from the pool, down the cut, to open ground in the woods.
   await page.evaluate(() => { roi.teleport(970, 1193, -Math.PI / 2, 31); roi.rig.yaw = -Math.PI / 2; roi.input.haste = true; });

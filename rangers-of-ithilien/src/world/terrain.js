@@ -82,10 +82,11 @@ function withStamps(x, z) {
  */
 function cutHenneth(x, z, h) {
   const dz = Math.abs(z - HA.z);
-  if (x > HA.x || x < HA.gorge.endX || dz > 20) return h;
+  if (x > HA.x || x < HA.gorge.endX || dz > 24) return h;
   const b = HA.basin, g = HA.gorge;
   if (x > b.minX - b.wall) {
-    const w = (1 - smoothstep(b.halfZ, b.halfZ + b.wall, dz)) * smoothstep(b.minX - b.wall, b.minX, x);
+    const edge = b.halfZ + (z > HA.z ? b.southSetBack : 0);
+    const w = (1 - smoothstep(edge, edge + b.wall, dz)) * smoothstep(b.minX - b.wall, b.minX, x);
     const rp = Math.hypot(x - HA.pool.x, z - HA.pool.z);
     h = lerp(h, HA.floor - 1.2 * (1 - smoothstep(HA.pool.r * 0.6, HA.pool.r, rp)), w);
   }

@@ -13,7 +13,7 @@ export const HA = {
   plateau: 56,      // level of the rock shelf
   floor: 31,        // floor of the basin and the head of the cut
   caveFloor: 40,
-  basin: { minX: 968, halfZ: 14, wall: 4 },            // floor: x in [minX, x], |z - HA.z| < halfZ
+  basin: { minX: 968, halfZ: 14, wall: 4, southSetBack: 2 }, // the south wall stands back to make room for the stair            // floor: x in [minX, x], |z - HA.z| < halfZ
   gorge: { endX: 540, halfFloor: 6, halfTop: 10, fall: 0.01, channelOffset: -2.5 },
   pool: { x: 985, z: 1187, r: 12 },
   rock: { minX: 1000, maxX: 1036, minZ: 1168, maxZ: 1212 }, // the mass that holds the cave
@@ -122,7 +122,7 @@ export const LANDMARKS = [
 export function inClearing(x, z) {
   // the basin and the cut at Henneth Annûn (the woods crowd right up to the rim)
   const dz = Math.abs(z - HA.z);
-  if (dz < 21 && x > 640 && x < HA.x + 3) {
+  if (dz < 25 && x > 640 && x < HA.x + 3) {
     if (x > HA.basin.minX - 6 || dz < HA.gorge.halfTop + 1.5) return true;
   }
   for (const l of LANDMARKS) {
