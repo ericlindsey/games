@@ -118,3 +118,15 @@ export function resolveCircles(p, r, skip) {
     }
   }
 }
+
+/** True if (x, z) is inside the trunk of a great tree (small trees and bushes do not count). */
+export function trunkAt(x, z) {
+  const list = chunkCircles.get(Math.floor(x / CHUNK.size) + ',' + Math.floor(z / CHUNK.size));
+  if (!list) return false;
+  for (const c of list) {
+    if (!c.big) continue;
+    const dx = x - c.x, dz = z - c.z;
+    if (dx * dx + dz * dz < c.r * c.r) return true;
+  }
+  return false;
+}

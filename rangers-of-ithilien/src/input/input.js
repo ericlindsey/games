@@ -19,6 +19,7 @@ export class Input {
     this.pinch = 0;
     this.jumpHeld = false;
     this.attackKey = false; this.attackMouse = false; this.attackButton = false;
+    this.aimMouse = false;         // right mouse button held
     this.attack = false;           // true while any attack control is held
 
     addEventListener('keydown', (e) => this.key(e, true));
@@ -30,6 +31,18 @@ export class Input {
     addEventListener('pointercancel', (e) => this.pointerUp(e));
     surface.addEventListener('wheel', (e) => { this.zoom += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
     surface.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Mouse buttons are read from mouse events, which fire for each button
+    // separately (pointer events do not, when two are held). The first click
+    // only takes hold of the mouse; after that left is a blow, right takes aim.
+    surface.addEventListener('mousedown', (e) => {
+      if (!this.enabled || document.pointerLockElement !== this.surface) return;
+      if (e.button === 0) this.attackMouse = true;
+      if (e.button === 2) this.aimMouse = true;
+    });
+    addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.attackMouse = false;
+      if (e.button === 2) this.aimMouse = false;
+    });
 
     this.stickEl = document.getElementById('stick');
     this.knobEl = document.getElementById('stick-knob');
@@ -50,6 +63,7 @@ export class Input {
       else if (k === 'Digit1') this.onAction('sword');
       else if (k === 'Digit2') this.onAction('bow');
       else if (k === 'KeyH') this.onAction('heal');
+      else if (k === 'KeyR') this.onAction('aim');
       else if (k === 'KeyI' || k === 'Tab') { this.onAction('pack'); e.preventDefault(); }
     }
     if (k.startsWith('Arrow') || k === 'Space') e.preventDefault();
@@ -73,7 +87,7 @@ export class Input {
       if (document.pointerLockElement !== this.surface) {
         // the first click only takes hold of the mouse; after that, a click is a blow
         try { this.surface.requestPointerLock()?.catch?.(() => {}); } catch { /* drag-look still works */ }
-      } else if (e.button === 0) this.attackMouse = true;
+      }
     }
   }
 
@@ -108,7 +122,7 @@ export class Input {
     if (this.stick && e.pointerId === this.stick.id) { this.stick = null; this.showStick(); }
     this.lookPointers.delete(e.pointerId);
     this.pinch = 0;
-    if (e.pointerType !== 'touch') this.attackMouse = false;
+
   }
 
   showStick() {

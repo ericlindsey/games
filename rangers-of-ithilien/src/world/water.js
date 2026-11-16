@@ -3,8 +3,7 @@
 import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { makeNoiseTexture } from './build.js';
-import { heightAt, WATER_LEVEL } from './terrain.js';
-import { HA, bankX, streamZ, isHomeStream, STREAM_COUNT, STREAM_END_X } from './layout.js';
+import { WATER_LEVEL, STREAMS, heightAt } from './terrain.js';
 
 export const STREAM_DEPTH = 0.45;
 const HALF_WIDTH = 2.6;
@@ -31,24 +30,21 @@ export class Water {
     this.streamMaterial = new THREE.MeshLambertMaterial({
       color: 0x8cc4d2, map: this.streaks, transparent: true, opacity: 0.78, depthWrite: false, side: THREE.DoubleSide,
     });
-    for (let i = 0; i < STREAM_COUNT; i++) {
-      const isHome = isHomeStream(i);
-      let run = [];
-      const flush = () => { if (run.length > 1) scene.add(this.ribbon(run)); run = []; };
-      for (let x = STREAM_END_X - 110; ; x -= 5) {
-        const z = streamZ(i, x);
-        if (x < bankX(z) - 6) break;
-        // The home stream is drawn by hand where it goes over the fall and through the pool.
-        if (isHome && x > HA.pool.x - 8 && x < HA.x + 4) { flush(); continue; }
-        const y = heightAt(x, z) + STREAM_DEPTH;
-        if (y < WATER_LEVEL + 0.05) break;
-        run.push(x, y, z);
+    for (const st of STREAMS) {
+      const pts = [];
+      let level = Infinity;
+      for (const p of st.points) {
+        // Lie on the bed; where another stream's deeper valley has taken the
+        // ground lower still (near a meeting), follow the ground. Never rise.
+        level = Math.min(level, p.bed, st.home === 'cut' ? Infinity : heightAt(p.x, p.z));
+        if (level + STREAM_DEPTH < WATER_LEVEL + 0.08) break; // it has reached the Great River
+        pts.push(p.x, level + STREAM_DEPTH, p.z);
       }
-      flush();
+      if (pts.length > 3) scene.add(this.ribbon(pts));
     }
   }
 
-  /** A flat ribbon along a list of [x, y, z] centre points (flowing in -x). */
+  /** A flat ribbon along a list of [x, y, z] centre points, running downstream. */
   ribbon(pts, halfWidth = HALF_WIDTH) {
     const n = pts.length / 3;
     const pos = new Float32Array(n * 6), uv = new Float32Array(n * 4), idx = [];
@@ -56,9 +52,14 @@ export class Water {
     for (let i = 0; i < n; i++) {
       const x = pts[i * 3], y = pts[i * 3 + 1], z = pts[i * 3 + 2];
       if (i > 0) dist += Math.hypot(x - pts[i * 3 - 3], z - pts[i * 3 - 1]);
-      pos.set([x, y, z - halfWidth, x, y, z + halfWidth], i * 6);
+      // across the stream: square to the line between the neighbouring points
+      const a = Math.max(0, i - 1) * 3, b = Math.min(n - 1, i + 1) * 3;
+      let tx = pts[b] - pts[a], tz = pts[b + 2] - pts[a + 2];
+      const t = Math.hypot(tx, tz) || 1;
+      tx /= t; tz /= t;
+      pos.set([x - tz * halfWidth, y, z + tx * halfWidth, x + tz * halfWidth, y, z - tx * halfWidth], i * 6);
       uv.set([0, dist / 10, 1, dist / 10], i * 4);
-      if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      if (i > 0) { const k = (i - 1) * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -72,6 +73,6 @@ export class Water {
 
   update(time) {
     this.riverTex.offset.set(Math.sin(time * 0.05) * 0.2, time * 0.012);
-    this.streaks.offset.y = time * 0.22;
+    this.streaks.offset.y = -time * 0.22; // v grows downstream, so a falling offset carries the pattern down with it
   }
 }

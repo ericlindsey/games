@@ -5,10 +5,10 @@ import * as THREE from 'three';
 import { hash2 } from '../util/noise.js';
 import { WORLD, CHUNK } from '../config.js';
 import { GeoBuilder, materials } from './build.js';
-import { heightAt, slopeAt } from './terrain.js';
+import { heightAt, slopeAt, streamDistance } from './terrain.js';
 import { regionWeights } from './regions.js';
 import { forestDensity, thicketDensity } from './forest.js';
-import { inClearing, streamDistance, roadDistance } from './layout.js';
+import { inClearing, roadDistance } from './layout.js';
 import { plantedIn, houseDistance } from './oldworks.js';
 import { campNear } from './campSites.js';
 import { pathDistance } from './paths.js';
@@ -259,6 +259,8 @@ const COVER = {
   foothill: [['heather', 0.4], ['rock', 0.25], ['thyme', 0.2], ['tuft', 0.15]],
 };
 const REGION_KEYS = ['central', 'south', 'heath', 'river', 'foothill'];
+// The great trees: their trunks stop an arrow. Lesser growth does not.
+const GREAT = new Set(['greatOak', 'greatCedar', 'greatFir', 'greatBeech', 'larch', 'cypress', 'stonePine', 'willow']);
 const TINTABLE = { flowers: 1, sage: 1, asphodel: 1 };
 const FLOWER_TINTS = [0xffffff, 0xf6e36a, 0xf2a3c0, 0xb99cf0, 0x8fc0f5, 0xffc27a, 0xe8705f].map((h) => new THREE.Color(h));
 
@@ -285,7 +287,7 @@ export function buildVegetation(cx, cz, quality) {
   const put = (name, x, y, z, rot, scale, r, g, b) => {
     (lists[name] ||= []).push(x, y, z, rot, scale, r, g, b);
     const sp = SPECIES[name];
-    if (sp.trunk && (!name.endsWith('ock') || scale > 1.3)) circles.push({ x, z, r: sp.trunk * scale });
+    if (sp.trunk && (!name.endsWith('ock') || scale > 1.3)) circles.push({ x, z, r: sp.trunk * scale, big: GREAT.has(name) });
   };
   const size = CHUNK.size;
   const H = (gx, gz, k) => hash2(gx, gz, S + k);

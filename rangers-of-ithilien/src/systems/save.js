@@ -68,13 +68,15 @@ export function migrate(raw) {
 }
 
 export class SaveStore {
-  constructor(storage) {
+  /** @param key where to keep the save (the testing page keeps its own, apart from the real one) */
+  constructor(storage, key = SAVE.key) {
     this.storage = storage;
+    this.key = key;
   }
   /** @returns the saved state, or null if there is none or it is unreadable. */
   load() {
     try {
-      const text = this.storage.getItem(SAVE.key);
+      const text = this.storage.getItem(this.key);
       return text ? migrate(JSON.parse(text)) : null;
     } catch {
       return null;
@@ -83,13 +85,13 @@ export class SaveStore {
   save(state) {
     try {
       state.savedAt = Date.now();
-      this.storage.setItem(SAVE.key, JSON.stringify(state));
+      this.storage.setItem(this.key, JSON.stringify(state));
       return true;
     } catch {
       return false; // storage full or unavailable (private mode): play on without saving
     }
   }
   clear() {
-    try { this.storage.removeItem(SAVE.key); } catch { /* nothing to clear */ }
+    try { this.storage.removeItem(this.key); } catch { /* nothing to clear */ }
   }
 }

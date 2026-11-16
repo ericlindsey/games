@@ -83,7 +83,7 @@ export class Player {
     const running = !input.walk && amount > 0.6;
     let target = amount > 0.05 ? (running ? PLAYER.runSpeed : PLAYER.walkSpeed * Math.max(0.5, amount / 0.6)) : 0;
     if (act.slow) target = Math.min(target, PLAYER.walkSpeed);
-    if (act.down) target = 0;
+    if (act.down || act.still) target = 0; // fallen, or standing to take aim
     if (input.haste) target *= 6;
     this.speed += (target - this.speed) * Math.min(1, dt * 9);
 
@@ -147,7 +147,15 @@ export class CameraRig {
 
   update(dt, input, player) {
     input.consumeLook(_look);
-    const sens = 0.0026;
+    // Taking aim narrows the view and steadies the hand.
+    this.zoom = (this.zoom ?? 0) + ((this.zoomed ? 1 : 0) - (this.zoom ?? 0)) * Math.min(1, dt * 7);
+    const fov = 62 - 26 * this.zoom;
+    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
+    const sens = 0.0026 * (1 - 0.55 * this.zoom);
+    if (this.zoomed && input.touch && input.lookPointers.size === 0) { // on touch, the thumb pad aims
+      this.yaw -= input.move.x * dt * 0.75;
+      this.pitch = THREE.MathUtils.clamp(this.pitch + input.move.y * dt * 0.5, -1.25, 1.2);
+    }
     this.yaw -= _look.x * sens;
     this.pitch = THREE.MathUtils.clamp(this.pitch - _look.y * sens, -1.25, 1.2);
     if (_look.zoom > 0) this.wantDist = this.wantDist < 1 ? 2 : Math.min(16, this.wantDist * (1 + 0.12 * _look.zoom));
@@ -156,7 +164,7 @@ export class CameraRig {
       if (this.wantDist < 1.5) this.wantDist = 0; // all the way in: first person
     }
     // On touch, steering sideways swings the camera round so one thumb can explore.
-    if (input.touch && input.lookPointers.size === 0) this.yaw -= input.move.x * dt * 1.3;
+    if (input.touch && input.lookPointers.size === 0 && !this.zoomed) this.yaw -= input.move.x * dt * 1.3;
 
     const cp = Math.cos(this.pitch);
     _dir.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
@@ -181,7 +189,7 @@ export class CameraRig {
 
     const firstPerson = this.dist < 0.8;
     player.figure.visible = !firstPerson;
-    const d = firstPerson ? -0.15 : this.dist;
+    const d = firstPerson ? -0.15 : this.dist + (Math.min(this.dist, 1.9) - this.dist) * this.zoom; // close in over the shoulder to aim
     this.camera.position.set(_target.x - _dir.x * d, _target.y - _dir.y * d, _target.z - _dir.z * d);
     const c = this.camera.position;
     if (firstPerson) {

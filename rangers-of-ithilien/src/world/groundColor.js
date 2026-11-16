@@ -7,7 +7,8 @@ import { regionWeights } from './regions.js';
 import { forestDensity } from './forest.js';
 import { inField } from './oldworks.js';
 import { pathWear } from './paths.js';
-import { roadDistance, streamDistance, ROAD_HALF_WIDTH, bankX, southRoadZ, HA } from './layout.js';
+import { roadDistance, ROAD_HALF_WIDTH, bankX, southRoadZ, HA } from './layout.js';
+import { streamDistance } from './terrain.js';
 
 const S = WORLD.seed;
 const hex = (h) => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];

@@ -3,8 +3,8 @@
 
 import { rng } from '../util/noise.js';
 import { WORLD } from '../config.js';
-import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, streamDistance, roadDistance } from './layout.js';
-import { heightAt, slopeAt } from './terrain.js';
+import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, roadDistance } from './layout.js';
+import { heightAt, slopeAt, streamDistance } from './terrain.js';
 import { SITES, houseDistance } from './oldworks.js';
 
 /** kind -> what the ranger notes on finding one */

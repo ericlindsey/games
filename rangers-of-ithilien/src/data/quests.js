@@ -76,8 +76,8 @@ export const QUESTS = [
   },
 
   {
-    id: 'e1', giver: 'eowyn', title: 'Kingsfoil',
-    offer: 'Will you gather for me? There is a leaf the old wives of Gondor call kingsfoil: low, plain, white-flowered, sweet when it is crushed. It likes the edges of glades. Bring me five plants and I will show you what the Houses of Healing taught me.',
+    id: 'e1', giver: 'eowyn', title: 'Kingsfoil', picture: 'kingsfoil',
+    offer: 'Will you gather for me? There is a leaf the old wives of Gondor call kingsfoil: low, plain, white-flowered, sweet when it is crushed. Here, I have drawn it for you: a rosette of long leaves and a few white stars above. It likes the edges of glades, and in the shade it has a pale glimmer about it that no other flower has. Bring me five plants and I will show you what the Houses of Healing taught me.',
     remind: 'Five plants of kingsfoil. Look in the glades, where the light gets in.',
     done: 'These are good. Smell that! Here, take these draughts; and bring me more whenever you find it. Two plants make one draught, if I do the steeping.',
     objective: { type: 'gather', item: 'athelas', count: 5 },

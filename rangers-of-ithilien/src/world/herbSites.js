@@ -2,9 +2,9 @@
 
 import { hash2 } from '../util/noise.js';
 import { WORLD } from '../config.js';
-import { heightAt, slopeAt } from './terrain.js';
+import { heightAt, slopeAt, streamDistance } from './terrain.js';
 import { forestDensity } from './forest.js';
-import { inClearing, roadDistance, streamDistance, bankX, haradRoadX, HA } from './layout.js';
+import { inClearing, roadDistance, bankX, haradRoadX, HA } from './layout.js';
 import { campNear } from './campSites.js';
 import { houseDistance } from './oldworks.js';
 

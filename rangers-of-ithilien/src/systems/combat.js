@@ -3,7 +3,8 @@
 
 import * as THREE from 'three';
 import { rng } from '../util/noise.js';
-import { pointBlocked } from '../world/collision.js';
+import { pointBlocked, trunkAt } from '../world/collision.js';
+import { heightAt } from '../world/terrain.js';
 import { stats, addItem, describeLoot, enemyLoot, quickHeal, useItem, BASE_HEALTH } from './inventory.js';
 import { ITEMS } from '../data/items.js';
 import { GeoBuilder } from '../world/build.js';
@@ -27,6 +28,8 @@ export class Combat {
     this.arrows = [];
     this.bags = [];
     this.noArrowsToast = 0;
+    this.aim = false;       // aim mode: zoomed, steady, and (on touch) aimed with the thumb pad
+    this.god = false;       // testing: the ranger takes no hurt
     this.arrowGeo = new THREE.BoxGeometry(0.035, 0.035, 0.85);
     this.arrowMat = new THREE.MeshLambertMaterial({ color: 0x6b5a3a });
     this.bagGeo = new GeoBuilder(12, 0.1).blob(0.3, 0, 0.2, 0, 0x7a5c3a, 1, 0.8, 1).blob(0.12, 0, 0.48, 0, 0x5a4028).geometry();
@@ -57,16 +60,24 @@ export class Combat {
     this.hud.setHealth(this.state.health);
   }
 
+  /** Enter or leave aim mode. Taking aim brings the bow to hand. */
+  setAim(on) {
+    if (on && this.state.arrows <= 0) { this.hud.toast('', 'Your quiver is empty.'); on = false; }
+    if (on && this.state.weapon !== 'bow') this.swap('bow');
+    this.aim = on && this.state.weapon === 'bow';
+    if (!this.aim) { this.drawing = false; this.draw = 0; }
+  }
+
   /** The ranger is struck. */
   hurt(amount) {
-    if (this.fallen > 0) return;
+    if (this.fallen > 0 || this.god) return;
     this.state.health -= amount * (1 - stats(this.state).defence);
     this.sinceHurt = 0;
     this.hud.flashHurt();
     if (this.state.health <= 0) {
       this.state.health = 0;
       this.fallen = 2.6;
-      this.drawing = false; this.autoShot = null; this.swing = 0;
+      this.drawing = false; this.autoShot = null; this.swing = 0; this.aim = false;
       this.state.stats.deaths++;
       this.hud.showFallen(true);
     }
@@ -74,7 +85,7 @@ export class Combat {
   }
 
   /** Loose an arrow from `from` so that it arrives at `to`. */
-  shoot(from, to, damage, speed, fromPlayer) {
+  shoot(from, to, damage, speed, fromPlayer, aimed = false) {
     _d.set(to.x - from.x, to.y - from.y, to.z - from.z);
     const t = Math.max(0.05, _d.length() / speed);
     const mesh = new THREE.Mesh(this.arrowGeo, this.arrowMat);
@@ -82,7 +93,7 @@ export class Combat {
     this.arrows.push({
       x: from.x, y: from.y, z: from.z,
       vx: _d.x / t, vy: _d.y / t + 0.5 * GRAVITY * t, vz: _d.z / t, // aim high enough to fall onto the mark
-      damage, fromPlayer, life: 5, mesh,
+      damage, fromPlayer, aimed, life: 5, mesh,
     });
   }
 
@@ -108,17 +119,18 @@ export class Combat {
     this.camera.getWorldDirection(_d);
     for (let t = Math.max(2, this.rig.dist + 1); t < 90; t += 1.5) {
       out.set(c.x + _d.x * t, c.y + _d.y * t, c.z + _d.z * t);
-      if (pointBlocked(out.x, out.y, out.z)) return out;
+      if (pointBlocked(out.x, out.y, out.z) || trunkAt(out.x, out.z)) return out;
       const e = this.enemies.nearest(out.x, out.z, 0.9);
       if (e && out.y > e.y - 0.3 && out.y < e.y + 2.3) return out;
     }
     return out;
   }
 
-  loose(target, power) {
+  /** @param aimed true if the ranger chose the mark (so where it strikes matters) */
+  loose(target, power, aimed) {
     const p = this.player.pos, s = stats(this.state);
     const from = { x: p.x + Math.sin(this.player.yaw) * 0.5, y: p.y + 1.45, z: p.z + Math.cos(this.player.yaw) * 0.5 };
-    this.shoot(from, target, s.bow * (0.5 + 0.5 * power), 36 + 26 * power, true);
+    this.shoot(from, target, s.bow * (0.5 + 0.5 * power), 36 + 26 * power, true, aimed);
     this.state.arrows--;
     this.hud.setWeapon(this.state);
     this.cooldown = 0.35;
@@ -144,7 +156,21 @@ export class Combat {
       this.hud.setHealth(st.health);
     }
 
-    // On touch there is one attack button: it picks the weapon and the mark for you.
+    if (this.aim && (st.weapon !== 'bow' || st.arrows <= 0 || this.fallen > 0)) this.setAim(false);
+    if (touch && this.aim) {
+      // Aim mode by touch: the bow bends by itself while you line up the shot with
+      // the thumb pad or a drag; Attack looses, and it bends again for the next.
+      slow = true;
+      this.player.yaw = this.rig.yaw;
+      if (this.cooldown <= 0) this.draw = Math.min(FULL_DRAW, this.draw + dt);
+      this.drawing = this.draw > 0;
+      pose.armL = -1.5; pose.armR = -1.5 + Math.min(1, this.draw / FULL_DRAW) * 0.55;
+      if (attack && !this.wasAttack && this.draw > 0.25) {
+        this.loose(this.aimPoint(_v), Math.min(1, this.draw / FULL_DRAW), true);
+        this.draw = 0;
+      }
+    } else
+    // Otherwise on touch there is one attack button: it picks the weapon and the mark for you.
     if (touch && attack && !this.autoShot && this.swing <= 0 && this.cooldown <= 0) {
       const near = this.enemies.nearest(p.x, p.z, 34);
       if (near && Math.hypot(near.x - p.x, near.z - p.z) > 4.5 && st.arrows > 0) {
@@ -165,7 +191,7 @@ export class Combat {
       pose.armL = -1.5; pose.armR = -1.5 + Math.min(1, a.t / 0.45) * 0.5;
       if (a.target.dead) this.autoShot = null;
       else if (a.t >= 0.45) {
-        this.loose({ x: a.target.x, y: a.target.y + 1.1 * a.target.def.scale, z: a.target.z }, 0.85);
+        this.loose({ x: a.target.x, y: a.target.y + 1.1 * a.target.def.scale, z: a.target.z }, 0.85, false);
         this.autoShot = null;
       }
     } else if (!touch) {
@@ -177,7 +203,7 @@ export class Combat {
         } else { this.drawing = true; this.draw += dt; }
       } else if (this.drawing) { // released: loose
         this.drawing = false;
-        if (this.draw > 0.18) this.loose(this.aimPoint(_v), Math.min(1, this.draw / FULL_DRAW));
+        if (this.draw > 0.18) this.loose(this.aimPoint(_v), Math.min(1, this.draw / FULL_DRAW), true);
         this.draw = 0;
       }
       if (this.drawing) {
@@ -205,6 +231,7 @@ export class Combat {
       if (this.swing <= 0) this.cooldown = 0.08;
     }
 
+    this.wasAttack = attack;
     this.flyArrows(dt);
 
     // pick up what the fallen dropped
@@ -214,7 +241,7 @@ export class Combat {
     }
     this.bags = this.bags.filter((b) => { if (b.age < 240) return true; this.scene.remove(b.mesh); return false; });
 
-    return { pose, slow };
+    return { pose, slow, still: touch && this.aim };
   }
 
   flyArrows(dt) {
@@ -226,10 +253,21 @@ export class Combat {
         a.vy -= GRAVITY * h;
         a.x += a.vx * h; a.y += a.vy * h; a.z += a.vz * h;
         if (a.fromPlayer) {
-          const e = this.enemies.nearest(a.x, a.z, 0.6);
-          if (e && a.y > e.y - 0.1 && a.y < e.y + 2 * e.def.scale) {
+          const e = this.enemies.nearest(a.x, a.z, 0.55);
+          const tall = e ? 1.78 * e.def.scale : 0;
+          if (e && a.y > e.y - 0.1 && a.y < e.y + tall + 0.12) {
+            // Where it strikes matters, if the ranger chose the mark: the head
+            // kills outright, the heart of the body wounds deeply, a limb less.
+            const up = (a.y - e.y) / tall, off = Math.hypot(a.x - e.x, a.z - e.z);
+            let dmg = a.damage, mark = '';
+            if (a.aimed) {
+              if (up > 0.8 && off < 0.32) { dmg = e.type === 'chief' ? a.damage * 3 : 1e6; mark = e.type === 'chief' ? 'His helm turns it!' : 'Head!'; }
+              else if (up > 0.42 && up <= 0.8 && off < 0.3) { dmg = a.damage * 1.6; mark = 'Heart'; }
+              else if (up < 0.42) dmg = a.damage * 0.8;
+            }
             const n = Math.hypot(a.vx, a.vz) || 1;
-            this.enemies.damage(e, a.damage, a.vx / n, a.vz / n);
+            this.enemies.damage(e, dmg, a.vx / n, a.vz / n);
+            if (mark) this.hud.hitMark(mark);
             a.life = 0;
           }
         } else if (Math.hypot(a.x - p.x, a.z - p.z) < 0.5 && a.y > p.y && a.y < p.y + 1.9) {
@@ -237,6 +275,8 @@ export class Combat {
           a.life = 0;
         }
         if (a.life > 0 && pointBlocked(a.x, a.y, a.z)) a.life = 0;
+        // the trunk of a great tree stops an arrow; bushes and saplings do not
+        if (a.life > 0 && trunkAt(a.x, a.z) && a.y < heightAt(a.x, a.z) + 13) a.life = 0;
       }
       a.mesh.position.set(a.x, a.y, a.z);
       a.mesh.lookAt(a.x + a.vx, a.y + a.vy, a.z + a.vz);
@@ -249,6 +289,6 @@ export class Combat {
     for (const a of this.arrows) this.scene.remove(a.mesh);
     for (const b of this.bags) this.scene.remove(b.mesh);
     this.arrows = []; this.bags = [];
-    this.swing = 0; this.drawing = false; this.draw = 0; this.autoShot = null;
+    this.swing = 0; this.drawing = false; this.draw = 0; this.autoShot = null; this.aim = false;
   }
 }
