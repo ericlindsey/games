@@ -5,11 +5,8 @@ import { QUALITY, SAVE } from './config.js';
 import { HA, LANDMARKS } from './world/layout.js';
 import { CAMPS, blightAt } from './world/campSites.js';
 import { SITES } from './world/oldworks.js';
-import { forestDensity } from './world/forest.js';
-import { buildFarms } from './world/farms.js';
-import { buildRelics } from './world/relics.js';
 import { RELICS, RELIC_KINDS } from './world/relicSites.js';
-import { Motes } from './world/motes.js';
+import { forestDensity } from './world/forest.js';
 import { heightAt } from './world/terrain.js';
 import { regionName, dangerTier } from './world/regions.js';
 import { Ground } from './world/terrainMesh.js';
@@ -17,13 +14,22 @@ import { Atmosphere } from './world/atmosphere.js';
 import { Water } from './world/water.js';
 import { buildHennethAnnun } from './world/hennethAnnun.js';
 import { buildRuins } from './world/ruins.js';
+import { buildFarms } from './world/farms.js';
+import { buildRelics } from './world/relics.js';
+import { Motes } from './world/motes.js';
+import { Herbs } from './world/herbs.js';
 import { Camps } from './world/camps.js';
 import { Player, CameraRig } from './entities/player.js';
+import { Enemies } from './entities/enemies.js';
 import { makeFigure, animateFigure, LOOKS } from './entities/figure.js';
 import { Input } from './input/input.js';
 import { SaveStore, newState } from './systems/save.js';
+import { Combat } from './systems/combat.js';
+import * as inv from './systems/inventory.js';
+import * as quests from './systems/quests.js';
+import { rng } from './util/noise.js';
 import { Hud } from './ui/hud.js';
-import { DialoguePanel, MapPanel, MenuPanel } from './ui/panels.js';
+import { DialoguePanel, MapPanel, MenuPanel, PackPanel, TradePanel } from './ui/panels.js';
 import { DIALOGUE } from './data/dialogue.js';
 
 const $ = (id) => document.getElementById(id);
@@ -69,16 +75,17 @@ async function boot() {
   await say('Hollowing the cave…');
   const refuge = buildHennethAnnun(scene, water);
   buildRuins(scene);
-  await say('Laying the old walls\u2026');
+  await say('Laying the old walls…');
   buildFarms(scene, quality.shadows);
   buildRelics(scene, quality.shadows);
   const motes = new Motes(scene, quality.motes);
+  const herbs = new Herbs(scene, state.picked);
   const camps = new Camps(scene, (id) => state.cleared.includes(id));
 
   // ---- people ----
   const player = new Player(scene);
   const rig = new CameraRig(camera);
-  const npcs = ['faramir', 'eowyn'].map((id) => {
+  const npcs = ['faramir', 'eowyn', 'mablung'].map((id) => {
     const spot = refuge[id];
     const figure = makeFigure(LOOKS[id]);
     figure.position.set(spot.x, refuge.floorY, spot.z);
@@ -101,81 +108,146 @@ async function boot() {
   // ---- interface ----
   const input = new Input(canvas);
   const hud = new Hud();
-  const ruinIds = [...LANDMARKS.filter((l) => l.kind && !['crossroads', 'osgiliath', 'morgul'].includes(l.kind)).map((l) => l.id), ...RELICS.map((r) => r.id)];
-  let started = false;
-  const anyPanel = () => dialogue.open || map.open || menu.open;
+  let started = false, saveOnExit = true;
+  const anyPanel = () => dialogue.open || map.open || menu.open || pack.open || trade.open;
   const resume = () => { input.enabled = started && !anyPanel(); document.body.classList.toggle('panel-open', anyPanel()); };
-  const dialogue = new DialoguePanel(resume);
-  const map = new MapPanel(resume);
+  const openPanel = () => { input.enabled = false; input.releasePointer(); hud.setPrompt(null); document.body.classList.add('panel-open'); };
   const save = () => {
     state.player.x = player.pos.x; state.player.y = player.pos.y; state.player.z = player.pos.z; state.player.heading = player.yaw;
     return store.save(state);
   };
+  const refreshHud = () => { hud.setHealth(state.health); hud.setWeapon(state); hud.setTracker(quests.tracker(state)); combat.syncWeapon(); };
+
+  const dialogue = new DialoguePanel(resume);
+  const map = new MapPanel(resume);
+  const pack = new PackPanel({ onClose: resume, onChange: () => refreshHud() });
+  const trade = new TradePanel({ onClose: resume, onChange: () => refreshHud() });
   const menu = new MenuPanel({
     onClose: resume,
     onSave: save,
     onQuality: (name) => { state.settings.quality = name; save(); location.search = ''; },
     onNew: () => { store.clear(); saveOnExit = false; location.reload(); },
   });
-  let saveOnExit = true;
-  const openPanel = () => { input.enabled = false; input.releasePointer(); hud.setPrompt(null); document.body.classList.add('panel-open'); };
 
   player.onNotice = (text) => hud.toast('', text);
+
+  // ---- the enemy, and the fighting ----
+  const lootRand = rng(4242);
+  const enemies = new Enemies(scene, {
+    isCleared: (id) => state.cleared.includes(id),
+    hurtPlayer: (amount) => combat.hurt(amount),
+    shoot: (from, to, damage) => combat.shoot(from, to, damage, 27, false),
+    onKill: (e) => { state.stats.kills++; combat.dropLoot(e); },
+    onCampCleared: (camp) => {
+      camps.clear(camp.id);
+      state.cleared.push(camp.id);
+      if (!state.discovered.includes('camp:' + camp.id)) state.discovered.push('camp:' + camp.id);
+      hud.toast('The camp is broken', 'Give it a little while. The land remembers how to be green.');
+      combat.give(inv.stashLoot(camp, lootRand), 'From their stores');
+      hud.setTracker(quests.tracker(state));
+      save();
+    },
+  });
+  const combat = new Combat({
+    scene, camera, player, rig, input, state, enemies, hud,
+    onFallen: () => { // carried home
+      enemies.reset();
+      combat.reset();
+      state.health = 100;
+      state.player = { x: HA.spawn.x, z: HA.spawn.z, heading: HA.spawn.heading };
+      placePlayer();
+      while (ground.update(player.pos.x, player.pos.z, 4) > 0) { /* build home at once */ }
+      hud.setHealth(state.health);
+      hud.toast('Henneth Annûn', 'You wake in the cave. Someone carried you home; no one will say who.');
+      save();
+    },
+  });
+
+  // ---- talk: what each of them has to say, with any tasks woven in ----
+  const speakerFor = (id) => {
+    const base = DIALOGUE[id];
+    const nodes = { ...base.nodes };
+    const extra = [];
+    if (id === 'mablung') {
+      const withTrade = (n) => ({ ...n, options: n.options.map((o) => (o.trade ? { ...o, do: () => setTimeout(() => { openPanel(); trade.show(state); }, 0) } : o)) });
+      for (const k in nodes) nodes[k] = withTrade(nodes[k]);
+      return { ...base, nodes };
+    }
+    for (const q of quests.activeFrom(id, state)) {
+      if (quests.isComplete(q, state)) {
+        nodes['done_' + q.id] = { text: () => q.done + (nodes['done_' + q.id].got ? `\n\nReceived: ${nodes['done_' + q.id].got}.` : ''), options: [{ label: 'Thank you.' }] };
+        extra.push({
+          label: `It is done. (${q.title})`, to: 'done_' + q.id,
+          do: () => { const loot = quests.turnIn(state, q.id); nodes['done_' + q.id].got = loot?.length ? inv.describeLoot(loot) : ''; refreshHud(); save(); },
+        });
+      } else {
+        const p = quests.progress(q.objective, state);
+        nodes['remind_' + q.id] = { text: q.remind + (p.need > 1 ? ` (${Math.min(p.have, p.need)} of ${p.need} so far.)` : ''), options: [{ label: 'I will see to it.', to: 'hello' }] };
+        extra.push({ label: `About my task… (${q.title})`, to: 'remind_' + q.id });
+      }
+    }
+    const offer = quests.offerFrom(id, state);
+    if (offer) {
+      nodes['offer_' + offer.id] = {
+        text: offer.offer,
+        options: [
+          { label: 'I will do it.', do: () => { quests.accept(state, offer.id); refreshHud(); save(); hud.toast('New task', offer.title); } },
+          { label: 'Not yet.', to: 'hello' },
+        ],
+      };
+      extra.push({ label: 'Have you a task for me?', to: 'offer_' + offer.id });
+    }
+    if (id === 'eowyn' && state.quests.done.includes('e1') && inv.count(state, 'athelas') >= 2) {
+      nodes.brew = { text: 'Give them here. … There: steeped, strained, and stoppered. Drink it when you must, not before.', options: [{ label: 'Thank you.' }] };
+      extra.push({ label: 'Will you steep these? (2 kingsfoil)', to: 'brew', do: () => { inv.removeItem(state, 'athelas', 2); inv.addItem(state, 'draught'); refreshHud(); save(); } });
+    }
+    nodes.hello = { ...base.nodes.hello, options: [...extra, ...base.nodes.hello.options] };
+    return { ...base, nodes };
+  };
+  const ruinIds = [...LANDMARKS.filter((l) => l.kind && !['crossroads', 'osgiliath', 'morgul'].includes(l.kind)).map((l) => l.id), ...RELICS.map((r) => r.id)];
 
   // What the player can act on right now: { label, use } or null.
   let target = null;
   const findTarget = () => {
     const p = player.pos;
+    if (Math.abs(p.y - refuge.floorY) > 2) return null;
     for (const n of npcs) {
-      if (Math.hypot(p.x - n.x, p.z - n.z) < 3 && Math.abs(p.y - refuge.floorY) < 2) {
+      if (Math.hypot(p.x - n.x, p.z - n.z) < 3) {
         const who = DIALOGUE[n.id];
-        return { label: `Speak with ${who.name}`, use: () => { openPanel(); dialogue.start(who, { cleared: state.cleared, discovered: state.discovered, ruinIds }); } };
-      }
-    }
-    for (const c of camps.sites) {
-      if (!c.isCleared && Math.hypot(p.x - c.x, p.z - c.z) < 4.5) {
-        return {
-          label: 'Break up the camp',
-          use: () => {
-            camps.clear(c.id);
-            state.cleared.push(c.id);
-            hud.toast('The camp is broken', 'Give it a little while. The land remembers how to be green.');
-            save();
-          },
-        };
+        return { label: `Speak with ${who.name}`, use: () => { openPanel(); dialogue.start(speakerFor(n.id), { cleared: state.cleared, discovered: state.discovered, ruinIds }); } };
       }
     }
     return null;
   };
 
+  const found = (id, title, blurb) => {
+    state.discovered.push(id);
+    if (title) hud.toast(title, blurb);
+    hud.setTracker(quests.tracker(state));
+    save();
+  };
   const discover = () => {
-    const p = player.pos;
-    for (const l of LANDMARKS) {
-      if (state.discovered.includes(l.id) || Math.hypot(p.x - l.x, p.z - l.z) > l.r) continue;
-      state.discovered.push(l.id);
-      hud.toast(l.name, l.blurb);
-      save();
-    }
+    const p = player.pos, has = (id) => state.discovered.includes(id);
+    for (const l of LANDMARKS) if (!has(l.id) && Math.hypot(p.x - l.x, p.z - l.z) < l.r) found(l.id, l.name, l.blurb);
     for (const st of SITES) {
       const id = 'site:' + st.id;
-      if (state.discovered.includes(id) || Math.hypot(p.x - st.x, p.z - st.z) > 45) continue;
-      state.discovered.push(id);
-      if (st.kind === 'hamlet') hud.toast('A ruined village', 'Hearths cold these many lives of men, and the trees coming in at the doors.');
-      else if (!state.discovered.some((d) => d.startsWith('site:farm') && d !== id)) hud.toast('An old farmstead', 'Someone ploughed here once. The walls remember the fields.');
-      save();
+      if (has(id) || Math.hypot(p.x - st.x, p.z - st.z) > 45) continue;
+      if (st.kind === 'hamlet') found(id, 'A ruined village', 'Hearths cold these many lives of men, and the trees coming in at the doors.');
+      else if (!state.discovered.some((d) => d.startsWith('site:farm'))) found(id, 'An old farmstead', 'Someone ploughed here once. The walls remember the fields.');
+      else found(id);
     }
-    for (const r of RELICS) {
-      if (state.discovered.includes(r.id) || Math.hypot(p.x - r.x, p.z - r.z) > 26) continue;
-      state.discovered.push(r.id);
-      hud.toast(...RELIC_KINDS[r.kind]);
-      save();
-    }
+    for (const r of RELICS) if (!has(r.id) && Math.hypot(p.x - r.x, p.z - r.z) < 26) found(r.id, ...RELIC_KINDS[r.kind]);
     for (const c of CAMPS) {
       const id = 'camp:' + c.id;
-      if (state.discovered.includes(id) || Math.hypot(p.x - c.x, p.z - c.z) > 28) continue;
-      state.discovered.push(id);
-      hud.toast('An enemy camp', state.cleared.includes(c.id) ? 'Cleared, and mending.' : 'The fire is cold. Whoever laired here is not far.');
-      save();
+      if (has(id) || Math.hypot(p.x - c.x, p.z - c.z) > 45) continue;
+      found(id, 'An enemy camp', state.cleared.includes(c.id) ? 'Cleared, and mending.' : c.size === 3 ? 'A stockade, and a captain within. Think before you go in.' : 'They have not seen you yet.');
+    }
+    const herb = herbs.gatherAt(p.x, p.z);
+    if (herb) {
+      state.picked.push(herb);
+      inv.addItem(state, 'athelas');
+      hud.toast('', `Kingsfoil gathered (${inv.count(state, 'athelas')}).`);
+      hud.setTracker(quests.tracker(state));
     }
   };
 
@@ -183,7 +255,8 @@ async function boot() {
     if (!started) return;
     if (action === 'debug') { hud.debug.hidden = !hud.debug.hidden; return; }
     if (action === 'menu') {
-      if (dialogue.open) dialogue.close(); else if (map.open) map.close(); else if (menu.open) menu.close();
+      const open = [dialogue, map, pack, trade, menu].find((p) => p.open);
+      if (open) open.close();
       else { openPanel(); menu.show(qualityName, storage ? '' : 'Saving is not available in this browser.'); }
       return;
     }
@@ -191,14 +264,27 @@ async function boot() {
       if (map.open) map.close(); else if (!anyPanel()) { openPanel(); map.show(state, player); }
       return;
     }
-    if (action === 'interact' && input.enabled && target) target.use();
+    if (action === 'pack') {
+      if (pack.open) pack.close(); else if (!anyPanel()) { openPanel(); pack.show(state); }
+      return;
+    }
+    if (!input.enabled || combat.fallen > 0) return;
+    if (action === 'interact' && target) target.use();
+    else if (action === 'swap') combat.swap();
+    else if (action === 'sword' || action === 'bow') combat.swap(action);
+    else if (action === 'heal') combat.heal();
   };
   $('btn-map').onclick = () => input.onAction('map');
+  $('btn-pack').onclick = () => input.onAction('pack');
   $('btn-menu').onclick = () => input.onAction('menu');
+  $('btn-heal').onclick = () => input.onAction('heal');
   hud.prompt.onclick = () => input.onAction('interact');
-  const jump = $('btn-jump');
-  jump.addEventListener('pointerdown', () => { input.jumpButton = true; });
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) jump.addEventListener(ev, () => { input.jumpButton = false; });
+  const hold = (el, on) => {
+    el.addEventListener('pointerdown', () => on(true));
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, () => on(false));
+  };
+  hold($('btn-jump'), (v) => { input.jumpButton = v; });
+  hold($('btn-attack'), (v) => { input.attackButton = v; });
 
   addEventListener('visibilitychange', () => { if (document.hidden && started && saveOnExit) save(); });
   addEventListener('pagehide', () => { if (started && saveOnExit) save(); });
@@ -209,8 +295,9 @@ async function boot() {
     $('title').classList.add('fade');
     setTimeout(() => { $('title').hidden = true; }, 900);
     hud.show();
+    refreshHud();
     resume();
-    if (!saved) hud.toast('Henneth Annûn', 'The Window of the Sunset. Faramir and Éowyn are within.');
+    if (!saved) hud.toast('Henneth Annûn', 'The Window of the Sunset. Faramir has work for you.');
     setTimeout(() => hud.hideHint(), 9000);
   };
   loading.hidden = true;
@@ -222,7 +309,7 @@ async function boot() {
     const fresh = $('begin-new');
     fresh.hidden = false;
     fresh.onclick = () => {
-      if (!confirm('Begin anew? Your discoveries and cleared camps will be forgotten.')) return;
+      if (!confirm('Begin anew? Your discoveries, gear and cleared camps will be forgotten.')) return;
       store.clear(); saveOnExit = false; location.reload();
     };
   }
@@ -240,12 +327,18 @@ async function boot() {
     fps += (1 / Math.max(elapsed, 1e-3) - fps) * 0.1;
 
     input.update();
-    player.update(dt, time, input, rig.yaw);
+    const down = combat.fallen > 0;
+    const fight = combat.update(dt, time, input.attack && !down);
+    rig.aiming = state.weapon === 'bow' && !input.touch && rig.wantDist > 0.5;
+    player.update(dt, time, input, rig.yaw, { pose: fight.pose, slow: fight.slow, holdYaw: fight.slow || combat.swing > 0, down });
     rig.update(dt, input, player);
+    hud.setCrosshair(started && state.weapon === 'bow' && !input.touch && !anyPanel(), combat.draw >= 0.8);
     if (input.enabled && (input.move.x || input.move.y)) hud.hideHint();
 
     ground.update(player.pos.x, player.pos.z, 1);
     camps.update(dt);
+    camera.updateMatrixWorld();
+    enemies.update(dt, time, player, input.walk, !down, camera);
     const blight = blightAt(player.pos.x, player.pos.z, camps.strength);
     const inside = refuge.isInside(player.pos);
     shade += ((inside ? 0 : forestDensity(player.pos.x, player.pos.z)) - shade) * Math.min(1, dt * 1.5);
@@ -267,21 +360,22 @@ async function boot() {
     slow -= dt;
     if (slow <= 0 && started) {
       slow = 0.25;
-      discover();
-      target = input.enabled ? findTarget() : null;
+      if (!down) discover();
+      target = input.enabled && !down ? findTarget() : null;
       hud.setPrompt(target ? target.label : null, input.touch);
-      hud.setPlace(Math.hypot(player.pos.x - HA.x, player.pos.z - HA.z) < 110 ? 'Henneth Annûn' : regionName(player.pos.x, player.pos.z));
+      hud.setPlace(Math.hypot(player.pos.x - (HA.x - 10), player.pos.z - HA.z) < 55 ? 'Henneth Annûn' : regionName(player.pos.x, player.pos.z));
+      hud.setWeapon(state);
       state.stats.playSeconds += 0.25;
       if (!hud.debug.hidden) {
         const i = renderer.info.render, p = player.pos;
         hud.debug.textContent =
-          `fps ${fps.toFixed(0)}  calls ${i.calls}  tris ${(i.triangles / 1000).toFixed(0)}k  chunks ${ground.chunks.size}\n` +
+          `fps ${fps.toFixed(0)}  calls ${i.calls}  tris ${(i.triangles / 1000).toFixed(0)}k  chunks ${ground.chunks.size}  foes ${enemies.list.length}\n` +
           `pos ${p.x.toFixed(0)}, ${p.y.toFixed(1)}, ${p.z.toFixed(0)}  tier ${dangerTier(p.x, p.z)}  blight ${blight.toFixed(2)}\n` +
           `quality ${qualityName}${input.haste ? '  HASTE (G)' : ''}`;
       }
     }
     autosave += dt;
-    if (autosave > SAVE.autosaveSeconds && started) { autosave = 0; save(); }
+    if (autosave > SAVE.autosaveSeconds && started && !down) { autosave = 0; save(); }
 
     hud.update(dt, rig.bearing(), player.pos);
     renderer.render(scene, camera);
@@ -290,7 +384,7 @@ async function boot() {
 
   // For tests and for poking at the world from the console.
   window.roi = {
-    ready: true, state, player, rig, input, camps, ground, renderer, heightAt, save, refuge,
+    ready: true, state, player, rig, input, camps, ground, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
     landmarks: LANDMARKS, sites: SITES, relics: RELICS,
     teleport(x, z, yaw = player.yaw, y = undefined) {
       player.place(x, z, yaw, y);

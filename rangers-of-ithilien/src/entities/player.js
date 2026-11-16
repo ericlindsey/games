@@ -71,7 +71,7 @@ export class Player {
    * @param {{move:{x:number,y:number}, walk:boolean, haste:boolean, jumpHeld:boolean}} input
    * @param {number} camYaw direction the camera faces
    */
-  update(dt, time, input, camYaw) {
+  update(dt, time, input, camYaw, act = {}) {
     const p = this.pos;
     this.noticeCooldown -= dt;
     const mx = input.move.x, my = input.move.y;
@@ -82,26 +82,32 @@ export class Player {
 
     const running = !input.walk && amount > 0.6;
     let target = amount > 0.05 ? (running ? PLAYER.runSpeed : PLAYER.walkSpeed * Math.max(0.5, amount / 0.6)) : 0;
+    if (act.slow) target = Math.min(target, PLAYER.walkSpeed);
+    if (act.down) target = 0;
     if (input.haste) target *= 6;
     this.speed += (target - this.speed) * Math.min(1, dt * 9);
 
     if (len > 0.05 && this.speed > 0.01) {
       dx /= len; dz /= len;
       // turn to face the way we are going
-      let turn = Math.atan2(dx, dz) - this.yaw;
-      turn = Math.atan2(Math.sin(turn), Math.cos(turn));
-      this.yaw += turn * Math.min(1, dt * 12);
+      if (!act.holdYaw) { // while aiming or striking, the body keeps facing the mark
+        let turn = Math.atan2(dx, dz) - this.yaw;
+        turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+        this.yaw += turn * Math.min(1, dt * 12);
+      }
       // move one axis at a time so we slide along walls
       const step = this.speed * dt;
       const nx = p.x + dx * step, nz = p.z + dz * step;
+      const x0 = p.x, z0 = p.z;
       if (this.canStand(nx, p.z)) p.x = nx;
       if (this.canStand(p.x, nz)) p.z = nz;
       resolveCircles(p, PLAYER.radius);
-    }
+      this.vx = (p.x - x0) / Math.max(dt, 1e-4); this.vz = (p.z - z0) / Math.max(dt, 1e-4);
+    } else { this.vx = 0; this.vz = 0; }
 
     const ground = groundAt(p.x, p.z, p.y);
     if (this.onGround) {
-      if (input.jumpHeld) {
+      if (input.jumpHeld && !act.down) {
         this.vy = PLAYER.jumpSpeed;
         this.onGround = false;
       } else if (ground < p.y - PLAYER.stepHeight * 1.5) {
@@ -116,13 +122,14 @@ export class Player {
       p.y += this.vy * dt;
       if (p.y <= ground && this.vy <= 0) { p.y = ground; this.vy = 0; this.onGround = true; }
     }
-    this.sync(dt, time);
+    this.sync(dt, time, act);
   }
 
-  sync(dt, time) {
+  sync(dt, time, act = {}) {
     this.figure.position.copy(this.pos);
     this.figure.rotation.y = this.yaw;
-    animateFigure(this.figure, this.onGround ? this.speed : 0, dt, time);
+    this.figure.rotation.x += ((act.down ? -1.45 : 0) - this.figure.rotation.x) * Math.min(1, dt * 6);
+    animateFigure(this.figure, this.onGround ? this.speed : 0, dt, time, act.pose);
   }
 }
 
@@ -168,6 +175,10 @@ export class CameraRig {
     regionWeights(player.pos.x, player.pos.z, _w);
     this.lift = (this.lift ?? 0) + (_w.foothill * 3.2 - (this.lift ?? 0)) * Math.min(1, dt * 2);
 
+    // With the bow in hand the camera sits over the right shoulder and looks
+    // where the arrow will go, so the ranger is not in the way of the mark.
+    this.shoulder = (this.shoulder ?? 0) + ((this.aiming ? 1 : 0) - (this.shoulder ?? 0)) * Math.min(1, dt * 6);
+
     const firstPerson = this.dist < 0.8;
     player.figure.visible = !firstPerson;
     const d = firstPerson ? -0.15 : this.dist;
@@ -177,6 +188,11 @@ export class CameraRig {
       this.camera.lookAt(c.x + _dir.x, c.y + _dir.y, c.z + _dir.z);
     } else {
       c.y += this.lift * Math.min(1, this.dist / 4);
+      const sh = this.shoulder;
+      if (sh > 0.01) {
+        c.x -= Math.cos(this.yaw) * 0.75 * sh; c.z += Math.sin(this.yaw) * 0.75 * sh; c.y += 0.3 * sh;
+        _target.x += (c.x + _dir.x * 12 - _target.x) * sh; _target.y += (c.y + _dir.y * 12 - _target.y) * sh; _target.z += (c.z + _dir.z * 12 - _target.z) * sh;
+      }
       this.camera.lookAt(_target); // the ranger's head: the same as looking along the boom when there is no lift
     }
   }

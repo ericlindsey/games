@@ -18,10 +18,12 @@ export class Input {
     this.lookPointers = new Map();
     this.pinch = 0;
     this.jumpHeld = false;
+    this.attackKey = false; this.attackMouse = false; this.attackButton = false;
+    this.attack = false;           // true while any attack control is held
 
     addEventListener('keydown', (e) => this.key(e, true));
     addEventListener('keyup', (e) => this.key(e, false));
-    addEventListener('blur', () => { this.keys.clear(); this.stick = null; this.lookPointers.clear(); });
+    addEventListener('blur', () => { this.keys.clear(); this.stick = null; this.lookPointers.clear(); this.attackKey = this.attackMouse = false; });
     surface.addEventListener('pointerdown', (e) => this.pointerDown(e));
     addEventListener('pointermove', (e) => this.pointerMove(e));
     addEventListener('pointerup', (e) => this.pointerUp(e));
@@ -44,9 +46,15 @@ export class Input {
       else if (k === 'Backquote') this.onAction('debug');
       else if (k === 'ShiftLeft' || k === 'ShiftRight') this.walk = !this.walk;
       else if (k === 'KeyG') this.haste = !this.haste;
+      else if (k === 'KeyQ') this.onAction('swap');
+      else if (k === 'Digit1') this.onAction('sword');
+      else if (k === 'Digit2') this.onAction('bow');
+      else if (k === 'KeyH') this.onAction('heal');
+      else if (k === 'KeyI' || k === 'Tab') { this.onAction('pack'); e.preventDefault(); }
     }
     if (k.startsWith('Arrow') || k === 'Space') e.preventDefault();
     if (down) this.keys.add(k); else this.keys.delete(k);
+    if (k === 'KeyF') this.attackKey = down;
   }
 
   pointerDown(e) {
@@ -63,8 +71,9 @@ export class Input {
     } else {
       this.lookPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (document.pointerLockElement !== this.surface) {
+        // the first click only takes hold of the mouse; after that, a click is a blow
         try { this.surface.requestPointerLock()?.catch?.(() => {}); } catch { /* drag-look still works */ }
-      }
+      } else if (e.button === 0) this.attackMouse = true;
     }
   }
 
@@ -99,6 +108,7 @@ export class Input {
     if (this.stick && e.pointerId === this.stick.id) { this.stick = null; this.showStick(); }
     this.lookPointers.delete(e.pointerId);
     this.pinch = 0;
+    if (e.pointerType !== 'touch') this.attackMouse = false;
   }
 
   showStick() {
@@ -129,6 +139,7 @@ export class Input {
     if (len > 1) { x /= len; y /= len; }
     this.move.x = x; this.move.y = y;
     this.jumpHeld = this.enabled && (k.has('Space') || this.jumpButton === true);
+    this.attack = this.enabled && (this.attackKey || this.attackMouse || this.attackButton);
   }
 
   /** Take and reset the accumulated look and zoom deltas. */

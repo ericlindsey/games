@@ -8,6 +8,9 @@ import { CAMPS } from '../world/campSites.js';
 import { SITES } from '../world/oldworks.js';
 import { PATHS } from '../world/paths.js';
 import { RELICS } from '../world/relicSites.js';
+import { ITEMS } from '../data/items.js';
+import * as inv from '../systems/inventory.js';
+import * as quests from '../systems/quests.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -35,7 +38,7 @@ export class DialoguePanel {
     for (const opt of node.options) {
       const b = document.createElement('button');
       b.textContent = opt.label;
-      b.onclick = () => (opt.to ? this.go(opt.to) : this.close());
+      b.onclick = () => { opt.do?.(); if (opt.to) this.go(opt.to); else this.close(); };
       box.appendChild(b);
     }
   }
@@ -136,6 +139,11 @@ export class MapPanel {
       if (!state.discovered.includes(r.id)) continue;
       ctx.beginPath(); ctx.moveTo(r.x * scale, r.z * scale - 3.5); ctx.lineTo(r.x * scale + 3, r.z * scale + 2.5); ctx.lineTo(r.x * scale - 3, r.z * scale + 2.5); ctx.fill();
     }
+    const goal = quests.tracker(state)?.target; // where the present task points
+    if (goal) {
+      ctx.strokeStyle = '#2f6b2a'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(goal.x * scale, goal.z * scale, 9, 0, 7); ctx.stroke();
+    }
     for (const c of CAMPS) {
       if (!state.discovered.includes('camp:' + c.id)) continue;
       const x = c.x * scale, y = c.z * scale, done = state.cleared.includes(c.id);
@@ -184,6 +192,128 @@ export class MenuPanel {
     $('menu-status').textContent = status;
     this.root.hidden = false;
     this.open = true;
+  }
+  close() {
+    if (!this.open) return;
+    this.open = false;
+    this.root.hidden = true;
+    this.h.onClose();
+  }
+}
+
+function row(parent, title, note, buttons = [], cls = '') {
+  const el = document.createElement('div');
+  el.className = 'row-item ' + cls;
+  const what = document.createElement('div');
+  what.className = 'what';
+  const b = document.createElement('b');
+  b.textContent = title;
+  b.style.fontWeight = 'normal';
+  const small = document.createElement('small');
+  small.textContent = note;
+  what.append(b, small);
+  el.append(what);
+  for (const [label, fn, disabled] of buttons) {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.disabled = !!disabled;
+    btn.onclick = fn;
+    el.append(btn);
+  }
+  parent.append(el);
+  return el;
+}
+function empty(parent, text) {
+  const el = document.createElement('div');
+  el.className = 'empty';
+  el.textContent = text;
+  parent.append(el);
+}
+const itemNote = (it) => (it.damage ? `Damage ${it.damage}. ` : it.defence ? `Turns ${Math.round(it.defence * 100)}% of each blow. ` : it.heal ? `Restores ${it.heal}. ` : '') + it.text;
+
+/** The ranger's pack: tasks, gear and goods. */
+export class PackPanel {
+  /** @param h { onClose, onChange() } */
+  constructor(h) {
+    this.root = $('pack');
+    this.open = false;
+    this.h = h;
+    $('pack-close').onclick = () => this.close();
+    this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
+  }
+  show(state) {
+    this.state = state;
+    this.root.hidden = false;
+    this.open = true;
+    this.draw();
+  }
+  draw() {
+    const st = this.state;
+    $('pack-purse').textContent = `${st.silver} silver \u00b7 ${st.arrows} arrows \u00b7 health ${Math.round(st.health)} of 100 \u00b7 renown ${st.renown}`;
+    const tasks = $('pack-tasks'); tasks.replaceChildren();
+    for (const id of st.quests.active) {
+      const q = quests.byId[id], p = quests.progress(q.objective, st), done = p.have >= p.need;
+      const el = row(tasks, q.title, done ? `Done. Return to ${q.giver === 'faramir' ? 'Faramir' : '\u00c9owyn'}.` : q.remind, [], 'task' + (done ? ' done' : ''));
+      const bar = document.createElement('div'); bar.className = 'bar';
+      const fill = document.createElement('div'); fill.style.width = Math.min(100, (p.have / p.need) * 100) + '%';
+      bar.append(fill); el.firstChild.append(bar);
+    }
+    if (!st.quests.active.length) empty(tasks, st.quests.done.length ? 'No task in hand. Faramir and \u00c9owyn may have more.' : 'No task yet. Speak with Faramir or \u00c9owyn.');
+    if (st.quests.done.length) empty(tasks, `Done: ${st.quests.done.map((id) => quests.byId[id].title).join(', ')}.`);
+
+    const gear = $('pack-gear'); gear.replaceChildren();
+    for (const [slot, label] of [['sword', 'Sword'], ['bow', 'Bow'], ['armour', 'Armour']]) {
+      const id = st.equipped[slot];
+      row(gear, id ? ITEMS[id].name : `No ${label.toLowerCase()}`, id ? itemNote(ITEMS[id]) : 'Nothing worn.');
+    }
+    const items = $('pack-items'); items.replaceChildren();
+    const ids = Object.keys(st.items);
+    for (const id of ids) {
+      const it = ITEMS[id], n = st.items[id], buttons = [];
+      if (it.slot) buttons.push([it.slot === 'armour' ? 'Wear' : 'Wield', () => { inv.equip(st, id); this.h.onChange(); this.draw(); }]);
+      if (it.kind === 'heal') buttons.push(['Use', () => { inv.useItem(st, id); this.h.onChange(); this.draw(); }, st.health >= 100]);
+      row(items, n > 1 ? `${it.name} \u00d7${n}` : it.name, itemNote(it), buttons);
+    }
+    if (!ids.length) empty(items, 'Empty.');
+  }
+  close() {
+    if (!this.open) return;
+    this.open = false;
+    this.root.hidden = true;
+    this.h.onClose();
+  }
+}
+
+/** Buying and selling with Mablung. */
+export class TradePanel {
+  constructor(h) {
+    this.root = $('trade');
+    this.open = false;
+    this.h = h;
+    $('trade-close').onclick = () => this.close();
+    this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
+  }
+  show(state) {
+    this.state = state;
+    this.root.hidden = false;
+    this.open = true;
+    this.draw();
+  }
+  draw() {
+    const st = this.state;
+    $('trade-purse').textContent = `You have ${st.silver} silver. Renown ${st.renown}: finish tasks and he will bring out better things.`;
+    const buy = $('trade-buy'); buy.replaceChildren();
+    for (const e of inv.shopFor(st)) {
+      const price = inv.buyPrice(e), it = ITEMS[e.item];
+      row(buy, e.name ?? it.name, it ? itemNote(it) : 'For the bow.', [[`Buy \u00b7 ${price}`, () => { inv.buy(st, e); this.h.onChange(); this.draw(); }, st.silver < price]]);
+    }
+    const sell = $('trade-sell'); sell.replaceChildren();
+    const ids = Object.keys(st.items);
+    for (const id of ids) {
+      const it = ITEMS[id];
+      row(sell, st.items[id] > 1 ? `${it.name} \u00d7${st.items[id]}` : it.name, it.text, [[`Sell \u00b7 ${inv.sellPrice(id)}`, () => { inv.sell(st, id); this.h.onChange(); this.draw(); }]]);
+    }
+    if (!ids.length) empty(sell, 'You carry nothing he wants.');
   }
   close() {
     if (!this.open) return;

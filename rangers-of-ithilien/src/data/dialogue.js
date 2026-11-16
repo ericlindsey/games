@@ -19,7 +19,7 @@ export const DIALOGUE = {
         ],
       },
       charge: {
-        text: 'Those who fled the Black Gate did not all flee far. Orcs, and Men who served the Enemy, have gone to ground in our woods. Find their camps. Where you find one cold, break it up and set our mark there; the rest we will deal with when the company is mustered. And go lightly near the mountains and the Morgul road.',
+        text: 'Those who fled the Black Gate did not all flee far. Orcs, and Men who served the Enemy, have gone to ground in our woods. Find their camps and break them: when the last of a company falls, the camp is ours and the land about it begins to mend. Near home they are few and hungry. Farther out they are many, and some are led. Go softly and they may not see you until you choose; and go lightly near the mountains and the Morgul road.',
         options: [{ label: 'Tell me of the land.', to: 'land' }, { label: 'I will see it done.' }],
       },
       land: {
@@ -64,6 +64,26 @@ export const DIALOGUE = {
           return 'Faramir will tell you where to look. I will tell you to come home afterward. ' + tail;
         },
         options: [{ label: 'I will.' }],
+      },
+    },
+  },
+
+  mablung: {
+    name: 'Mablung',
+    title: 'Ranger of Ithilien, keeper of the stores',
+    start: 'hello',
+    nodes: {
+      hello: {
+        text: 'Ranger. If it is arrows you want, I have them. If it is anything better than arrows, you will have to earn the Captain\u2019s good word first; I do not hand out mail to every lad who can find the door.',
+        options: [
+          { label: 'Show me what you have.', trade: true },
+          { label: 'How do I fight them?', to: 'fight' },
+          { label: 'Farewell.' },
+        ],
+      },
+      fight: {
+        text: 'Bow first, while they are still wondering what the noise was. Bend it full before you loose; a half-drawn bow is a thrown stick. When they close, the sword, and keep moving: an orc lifts his blade a moment before he swings, and that moment is yours to step away in. Walk soft and they see you late. And if it goes ill, run for the falls. They will not follow you here.',
+        options: [{ label: 'Show me what you have.', trade: true }, { label: 'My thanks.' }],
       },
     },
   },

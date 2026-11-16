@@ -251,6 +251,7 @@ export function buildHennethAnnun(scene, water) {
     floorY,
     faramir: { x: fx + 15.2, z: fz - 4.4, heading: -2.2 },
     eowyn: { x: fx + 8.5, z: fz + 3.2, heading: 1.3 },
+    mablung: { x: fx + 25.4, z: fz - 4.6, heading: -1.9 },
     /** True inside the cave or its passages. */
     /** The upper flight: from the landing by the cave door up to the forest. */
     forestStair: { landingX: fx - 1.5, headX: fx + upHead - 2, z: fz + upZ0 + 2.2, exitZ: fz + upZ1, rimY },

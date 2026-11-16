@@ -3,6 +3,7 @@
 
 import { SAVE, WORLD } from '../config.js';
 import { HA } from '../world/layout.js';
+import { ITEMS } from '../data/items.js';
 
 export function newState() {
   return {
@@ -12,7 +13,17 @@ export function newState() {
     discovered: ['henneth'],
     cleared: [],
     settings: { quality: null },
-    stats: { playSeconds: 0 },
+    stats: { playSeconds: 0, kills: 0, deaths: 0 },
+    // the ranger
+    health: 100,
+    weapon: 'sword',
+    arrows: 24,
+    silver: 0,
+    renown: 0,
+    items: { waybread: 2 },
+    equipped: { sword: 'rangerSword', bow: 'rangerBow', armour: null },
+    quests: { active: [], done: [] },
+    picked: [], // kingsfoil plants already gathered
   };
 }
 
@@ -34,7 +45,24 @@ export function migrate(raw) {
   s.discovered = [...new Set(['henneth', ...strings(raw.discovered)])];
   s.cleared = [...new Set(strings(raw.cleared))];
   if (raw.settings && ['low', 'medium', 'high'].includes(raw.settings.quality)) s.settings.quality = raw.settings.quality;
-  if (raw.stats && num(raw.stats.playSeconds)) s.stats.playSeconds = raw.stats.playSeconds;
+  if (raw.stats) for (const k of ['playSeconds', 'kills', 'deaths']) if (num(raw.stats[k])) s.stats[k] = raw.stats[k];
+  // v2 -> v3 added the ranger's health, gear, pack and tasks. A v2 save has none
+  // of these, so it simply keeps the defaults above.
+  if (num(raw.health)) s.health = Math.max(1, Math.min(100, raw.health));
+  if (raw.weapon === 'bow') s.weapon = 'bow';
+  for (const k of ['arrows', 'silver', 'renown']) if (num(raw[k]) && raw[k] >= 0) s[k] = Math.floor(raw[k]);
+  if (raw.items && typeof raw.items === 'object') {
+    s.items = {};
+    for (const [id, n] of Object.entries(raw.items)) if (ITEMS[id] && num(n) && n > 0) s.items[id] = Math.floor(n);
+  }
+  if (raw.equipped && typeof raw.equipped === 'object') {
+    for (const slot of ['sword', 'bow', 'armour']) {
+      const id = raw.equipped[slot];
+      if (id === null || ITEMS[id]?.slot === slot) s.equipped[slot] = id;
+    }
+  }
+  if (raw.quests) { s.quests.active = strings(raw.quests.active); s.quests.done = strings(raw.quests.done); }
+  s.picked = strings(raw.picked);
   s.savedAt = num(raw.savedAt) ? raw.savedAt : 0;
   return s;
 }
