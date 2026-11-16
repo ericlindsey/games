@@ -64,7 +64,7 @@ export function groundColor(x, z, h, slope, out) {
   if (h < 0.2) mix(out, C.bed, 1 - smoothstep(-2.5, 0.2, h));
 
   // The floor of the basin and the cut at Henneth Annûn is wet stone and shingle.
-  if (h < HA.plateau - 9 && Math.abs(z - HA.z) < 22 && x > HA.gorge.endX + 40 && x < HA.x + 1) {
+  if (h < HA.plateau - 9 && Math.abs(z - HA.z) < 22 && x > 660 && x < HA.x + 1) {
     mix(out, C.rock, 0.75);
     out[0] *= 0.82; out[1] *= 0.84; out[2] *= 0.84;
   }

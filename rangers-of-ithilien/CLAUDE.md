@@ -112,8 +112,10 @@ Rules of thumb:
 - Henneth Annûn sits in the northern third, about halfway between river and
   mountains. The fall faces **west** (it is the Window of the Sunset). The pool is
   walled in by cliffs and cannot be seen until you stand over it. The stream leaves
-  by a deep narrow cut running west; the stair to the cave is inside the cut, and
-  the cut runs out to ground level about 300 m downstream.
+  by a deep narrow cut running west, which runs out to ground level about 350 m
+  downstream. One stair runs along the south wall: up from the pool to the cave door,
+  where it forks and a second flight climbs on to the rim and the forest. There must always be a walkable way out of the basin;
+  tests/smoke.mjs walks both.
 - Ithilien was the garden of Gondor: farmland and villages, now long abandoned and
   half taken back by forest. Great trees "planted long ago" stand 25-38 m tall over
   a riot of younger growth; old field walls, roofless houses and rows of planted

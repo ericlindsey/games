@@ -75,14 +75,18 @@ function withStamps(x, z) {
 /**
  * The hidden pool and the cut at Henneth Annûn: a basin walled by cliffs just
  * west of the fall, drained by a deep narrow gorge that shallows downstream
- * until the stream runs out at ground level.
+ * until the stream runs out at ground level. The gorge is only ever cut
+ * downward (`floor < h`), so it ends exactly where its floor meets the natural
+ * stream bed, with no step: that is the way out. `gorge.endX` lies well beyond
+ * that point and is only a bound on where to look.
  */
 function cutHenneth(x, z, h) {
   const dz = Math.abs(z - HA.z);
-  if (x > HA.x || x < HA.gorge.endX || dz > 20) return h;
+  if (x > HA.x || x < HA.gorge.endX || dz > 24) return h;
   const b = HA.basin, g = HA.gorge;
   if (x > b.minX - b.wall) {
-    const w = (1 - smoothstep(b.halfZ, b.halfZ + b.wall, dz)) * smoothstep(b.minX - b.wall, b.minX, x);
+    const edge = b.halfZ + (z > HA.z ? b.southSetBack : 0);
+    const w = (1 - smoothstep(edge, edge + b.wall, dz)) * smoothstep(b.minX - b.wall, b.minX, x);
     const rp = Math.hypot(x - HA.pool.x, z - HA.pool.z);
     h = lerp(h, HA.floor - 1.2 * (1 - smoothstep(HA.pool.r * 0.6, HA.pool.r, rp)), w);
   }

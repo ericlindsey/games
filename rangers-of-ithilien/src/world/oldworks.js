@@ -12,7 +12,7 @@ const between = (a, b) => a + (b - a) * rand();
 
 function buildable(x, z, margin = 0) {
   if (x < bankX(z) + 70 || x > haradRoadX(z) - 50 || z < 140 || z > southRoadZ(x) - 90) return false;
-  if (Math.abs(z - HA.z) < 90 + margin && x > HA.gorge.endX - 60 && x < HA.x + 120) return false;
+  if (Math.abs(z - HA.z) < 90 + margin && x > 600 && x < HA.x + 120) return false;
   if (streamDistance(x, z) < 24 || roadDistance(x, z) < 22) return false;
   for (const l of LANDMARKS) if (Math.hypot(x - l.x, z - l.z) < l.r * 0.5 + 45 + margin) return false;
   return heightAt(x, z) > 3 && slopeAt(x, z) < 0.2;
