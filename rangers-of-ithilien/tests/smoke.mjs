@@ -65,12 +65,12 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate(() => roi.renderer.info.render.triangles > 1000), 'the scene is drawing');
 
   const start = await pos(page);
-  check(Math.abs(start.x - 1595) < 1 && Math.abs(start.z - 1902) < 1, 'starts in the cave at Henneth Annûn');
-  check(start.y > await page.evaluate(() => roi.heightAt(1595, 1902)) + 3, 'stands on the cave floor, not the ground beneath it');
+  check(Math.abs(start.x - 1022) < 1 && Math.abs(start.z - 1192) < 1, 'starts in the cave at Henneth Annûn');
+  check(Math.abs(start.y - 40) < 0.1 && await page.evaluate(() => roi.refuge.isInside(roi.player.pos)), 'stands on the cave floor, under the rock');
   await shot(page, 'cave');
 
   // Faramir is a few steps away: walk up and speak.
-  await page.evaluate(() => roi.teleport(1590.6, 1898.9, -2, roi.player.pos.y));
+  await page.evaluate(() => roi.teleport(roi.refuge.faramir.x + 1.4, roi.refuge.faramir.z + 1.3, -2, 40));
   await page.waitForFunction(() => !document.getElementById('prompt').hidden, null, { timeout: 20000 });
   check((await page.textContent('#prompt')).includes('Faramir'), 'prompt offers to speak with Faramir');
   await page.keyboard.press('KeyE');
@@ -82,8 +82,20 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.click('#dialogue-options button:last-child');
   check(await page.isHidden('#dialogue'), 'dialogue closes');
 
-  // Walk.
-  await page.evaluate(() => roi.teleport(1300, 2300, 0));
+  // The hidden stair: from the floor of the cut, up along the basin wall and in at the door.
+  await page.evaluate(() => { roi.teleport(973, 1202.3, Math.PI / 2, 31); roi.rig.yaw = Math.PI / 2; });
+  const foot = await pos(page);
+  check(Math.abs(foot.y - 31) < 1.2, 'the foot of the stair is on the floor of the basin');
+  await page.keyboard.down('KeyW');
+  await page.waitForFunction(() => roi.player.pos.x > 1004, null, { timeout: 90000 });
+  await page.keyboard.up('KeyW');
+  const door = await pos(page);
+  check(Math.abs(door.y - 40) < 0.1, `the stair climbs to the cave door (y ${door.y.toFixed(1)})`);
+  check(await page.evaluate(() => roi.refuge.isInside(roi.player.pos)), 'and leads inside the rock');
+  await shot(page, 'hall');
+
+  // Walk, on the lawns of Cormallen where nothing is in the way.
+  await page.evaluate(() => roi.teleport(337, 1195, 0));
   const a = await pos(page);
   await page.keyboard.down('KeyW');
   await page.waitForFunction((a) => Math.hypot(roi.player.pos.x - a.x, roi.player.pos.z - a.z) > 2, a, { timeout: 30000 });
@@ -93,7 +105,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(Math.abs(b.y - (await page.evaluate((b) => roi.heightAt(b.x, b.z), b))) < 0.05, 'feet follow the ground');
 
   // The river and the edges of the world stop the ranger.
-  await page.evaluate(() => { roi.teleport(215, 3000, -Math.PI / 2); roi.input.haste = true; });
+  await page.evaluate(() => { roi.teleport(150, 2300, -Math.PI / 2); roi.input.haste = true; });
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(2500);
   await page.keyboard.up('KeyW');
@@ -102,13 +114,17 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate((r) => roi.heightAt(r.x, r.z) > -1.31, r), 'cannot wade into the deep river');
 
   // Discover a ruin, break up a camp.
-  await page.evaluate(() => roi.teleport(1385, 2112, 3));
+  await page.evaluate(() => roi.teleport(860, 1338, 3));
   await page.waitForFunction(() => roi.state.discovered.includes('arch'), null, { timeout: 20000 });
   check(true, 'walking up to a ruin discovers it');
-  await page.evaluate(() => roi.teleport(2262, 1561, 3));
+  check(await page.evaluate(() => roi.camps.sites.length >= 100), 'more than a hundred camps exist');
+  await page.evaluate(() => { const c = roi.camps.byId.c1; roi.teleport(c.x + 0.5, c.z + 1.6, 3); });
   await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('camp'), null, { timeout: 20000 });
   await page.keyboard.press('KeyE');
   check(await page.evaluate(() => roi.state.cleared.includes('c1') && roi.camps.byId.c1.isCleared), 'a camp can be broken up');
+  await page.evaluate(() => { const s = roi.sites[0]; roi.teleport(s.x + 14, s.z + 3, 3); });
+  await page.waitForFunction(() => roi.state.discovered.some((d) => d.startsWith('site:')), null, { timeout: 20000 });
+  check(true, 'an old farm or village is noticed and remembered');
   await shot(page, 'camp-cleared');
 
   // Map.
@@ -120,7 +136,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.isHidden('#map'), 'map closes');
 
   // Save, reload, resume.
-  await page.evaluate(() => roi.teleport(1800, 2500, 1));
+  await page.evaluate(() => roi.teleport(700, 1000, 1));
   const before = await pos(page);
   check(await page.evaluate(() => roi.save()), 'save succeeds');
   await page.reload();
@@ -150,7 +166,7 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   check(await page.isVisible('#btn-jump') && await page.isVisible('#btn-map'), 'touch buttons are shown');
   check(await page.evaluate(() => innerWidth >= document.documentElement.scrollWidth), 'no horizontal overflow');
 
-  await page.evaluate(() => roi.teleport(1300, 2300, 0));
+  await page.evaluate(() => roi.teleport(337, 1195, 0));
   const a = await pos(page);
   // Left thumb: press, push the stick up, hold.
   const cdp = await page.context().newCDPSession(page);
@@ -173,7 +189,7 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   check(Math.abs((await page.evaluate(() => roi.rig.yaw)) - yaw0) > 0.1, 'dragging on the right turns the camera');
 
   // Speak with Éowyn by tapping the prompt.
-  await page.evaluate(() => roi.teleport(1582.6, 1902.6, 1, 48));
+  await page.evaluate(() => roi.teleport(roi.refuge.eowyn.x + 1.6, roi.refuge.eowyn.z - 0.6, 1, 40));
   await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('owyn'), null, { timeout: 20000 });
   await page.tap('#prompt');
   await page.waitForSelector('#dialogue:not([hidden])');

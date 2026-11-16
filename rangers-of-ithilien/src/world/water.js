@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { makeNoiseTexture } from './build.js';
 import { heightAt, WATER_LEVEL } from './terrain.js';
-import { HA, bankX, streamZ, STREAM_COUNT, STREAM_END_X } from './layout.js';
+import { HA, bankX, streamZ, isHomeStream, STREAM_COUNT, STREAM_END_X } from './layout.js';
 
 export const STREAM_DEPTH = 0.45;
 const HALF_WIDTH = 2.6;
@@ -15,7 +15,7 @@ export class Water {
     this.streaks = makeNoiseTexture(128, 9, true);
 
     // The Great River: one broad sheet at water level; land hides the rest.
-    const b = WORLD.backdrop, maxX = 1000;
+    const b = WORLD.backdrop, maxX = 640;
     const river = new THREE.Mesh(
       new THREE.PlaneGeometry(maxX - b.minX, b.maxZ - b.minZ),
       new THREE.MeshLambertMaterial({ color: 0x5c8e9c, map: this.ripples, transparent: true, opacity: 0.84 }),
@@ -32,14 +32,14 @@ export class Water {
       color: 0x8cc4d2, map: this.streaks, transparent: true, opacity: 0.78, depthWrite: false, side: THREE.DoubleSide,
     });
     for (let i = 0; i < STREAM_COUNT; i++) {
-      const isHome = Math.abs(streamZ(i, HA.x) - HA.z) < 1;
+      const isHome = isHomeStream(i);
       let run = [];
       const flush = () => { if (run.length > 1) scene.add(this.ribbon(run)); run = []; };
-      for (let x = STREAM_END_X - 150; ; x -= 5) {
+      for (let x = STREAM_END_X - 110; ; x -= 5) {
         const z = streamZ(i, x);
         if (x < bankX(z) - 6) break;
-        // The home stream is drawn by hand where it crosses the falls.
-        if (isHome && x > HA.outcrop.minX - 4 && x < HA.outcrop.maxX + 4) { flush(); continue; }
+        // The home stream is drawn by hand where it goes over the fall and through the pool.
+        if (isHome && x > HA.pool.x - 8 && x < HA.x + 4) { flush(); continue; }
         const y = heightAt(x, z) + STREAM_DEPTH;
         if (y < WATER_LEVEL + 0.05) break;
         run.push(x, y, z);

@@ -13,6 +13,9 @@ const BLIGHT = {
   hemiSky: hex(0xa9b0a8), hemiGround: hex(0x5b5c4c), hemiPower: 0.95, fogNear: 15, fogFar: 0.3,
 };
 
+// Under a closed canopy: green-gold dimness, and the haze draws in.
+const SHADE = { fog: hex(0xa9c08e), sun: 0.45, hemi: 0.8, hemiSky: hex(0xb9d69a), fogFar: 0.3, fogNear: 25 };
+
 /** Unit vector pointing at the sun: low in the west, so it shines into the cave. */
 export const SUN_DIR = new THREE.Vector3(-0.86, 0.42, 0.28).normalize();
 
@@ -68,22 +71,31 @@ export class Atmosphere {
     this.sun.castShadow = quality.shadows;
   }
 
-  /** @param {number} blight 0..1 at the player's position */
-  update(camera, focus, blight, dt) {
-    this.blight += (blight - this.blight) * Math.min(1, dt * 0.8);
-    const t = this.blight;
+  /**
+   * @param {number} blight 0..1 at the player's position
+   * @param {number} shade 0..1: how closed the forest roof is overhead
+   * @param {boolean} indoors true inside the cave
+   */
+  update(camera, focus, blight, dt, shade = 0, indoors = false) {
+    const ease = Math.min(1, dt * 0.8);
+    this.blight += (blight - this.blight) * ease;
+    this.shade = (this.shade ?? 0) + (shade - (this.shade ?? 0)) * Math.min(1, dt * 0.6);
+    this.indoors = (this.indoors ?? 0) + ((indoors ? 1 : 0) - (this.indoors ?? 0)) * Math.min(1, dt * 2.5);
+    const t = this.blight, sh = this.shade * (1 - t), dim = 1 - 0.72 * this.indoors;
+    const L = THREE.MathUtils.lerp;
     const u = this.uniforms;
     u.top.value.lerpColors(CLEAR.top, BLIGHT.top, t);
     u.horizon.value.lerpColors(CLEAR.horizon, BLIGHT.horizon, t);
     u.sunAmt.value = 1 - 0.8 * t;
-    this.fog.color.copy(u.horizon.value);
-    this.fog.near = THREE.MathUtils.lerp(CLEAR.fogNear, BLIGHT.fogNear, t);
-    this.fog.far = this.quality.fogFar * THREE.MathUtils.lerp(CLEAR.fogFar, BLIGHT.fogFar, t);
+    this.fog.color.copy(u.horizon.value).lerp(SHADE.fog, sh * 0.75);
+    this.fog.near = L(L(CLEAR.fogNear, BLIGHT.fogNear, t), SHADE.fogNear, sh);
+    this.fog.far = this.quality.fogFar * L(L(CLEAR.fogFar, BLIGHT.fogFar, t), SHADE.fogFar, sh);
     this.sun.color.lerpColors(CLEAR.sun, BLIGHT.sun, t);
-    this.sun.intensity = THREE.MathUtils.lerp(CLEAR.sunPower, BLIGHT.sunPower, t);
-    this.hemi.color.lerpColors(CLEAR.hemiSky, BLIGHT.hemiSky, t);
+    // With real shadows the trees already block the sun; without them, dim it by hand.
+    this.sun.intensity = L(CLEAR.sunPower, BLIGHT.sunPower, t) * dim * (this.quality.shadows ? 1 - 0.15 * sh : L(1, SHADE.sun, sh));
+    this.hemi.color.lerpColors(CLEAR.hemiSky, BLIGHT.hemiSky, t).lerp(SHADE.hemiSky, sh * 0.6);
     this.hemi.groundColor.lerpColors(CLEAR.hemiGround, BLIGHT.hemiGround, t);
-    this.hemi.intensity = THREE.MathUtils.lerp(CLEAR.hemiPower, BLIGHT.hemiPower, t);
+    this.hemi.intensity = L(CLEAR.hemiPower, BLIGHT.hemiPower, t) * L(1, SHADE.hemi, sh) * dim;
 
     this.sky.position.copy(camera.position);
     // Snap the shadow frustum to whole metres so shadows do not shimmer.

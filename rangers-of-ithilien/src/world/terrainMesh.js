@@ -5,7 +5,9 @@ import * as THREE from 'three';
 import { WORLD, CHUNK } from '../config.js';
 import { heightAt } from './terrain.js';
 import { groundColor, canopyColor } from './groundColor.js';
-import { forestDensity } from './regions.js';
+import { forestDensity } from './forest.js';
+import { HA } from './layout.js';
+import { noise2 } from '../util/noise.js';
 import { buildVegetation } from './vegetation.js';
 import { setChunkCircles, removeChunkCircles } from './collision.js';
 
@@ -13,7 +15,7 @@ const rgb = [0, 0, 0], rgb2 = [0, 0, 0];
 const _c = new THREE.Color();
 
 /** A height-field grid mesh. `sample(x, z)` gives height; `paint` gives colour. */
-function gridGeometry(x0, z0, nx, nz, step, sample, paint) {
+function gridGeometry(x0, z0, nx, nz, step, sample, paint, skip) {
   const W = nx + 3, H = nz + 3; // one extra ring of samples for normals
   const hs = new Float32Array(W * H);
   for (let j = 0; j < H; j++) {
@@ -41,6 +43,7 @@ function gridGeometry(x0, z0, nx, nz, step, sample, paint) {
   k = 0;
   for (let j = 0; j < nz; j++) {
     for (let i = 0; i < nx; i++) {
+      if (skip && skip(x0 + (i + 0.5) * step, z0 + (j + 0.5) * step)) continue;
       const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
       idx[k++] = a; idx[k++] = c; idx[k++] = b; idx[k++] = b; idx[k++] = c; idx[k++] = d;
     }
@@ -49,23 +52,35 @@ function gridGeometry(x0, z0, nx, nz, step, sample, paint) {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.setIndex(new THREE.BufferAttribute(k < idx.length ? idx.slice(0, k) : idx, 1));
   return g;
 }
 
 function paintGround(x, z, h, slope, out) { groundColor(x, z, h, slope, out); }
 
-function paintBackdrop(x, z, h, slope, out) {
-  groundColor(x, z, h, slope, out);
-  const d = backdropForest(x, z, h);
-  if (d > 0) {
-    canopyColor(x, z, rgb2);
-    const t = Math.min(1, d * 1.5);
-    out[0] += (rgb2[0] - out[0]) * t; out[1] += (rgb2[1] - out[1]) * t; out[2] += (rgb2[2] - out[2]) * t;
-  }
+// The cliff behind the fall at Henneth Annûn is built by hand, so the terrain
+// leaves a slot for it.
+function inRockSlot(x, z) {
+  return x > HA.x && x < HA.x + 4 && z > HA.rock.minZ && z < HA.rock.maxZ;
 }
-function backdropForest(x, z, h) {
-  return h > 1.5 && h < 230 && x > 0 ? forestDensity(x, z) : 0;
+
+function farForest(x, z, h) {
+  return h > 1.5 && h < 150 && x > 0 ? forestDensity(x, z) : 0;
+}
+function paintFarGround(x, z, h, slope, out) {
+  groundColor(x, z, h, slope, out);
+  const k = 1 - 0.35 * farForest(x, z, h); // shade under distant trees
+  out[0] *= k; out[1] *= k; out[2] *= k;
+}
+function paintCanopy(x, z, h, slope, out) {
+  canopyColor(x, z, out);
+}
+/** Height of the far forest's roof, or well below ground where there is none. */
+function canopyHeight(x, z) {
+  const h = heightAt(x, z);
+  const d = farForest(x, z, h);
+  if (d < 0.25) return h - 12;
+  return h + 14 + d * 12 + noise2(x / 45, z / 45, 77) * 5;
 }
 
 export class Ground {
@@ -76,24 +91,31 @@ export class Ground {
     this.hole = new THREE.Vector3(0, 0, 0); // x, z, radius
     this.material = new THREE.MeshLambertMaterial({ vertexColors: true });
 
-    // Backdrop: the whole land, coarse. Forest is suggested by colour and a lift.
+    // Backdrop: the whole land, coarse, with the roof of the far forest above it.
     const b = WORLD.backdrop, step = 32;
-    const geo = gridGeometry(b.minX, b.minZ, (b.maxX - b.minX) / step, (b.maxZ - b.minZ) / step, step,
-      (x, z) => { const h = heightAt(x, z); return h + backdropForest(x, z, h) * 7 - 1.5; }, paintBackdrop);
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const nx = (b.maxX - b.minX) / step, nz = (b.maxZ - b.minZ) / step;
     const hole = this.hole;
-    mat.onBeforeCompile = (shader) => {
-      shader.uniforms.uHole = { value: hole };
-      shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vXZ;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvXZ = (modelMatrix * vec4(position, 1.0)).xz;');
-      shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vXZ;\nuniform vec3 uHole;')
-        .replace('void main() {', 'void main() {\nif (distance(vXZ, uHole.xy) < uHole.z) discard;');
+    const cutHole = (mat) => {
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uHole = { value: hole };
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec2 vXZ;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvXZ = (modelMatrix * vec4(position, 1.0)).xz;');
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying vec2 vXZ;\nuniform vec3 uHole;')
+          .replace('void main() {', 'void main() {\nif (distance(vXZ, uHole.xy) < uHole.z) discard;');
+      };
+      return mat;
     };
-    this.backdrop = new THREE.Mesh(geo, mat);
-    this.backdrop.receiveShadow = false;
-    scene.add(this.backdrop);
+    this.backdrop = new THREE.Mesh(
+      gridGeometry(b.minX, b.minZ, nx, nz, step, (x, z) => heightAt(x, z) - 1.5, paintFarGround),
+      cutHole(new THREE.MeshLambertMaterial({ vertexColors: true })),
+    );
+    this.canopy = new THREE.Mesh(
+      gridGeometry(0, 0, WORLD.width / 20, WORLD.length / 20, 20, canopyHeight, paintCanopy),
+      cutHole(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true })),
+    );
+    scene.add(this.backdrop, this.canopy);
   }
 
   setQuality(quality) {
@@ -105,12 +127,12 @@ export class Ground {
     const key = cx + ',' + cz;
     const size = CHUNK.size, n = CHUNK.segments;
     const group = new THREE.Group();
-    const mesh = new THREE.Mesh(gridGeometry(cx * size, cz * size, n, n, size / n, heightAt, paintGround), this.material);
+    const mesh = new THREE.Mesh(gridGeometry(cx * size, cz * size, n, n, size / n, heightAt, paintGround, inRockSlot), this.material);
     mesh.receiveShadow = true;
     group.add(mesh);
     const veg = buildVegetation(cx, cz, this.quality);
     for (const m of veg.meshes) group.add(m);
-    setChunkCircles(key, veg.circles);
+    setChunkCircles(key, veg.circles, veg.bushes);
     this.scene.add(group);
     this.chunks.set(key, { group, cx, cz });
   }

@@ -1,6 +1,7 @@
 # Rangers of Ithilien: Plan
 
-Status: **Milestone 1 is built and playable.** Next is Milestone 2 (tasks and things).
+Status: **Milestone 1 is built and playable, and has had one round of playtest changes** (smaller
+world, great forest, old farmland, hidden pool, 129 camps). Next is Milestone 2 (tasks and things).
 Decisions made so far are recorded in section 9.
 
 ---
@@ -43,40 +44,30 @@ The first playable build (**Milestone 1**) is exploration only:
 ### 3.1 Size
 
 Tolkien's North Ithilien is on the order of 40 by 100 miles. The game compresses
-this to **3.2 km east–west by 6.4 km north–south**, about 20 km². At a run of
-7.5 m/s that is roughly 6 minutes river to mountains and 14 minutes north to
-south in a straight line. Henneth Annûn is 4.3 km from the southern road, so
-Osgiliath and the Cross-roads are a real journey. Size is a single constant, so it is cheap to change once we can feel it.
+this to **2 km east-west by 4 km north-south**. It began at 3.2 x 6.4 km; playtest
+showed that was too much wilderness once the forest thickened and walls and ruins
+were added. At a run of 7.5 m/s it is about 4 minutes river to mountains and 9
+minutes north to south in a straight line, and a good deal longer through woods.
 
 ### 3.2 Layout
 
-North is up. Not to scale.
+North is up. Not to scale. (x, z) in metres from the north-west corner.
 
 ```
-                 thinning forest, heath and thorn
-            (beyond: the desolation before the Black Gate)
-      +--------------------------------------------------------+
-      |~~  , , ,  . . northern heath . . . .     ‖    /\/\/\/\ |
-      |~~ , fens ,      .   .    .               ‖   /\/\/\/\/ |
-      |~~  , , ,                                 ‖   /\/\/\/\/ |
-      |~~                    ruin                ‖  /\/\/\/\/\ |
-      |(  )                                      ‖  /\ EPHEL \ |
-      |(CA)  Field of           HENNETH    ......‖../\ DÚATH  \|
-      |(  )  Cormallen <~~~~~~~~ ANNÛN <~~~~~~~~~‖~~~/\/\/\/\/ |
-      |~~        ~~~~~~~/     (falls face W)     ‖   /\/\/\/\/ |
-      |~~                                        ‖   /\/\/\/\/ |
-  A   |~~            ruin         old watch-     ‖  /\/\/\/\/\ |
-  N   |~~                         tower          ‖  /\/\/\/\/\ |
-  D   |~~      <~~~~~~~~~~~~~ stream ~~~~~~~~~~~~‖~~~/\/\/\/\/ |
-  U   |~~                                        ‖   /\/\/\/\/ |
-  I   |~~   ruin         great ilex woods        ‖  /\/\/\/\/\ |
-  N   |~~                                        ‖  /\/\/\/\/\ |
-      |~~       <~~~~~~~~~~~~ stream ~~~~~~~~~~~~‖~~/\/\/\/\/\ |
-      |~~                                    ring‖of trees     |
-      |[OSGILIATH]=========== road =========== CROSS-ROADS ===> Morgul Vale
-      +--------------------------------------------------------+   (barred)
-
-   ~~ Anduin   (CA) Cair Andros   ‖ Harad Road   /\ mountains   <~~ streams
+            thinning forest, heath (z = 0)
+   +--------------------------------------------------+
+   |~~ fens     . heath .   village     ‖^^^^ /\/\/\  |
+   |~~                                  ‖^^^^ /\/\/\  |
+   |(CA)  Cormallen <~~~cut~~[HENNETH]~~‖~~~~ /\/\/\  |   Henneth Annûn (1000, 1190)
+   |~~        farms, walls, lanes       ‖^^^^ EPHEL   |
+   |~~    <~~~~~~~~ stream ~~~~~~~~~~~~~‖^^^^ DÚATH   |   ^^^^ tall heather
+   |~~   the home woods: woods + glades ‖^^^^ /\/\/\  |
+   |~~    <~~~~~~~~ stream ~~~~~~~~~~~~~‖^^^^ /\/\/\  |
+   |~~   the deep woods: closed canopy  ‖^^^^ /\/\/\  |
+   |~~    <~~~~~~~~ stream ~~~~~~~~~~~~~‖^^^^ /\/\/\  |
+   |[OSGILIATH]====== road ======= CROSS-ROADS ==> Morgul Vale (barred)
+   +--------------------------------------------------+
+   ~~ Anduin   (CA) Cair Andros   ‖ Harad Road (x ~1530)   /\ mountains
 ```
 
 ### 3.3 Boundaries
@@ -106,16 +97,31 @@ Soft boundaries fade the player back with a line of text instead of an invisible
 
 ### 3.5 Regions and vegetation
 
-Ithilien is a garden gone wild: resinous woods, herbs, many streams.
+Ithilien is a garden gone wild, "a dishevelled dryad loveliness".
 
-- **Riverside (west):** reeds, willows, open lawns near Cormallen.
-- **Northern heath:** ling, broom, thorn, scattered pines; open and windswept.
-- **Central woods (around Henneth Annûn):** fir, cedar, cypress, bay, olive;
-  glades thick with herbs and flowers. The friendliest country.
-- **Southern woods:** great ilexes, oak, and ash; darker, older, bigger trunks.
-- **Foothills (east):** scrub, bare rock, gorse; trees thin as the ground climbs.
+- **The great trees** (25-38 m): cedar, fir, oak/ilex, beech, larch, cypress,
+  stone pine. Their canopies stand alone in glades and close into a roof in woods.
+- **Understory**: bay, olive, hazel, juniper, tamarisk, young firs.
+- **Underfoot**: thyme, sage (blue, red, pale), asphodel, ferns, flowers, heather,
+  broom, reeds, mossy stones.
+- **Anduin shore:** willows, beeches, reeds; the lawns of Cormallen.
+- **Northern heath:** stone pines over heather and broom; open.
+- **Home woods (centre):** small woods with wide glades among them.
+- **Deep woods (south):** oak and beech, canopy nearly closed, ferns below.
+- **Heather slopes (east of the Harad Road):** heather and gorse above head
+  height, with winding ways between. Almost no trees.
 
-Region is a smooth function of position, so woods blend into one another.
+Under a closed canopy the light turns dim and green-gold, the haze draws in, and
+motes drift in the air.
+
+### 3.5a Old habitation
+
+About 46 farmsteads and 6 hamlets, generated from the world seed
+(`world/oldworks.js`). Each farm has a roofless house, two to four walled fields
+(walls standing, tumbled, or gone, in runs), an old olive orchard and a cypress
+avenue to the door. Hamlets have a ring of houses, a well, a broken market cross
+and two long lanes under great beeches. Standing walls block; you can jump them
+or find a gap. Old fields grow fewer trees and paler grass, so they still show.
 
 ### 3.6 Danger (for later milestones, designed now)
 
@@ -124,14 +130,15 @@ the southern road, and the northern heath.
 
 | Tier | Roughly | Expect |
 |------|---------|--------|
-| 0 Refuge | within ~350 m of the falls | Nothing hostile. |
-| 1 Home woods | to ~900 m | Wolves, a lone starving orc. |
-| 2 The middle land | to ~1.8 km | Small orc camps, snares and pit traps. |
+| 0 Refuge | within ~220 m of the falls | Nothing hostile. |
+| 1 Home woods | to ~560 m | Wolves, a lone starving orc. |
+| 2 The middle land | to ~1.1 km | Small orc camps, snares and pit traps. |
 | 3 The marches | beyond | War-bands, Southron and Easterling holdouts, large fortified camps. |
-| 4 The shadowed edges | Morgul road, mountain feet, far north | The worst of what fled the Gate. |
+| 4 The shadowed edges | Morgul road, heather slopes, far north | The worst of what fled the Gate. |
 
-Milestone 1 places empty camp sites (cold fire rings, a lean-to) at tier 2+ so we
-can judge spacing before enemies exist.
+There are 129 camps (`world/campSites.js`), none within 250 m of home, thickening
+with tier. Size 1 is a fire and a shelter; size 3 is a stockade. Each blights
+about 95 m around it.
 
 ## 4. Look and feel
 
@@ -194,15 +201,17 @@ Touch devices are detected by capability, not user agent; a device with both get
 
 ### 6.3 Henneth Annûn (the one hard piece)
 
-A heightmap cannot make a cave, so the refuge is a hand-built set piece:
-
-- The terrain stamp makes a west-facing cliff with a notch and a pool at its foot.
-- The cave (floor, walls, roof, the rock lip the water falls past) is its own mesh
-  set into the notch, with its own floor-height function and wall colliders that
-  override the terrain inside a small volume.
-- The waterfall is a translucent, scrolling sheet across the cave mouth, with mist
-  at the base. You can see out through it.
-- A narrow path and stair lead from the cliff top down and round into the cave.
+- `terrain.js` raises a level shelf of rock and cuts into it a basin (the pool,
+  walled on all sides) and a gorge leading west whose floor falls gently until
+  the surrounding land has dropped to meet it.
+- The cave is a set of boxes under the terrain east of the basin: room, window
+  behind the fall, and an L-shaped passage to a door in the cliff. A "hollow"
+  in `collision.js` tells the game to ignore the ground overhead when inside.
+- The terrain mesh leaves a slot where the cliff face is built by hand.
+- A stair of worn stone climbs the south wall of the basin from the floor of the
+  cut to the door. The way home is: find where the stream runs out of the cut,
+  walk up it.
+- Inside the cave the sun and sky light are dimmed, so torchlight carries it.
 
 ### 6.4 Vegetation and props
 
@@ -301,7 +310,9 @@ more animation, tuning.
 |----------|----------|
 | Camera | Third person, zoom in to first person. |
 | Visual style | Modern clean low-poly, flat shaded, vertex colours. |
-| World size | 3.2 × 6.4 km. The south (Osgiliath, the Cross-roads) is far from home on purpose. |
+| World size | 2 × 4 km (reduced from 3.2 × 6.4 after playtest). |
+| Forest | Dense and tall, closing overhead; a once-farmed land going back to woods. |
+| Camps | A hundred or more. |
 | Tooling | No build step. Three.js r170 vendored. |
 | Hosting | GitHub Pages from the repo root, with a landing page linking each game. |
 | Combat (M3) | Aimed, real-time, especially the bow. On touch, offer an auto-attack / aim-assist option. |
@@ -312,27 +323,28 @@ more animation, tuning.
 ## 10. What Milestone 1 actually contains
 
 - Terrain, the Anduin, five streams, the Ephel Dúath, both roads, soft boundaries.
-- Henneth Annûn: cave, window, falls, pool, the stair on the south side; Faramir
-  and Éowyn with short branching dialogue.
-- Five forest regions, 15 plant species, fens, the lawns of Cormallen.
-- Seven small ruins, the Cross-roads, the edge of Osgiliath, the barred Morgul
+- Henneth Annûn: hidden pool, the cut, the stair, the cave with Faramir and Éowyn.
+- Forest of great trees with understory and herbs; fens; Cormallen; heather slopes.
+- 52 old farms and hamlets with field walls, houses, orchards and avenues.
+- Seven named ruins, the Cross-roads, the edge of Osgiliath, the barred Morgul
   Vale, Cair Andros across the water.
-- Twelve cold enemy camps. Each lays blight on the land; "Break up the camp"
-  clears it and the sky and light recover over a few seconds. This is a stand-in
-  for clearing by combat in M3.
+- 129 cold enemy camps. Each lays blight on the land; "Break up the camp" clears
+  it and the sky and light recover. A stand-in for clearing by combat in M3.
 - Compass with a home marker, place names, discovery notices, a map of what has
-  been found, menu with detail levels, save/resume in localStorage.
+  been found (ruins, farms, camps), menu with detail levels, save/resume.
 - Keyboard and mouse, and touch (stick, drag-look, pinch-zoom, buttons).
 
 ### Known gaps to pick up
 
-- The blight changes sky, fog and light but not yet the colour of the ground and
-  plants themselves. Tinting those per camp is the natural next step for the
-  "land heals" idea.
-- Trees appear at the edge of the loaded radius without a fade.
-- Osgiliath is plain blocks. Cair Andros cannot be reached.
-- No sound. No day/night.
-- Performance has only been measured in software rendering; it needs a look on a
-  real phone.
-- The cave is lit by flat ambient light on low/medium detail (no shadows), so it
-  is brighter inside than it should be.
+- **Performance is unmeasured on real hardware.** The forest roughly doubled the
+  triangle count (about 300k on Low, 500-800k on Medium in the densest places).
+  If phones struggle, the levers are `QUALITY` in config.js and simpler tree
+  models at distance.
+- The blight changes sky, fog and light but not the colour of ground and plants.
+- Trees appear at the edge of the loaded radius without a fade; beyond it the far
+  forest is a flat-shaded green roof.
+- Field walls and houses are axis-aligned (collision boxes are). Lanes can run at
+  any angle.
+- Third-person camera in the tall heather often has to pull in to first person.
+- Clearing 129 camps by pressing E is busywork; it is waiting for M3.
+- Osgiliath is plain blocks. Cair Andros cannot be reached. No sound. No day/night.

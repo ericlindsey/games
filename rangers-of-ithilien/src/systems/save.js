@@ -22,8 +22,10 @@ const strings = (a) => (Array.isArray(a) ? a.filter((s) => typeof s === 'string'
 /** Turn whatever was stored into a valid current state, or null if unusable. */
 export function migrate(raw) {
   if (!raw || typeof raw !== 'object' || !num(raw.version) || raw.version > SAVE.version) return null;
-  // Future versions: upgrade step by step here, e.g. if (raw.version === 1) { ...; raw.version = 2; }
   const s = newState();
+  // v1 -> v2: the world was reshaped (2 km by 4 km, new camps), so places and
+  // progress from v1 no longer mean anything. Only the settings carry over.
+  if (raw.version === 1) raw = { version: 2, settings: raw.settings };
   const p = raw.player;
   if (p && num(p.x) && num(p.z) && p.x >= 0 && p.x <= WORLD.width && p.z >= 0 && p.z <= WORLD.length) {
     s.player = { x: p.x, z: p.z, heading: num(p.heading) ? p.heading : 0 };

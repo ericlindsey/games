@@ -1,7 +1,7 @@
 // What people say. All text here is our own writing.
 // A node's text may be a string or a function of the game context.
 
-import { CAMPS } from '../world/layout.js';
+import { CAMPS } from '../world/campSites.js';
 
 export const DIALOGUE = {
   faramir: {
@@ -23,13 +23,13 @@ export const DIALOGUE = {
         options: [{ label: 'Tell me of the land.', to: 'land' }, { label: 'I will see it done.' }],
       },
       land: {
-        text: 'The Great River bounds us on the west, the Mountains of Shadow on the east. Our stream runs down to Cormallen, where the King’s host made merry. Southward the old road runs from Osgiliath to the Cross-roads and on into the dead vale: a long march, and the woods darken as you go. North, the trees give out upon the heath. The farther you range from this window, the less I can promise for your safety.',
+        text: 'The Great River bounds us on the west, the Mountains of Shadow on the east. This was farmland once, the garden of Gondor: you will find the walls and lanes of it yet under the trees. Our stream runs down to Cormallen, where the King’s host made merry. Southward the old road runs from Osgiliath to the Cross-roads and on into the dead vale: a long march, and the woods darken as you go. North, the trees give out upon the heath. The farther you range from this window, the less I can promise for your safety.',
         options: [{ label: 'What would you have me do?', to: 'charge' }, { label: 'My thanks.' }],
       },
       report: {
         text: (ctx) => {
           const n = ctx.cleared.length, total = CAMPS.length;
-          if (n === 0) return 'It has not begun. No camp has been broken yet, and our scouts count a dozen fires between the river and the mountains. Start near home and work outward.';
+          if (n === 0) return 'It has not begun. No camp has been broken yet, and our scouts count more than a hundred fires between the river and the mountains. Start near home and work outward.';
           if (n < total) return `${n} of ${total} camps broken, by our count. I walked out to one of them yesterday and there were flowers in the ash. Keep on.`;
           return 'Every fire we knew of is out. I did not think to say so this year. Go and look at the land, ranger. You earned the sight of it.';
         },

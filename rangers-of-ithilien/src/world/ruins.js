@@ -157,9 +157,9 @@ const KINDS = {
     const trees = [];
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2 + 0.22;
-      trees.push({ x: l.x + Math.cos(a) * 34, z: l.z + Math.sin(a) * 34, scale: 1.5 + (i % 3) * 0.15 });
+      trees.push({ x: l.x + Math.cos(a) * 34, z: l.z + Math.sin(a) * 34, scale: 1.15 + (i % 3) * 0.1 });
     }
-    const planted = plantTrees('ilex', trees);
+    const planted = plantTrees('greatOak', trees);
     scene.add(planted.mesh);
     for (const c of planted.circles) addCircle(c.x, c.z, c.r);
   },
@@ -167,9 +167,9 @@ const KINDS = {
   osgiliath(b, l, y, rand) {
     // Roofless houses in rough rows either side of the road, and the bridge-head.
     const roadZ = southRoadZ(l.x);
-    for (let i = 0; i < 26; i++) {
-      const x = l.x - 95 + rand() * 190, z = l.z - 95 + rand() * 190;
-      if (Math.abs(z - roadZ) < 9 || Math.hypot(x - l.x, z - l.z) > 100) continue;
+    for (let i = 0; i < 34; i++) {
+      const x = l.x - 75 + rand() * 150, z = l.z - 75 + rand() * 150;
+      if (Math.abs(z - roadZ) < 9 || Math.hypot(x - l.x, z - l.z) > 80) continue;
       const gy = heightAt(x, z);
       if (gy < 1.2) continue;
       const w = 6 + rand() * 7, d = 5 + rand() * 6, h = 2 + rand() * 6;
@@ -189,12 +189,12 @@ const KINDS = {
       b.box(5, 13, 5, bx + 14, y - 1, roadZ + s * 8, STONE);   // gate towers
       addSolid({ minX: bx + 11.5, maxX: bx + 16.5, minZ: roadZ + s * 8 - 2.5, maxZ: roadZ + s * 8 + 2.5, bottom: y - 3, top: y + 12 });
     }
-    rubble(b, rand, l.x, l.z, 40, 170);
+    rubble(b, rand, l.x, l.z, 40, 130);
   },
 
   morgul(b, l, y, rand) {
     // The rangers have barred the road with timber between two dark pillars.
-    const gx = l.x + 55, gz = southRoadZ(gx), gy = heightAt(gx, gz);
+    const gx = l.x + 34, gz = southRoadZ(gx), gy = heightAt(gx, gz);
     for (const s of [-1, 1]) {
       b.box(2.2, 9, 2.2, gx, gy - 0.5, gz + s * 7, DARK);
       b.cyl(0, 1.5, 2.4, gx, gy + 8.5, gz + s * 7, DARK, 4);
@@ -232,6 +232,6 @@ export function buildRuins(scene) {
     new THREE.SphereGeometry(26, 10, 8),
     new THREE.MeshBasicMaterial({ color: 0x9fe0b0, transparent: true, opacity: 0.35, fog: false, depthWrite: false }),
   );
-  glow.position.set(m.x + 420, heightAt(m.x + 420, m.z) + 50, m.z + 10);
+  glow.position.set(m.x + 300, heightAt(m.x + 300, m.z) + 45, m.z + 6);
   scene.add(glow);
 }

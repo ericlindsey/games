@@ -2,10 +2,10 @@
 
 export const WORLD = {
   seed: 3019,
-  width: 3200,   // east-west: Anduin bank (low x) to the Ephel Dúath (high x)
-  length: 6400,  // north-south: northern heath (z=0) to beyond the Morgul road
+  width: 2000,   // east-west: Anduin bank (low x) to the Ephel Dúath (high x)
+  length: 4000,  // north-south: northern heath (z=0) to beyond the Morgul road
   // The backdrop terrain extends past the playable area on every side.
-  backdrop: { minX: -800, maxX: 3712, minZ: -640, maxZ: 7040 },
+  backdrop: { minX: -640, maxX: 2400, minZ: -480, maxZ: 4480 },
 };
 
 export const CHUNK = { size: 160, segments: 40 };
@@ -22,10 +22,11 @@ export const PLAYER = {
   maxWadeDepth: 1.3,  // below the Anduin's surface
 };
 
+// trees: share of canopy trees kept; under: understory; cover: herbs and flowers.
 export const QUALITY = {
-  low:    { loadRadius: 260, fogFar: 2200, shadows: false, pixelRatio: 1.25, trees: 0.6, cover: 0.35 },
-  medium: { loadRadius: 360, fogFar: 2800, shadows: false, pixelRatio: 1.5,  trees: 0.85, cover: 0.7 },
-  high:   { loadRadius: 450, fogFar: 3400, shadows: true,  pixelRatio: 2,    trees: 1,   cover: 1 },
+  low:    { loadRadius: 200, fogFar: 2000, shadows: false, pixelRatio: 1.25, trees: 0.8, under: 0.5, cover: 0.4, motes: 60 },
+  medium: { loadRadius: 280, fogFar: 2600, shadows: false, pixelRatio: 1.5,  trees: 0.9, under: 0.8, cover: 0.7, motes: 120 },
+  high:   { loadRadius: 360, fogFar: 3200, shadows: true,  pixelRatio: 2,    trees: 1,   under: 1,   cover: 1,   motes: 200 },
 };
 
-export const SAVE = { key: 'rangers-of-ithilien.save', version: 1, autosaveSeconds: 30 };
+export const SAVE = { key: 'rangers-of-ithilien.save', version: 2, autosaveSeconds: 30 };
