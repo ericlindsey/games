@@ -1,5 +1,6 @@
-// Enemy camps. In this prototype they stand cold and empty; breaking one up
-// lifts the blight around it. Later milestones will put enemies and loot here.
+// Enemy camps: the fires, shelters and stockades. Who holds them is in
+// entities/enemies.js; when the last of a camp's company falls the camp is
+// cleared and the blight around it lifts.
 
 import * as THREE from 'three';
 import { CAMPS } from './campSites.js';
@@ -47,14 +48,15 @@ export class Camps {
         const bx = c.x + (rand() - 0.5) * 7, bz = c.z + (rand() - 0.5) * 7;
         occupied.box(0.5, 0.07, 0.08, bx, at(bx, bz) + 0.02, bz, BONE, rand() * 3);
       }
-      if (c.size === 3) { // a stockade of sharpened stakes, with one way in
+      if (c.size === 3) { // a stockade of sharpened stakes
         const R = 11.5, gate = rand() * 6.28;
         for (let a = 0; a < 6.28; a += 0.085) {
-          let off = Math.abs(a - gate); off = Math.min(off, 6.28 - off);
-          if (off < 0.17 || rand() < 0.06) continue;
+          // three gates, so the company inside can come out at whoever troubles them
+          let off = (((a - gate) % 2.094) + 2.094) % 2.094; off = Math.min(off, 2.094 - off);
+          if (off < 0.19 || rand() < 0.06) continue;
           const sx = c.x + Math.cos(a) * R, sz = c.z + Math.sin(a) * R, sy = at(sx, sz);
           always.cyl(0, 0.17, 2.5 + rand() * 0.6, sx, sy - 0.2, sz, STAKE, 4, (rand() - 0.5) * 0.2, (rand() - 0.5) * 0.2);
-          addCircle(sx, sz, 0.42);
+          addCircle(sx, sz, 0.42, 'stake'); // stops the ranger; the camp's own company slips between
         }
       }
 

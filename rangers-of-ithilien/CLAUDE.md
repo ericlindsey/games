@@ -8,7 +8,8 @@ Ithilien of the orcs and evil men who fled the battle at the Black Gate.
 layout, and the open design questions. This file holds the rules that stay true
 across milestones.
 
-> Status: Milestone 1 (the explorable land) is built. See PLAN.md for what is next.
+> Status: the land, enemies, combat, gear, tasks and trade are built. See PLAN.md
+> section 10 for exactly what exists and what is known to be rough.
 
 ## Design pillars
 
@@ -51,13 +52,16 @@ vendor/               three.module.min.js (pinned; see vendor/VERSION)
 src/
   main.js             boot, wiring, the game loop
   config.js           world size, seed, player and quality tunables
-  data/dialogue.js    what people say
+  data/               dialogue.js, quests.js, items.js, enemies.js (types and camp rosters): all pure data
   world/
     layout.js         WHERE THINGS ARE: Henneth Annûn, landmarks, roads, streams (pure)
     regions.js        region weights, danger tier (pure)
     terrain.js        heightAt(x, z), incl. the basin and cut at Henneth Annûn (pure)
     oldworks.js       old farms and hamlets: houses, fields, lanes, planted rows (pure)
-    campSites.js      100+ enemy camps, blight (pure)
+    relicSites.js     44 lesser ruins (pure)
+    paths.js          the old paths joining everything (pure)
+    campSites.js      the enemy camps, blight (pure)
+    herbSites.js      where kingsfoil grows (pure)
     forest.js         forest density, heather thicket density (pure)
     groundColor.js    ground colour by place, height, slope (pure)
     collision.js      solids (boxes: wall + floor), circles (trunks), hollows (cave) (pure)
@@ -70,11 +74,17 @@ src/
     ruins.js          named ruins and large landmarks
     farms.js          builds the old farms and hamlets from oldworks.js
     camps.js          builds the camps from campSites.js
+    relics.js         builds the lesser ruins and the waymarks on paths
+    herbs.js          draws kingsfoil; gathering
     build.js          GeoBuilder and other geometry helpers
-  entities/           player + camera rig, low-poly figures
+  entities/           player.js (ranger + camera rig), enemies.js (spawning and AI), figure.js
   input/input.js      keyboard, mouse and touch -> one input state
-  ui/                 hud.js (compass, notices, prompt), panels.js (dialogue, map, menu)
-  systems/save.js     the only code that touches localStorage
+  ui/                 hud.js (compass, vitals, tracker, notices), panels.js (dialogue, map, pack, trade, menu)
+  systems/
+    save.js           the only code that touches localStorage
+    inventory.js      pack, gear, healing, buying, selling, loot tables (pure)
+    quests.js         reads data/quests.js against the saved state (pure)
+    combat.js         the ranger's sword and bow, arrows in flight, health, loot bags
   util/noise.js       hashing, value noise, seeded RNG
 tests/
   unit.test.js        pure logic (node --test)
@@ -83,7 +93,7 @@ tests/
 
 Files marked (pure) must not import Three.js or touch the DOM, so they run in Node tests.
 Their import order is fixed, to avoid cycles:
-layout -> regions -> terrain -> oldworks -> campSites -> forest -> groundColor.
+layout -> regions -> terrain -> oldworks -> relicSites -> paths -> campSites -> forest -> groundColor.
 
 Rules of thumb:
 
@@ -137,6 +147,22 @@ Rules of thumb:
   do not imitate the look of the films.
 - When unsure about a geographic or lore detail, say so and check rather than guess.
 
+## Game rules worth knowing before changing things
+
+- All the ranger's progress lives in the saved state object (`systems/save.js`
+  `newState()`): position, discoveries, cleared camps, health, gear, pack,
+  silver, renown, tasks, gathered herbs. Enemies, arrows and loot bags are
+  never saved; they are rebuilt from the camps as the ranger moves.
+- A camp is cleared only by `Enemies.damage` reducing its last defender to no
+  health, which calls `onCampCleared` in main.js. Do not add other routes.
+- Tasks are data (`data/quests.js`). Progress is computed from the saved state
+  each time it is asked for, so there are no counters to keep in step. A new
+  kind of objective needs a case in `systems/quests.js` `progress()`.
+- Everything a person can do must work by touch: on a phone there is no aiming,
+  so anything aimed needs an automatic form (see `Combat.update`).
+- All in-game text is ours (dialogue, tasks, item notes, notices). Keep the
+  voice: plain, a little formal, warm; hopeful rather than grim.
+
 ## Saving
 
 - `localStorage`, one key, versioned JSON (`version` field plus a migration step
@@ -158,7 +184,8 @@ python3 -m http.server 8000     # open http://localhost:8000
    pre-installed Playwright). It fails on any console error or failed request.
 3. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
    the title, `?debug` shows the overlay, `?quality=low|medium|high`.
-   In the console, `roi.teleport(x, z, yaw)` moves the ranger; backtick toggles
+   In the console, `roi.teleport(x, z, yaw)` moves the ranger, and `roi.state`,
+   `roi.enemies`, `roi.combat`, `roi.quests` and `roi.inv` expose the rest; backtick toggles
    the overlay; `G` toggles a fast debug run.
 4. Headless Chromium renders in software (single-digit fps), so it proves
    behaviour, not performance. Say so rather than claiming a frame rate.

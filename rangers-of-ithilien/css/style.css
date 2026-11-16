@@ -113,3 +113,42 @@ body.touch #prompt kbd { display: none; }
 #begin { font-size: 20px; padding: 0.6em 2.2em; }
 #begin-new { display: block; margin: 14px auto 0; font-size: 14px; }
 body.panel-open #btn-jump, body.panel-open #stick, body.panel-open #toast, body.panel-open #hint { display: none !important; }
+
+/* ---- Vitals, combat ---- */
+#vitals { position: absolute; left: max(10px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); width: min(230px, 42vw);
+  color: #fff8e4; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85); font-size: 13px; }
+#health { height: 9px; border: 1px solid rgba(255, 248, 228, 0.7); border-radius: 5px; background: rgba(0, 0, 0, 0.35); overflow: hidden; }
+#health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #a8322a, #cf5a3c); transition: width 0.25s; }
+#weapon { margin-top: 4px; }
+#tracker { margin-top: 3px; font-style: italic; opacity: 0.95; }
+#tracker.done { color: #ffe08a; }
+#debug { top: 78px; }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -4px 0 0 -4px; border-radius: 50%;
+  border: 1px solid rgba(255, 248, 228, 0.9); box-shadow: 0 0 3px rgba(0, 0, 0, 0.8); }
+#crosshair.drawn { background: rgba(255, 248, 228, 0.9); }
+#hurt { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.5s;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(150, 20, 10, 0.55)); }
+#hurt.on { opacity: 1; transition: none; }
+#compass span.task { color: #9be07a; font-size: 13px; top: 5px; }
+#btn-attack { position: absolute; right: max(118px, calc(env(safe-area-inset-right) + 96px)); bottom: max(34px, env(safe-area-inset-bottom));
+  width: 92px; height: 92px; border-radius: 50%; background: rgba(200, 120, 90, 0.6); font-size: 15px; }
+#btn-heal { position: absolute; right: max(22px, env(safe-area-inset-right)); bottom: calc(max(34px, env(safe-area-inset-bottom)) + 96px);
+  width: 64px; height: 64px; border-radius: 50%; background: rgba(160, 200, 140, 0.6); font-size: 13px; }
+body.touch #prompt { bottom: 215px; }
+body.panel-open #btn-attack, body.panel-open #btn-heal, body.panel-open #crosshair { display: none !important; }
+#fallen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 8, 6, 0.75);
+  color: var(--parchment); font-size: clamp(24px, 5vw, 40px); font-style: italic; letter-spacing: 0.05em; }
+
+.pack-panel { padding: 14px 18px 18px; width: min(560px, 100%); max-height: 100%; overflow-y: auto; }
+.pack-head { display: flex; align-items: center; justify-content: space-between; }
+.pack-panel h2 { margin: 0; font-weight: normal; letter-spacing: 0.04em; }
+.pack-panel h3 { margin: 14px 0 6px; font-weight: normal; font-size: 15px; font-style: italic; color: var(--ink-soft); border-bottom: 1px solid rgba(107, 90, 58, 0.4); }
+.row-item { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.row-item .what { flex: 1; min-width: 0; }
+.row-item .what small { display: block; color: var(--ink-soft); font-size: 12.5px; }
+.row-item button { padding: 0.35em 0.8em; font-size: 14px; white-space: nowrap; }
+.row-item button:disabled { opacity: 0.45; cursor: default; }
+.task .bar { height: 5px; background: rgba(107, 90, 58, 0.25); border-radius: 3px; margin-top: 3px; }
+.task .bar div { height: 100%; background: var(--leaf); border-radius: 3px; }
+.task.done .what b { color: #2f5f2a; }
+.empty { color: var(--ink-soft); font-style: italic; font-size: 14px; }

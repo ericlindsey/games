@@ -16,13 +16,23 @@
     <div id="place"></div>
     <div id="toast"></div>
     <button id="prompt" hidden></button>
+    <div id="vitals">
+      <div id="health"><div id="health-fill"></div></div>
+      <div id="weapon"></div>
+      <div id="tracker"></div>
+    </div>
+    <div id="crosshair" hidden></div>
+    <div id="hurt"></div>
     <div id="top-buttons">
+      <button id="btn-pack" title="Pack and tasks (I)">Pack</button>
       <button id="btn-map" title="Map (M)">Map</button>
       <button id="btn-menu" title="Menu (Esc)">Menu</button>
     </div>
     <button id="btn-jump" class="touch-only">Jump</button>
+    <button id="btn-attack" class="touch-only">Attack</button>
+    <button id="btn-heal" class="touch-only">Heal</button>
     <div id="stick"><div id="stick-knob"></div></div>
-    <div id="hint" class="mouse-only">Click to look around &middot; WASD to move</div>
+    <div id="hint" class="mouse-only">Click to look around &middot; WASD to move &middot; click to strike</div>
     <pre id="debug" hidden></pre>
   </div>
 
@@ -32,6 +42,32 @@
     <p id="dialogue-text"></p>
     <div id="dialogue-options"></div>
   </div>
+
+  <div id="pack" class="overlay" hidden>
+    <div class="panel pack-panel">
+      <div class="pack-head"><h2>Pack and tasks</h2><button id="pack-close">Close</button></div>
+      <div id="pack-purse"></div>
+      <h3>Tasks</h3>
+      <div id="pack-tasks"></div>
+      <h3>Worn and wielded</h3>
+      <div id="pack-gear"></div>
+      <h3>In the pack</h3>
+      <div id="pack-items"></div>
+    </div>
+  </div>
+
+  <div id="trade" class="overlay" hidden>
+    <div class="panel pack-panel">
+      <div class="pack-head"><h2>Mablung&rsquo;s stores</h2><button id="trade-close">Close</button></div>
+      <div id="trade-purse"></div>
+      <h3>He will sell</h3>
+      <div id="trade-buy"></div>
+      <h3>He will buy</h3>
+      <div id="trade-sell"></div>
+    </div>
+  </div>
+
+  <div id="fallen" hidden><div>You fall&hellip;</div></div>
 
   <div id="map" class="overlay" hidden>
     <div class="panel map-panel">
@@ -54,10 +90,13 @@
       <button id="menu-new">Begin anew</button>
       <div class="help mouse-only">
         <b>WASD</b> move &middot; <b>Mouse</b> look &middot; <b>Wheel</b> zoom &middot; <b>Shift</b> walk/run<br>
-        <b>Space</b> jump &middot; <b>E</b> speak / act &middot; <b>M</b> map &middot; <b>Esc</b> free the mouse, menu
+        <b>Space</b> jump &middot; <b>E</b> speak &middot; <b>M</b> map &middot; <b>I</b> pack &middot; <b>Esc</b> free the mouse, menu<br>
+        <b>Click</b> or <b>F</b> strike; with the bow, hold to draw and release to loose<br>
+        <b>Q</b> sword / bow &middot; <b>H</b> eat or drink to heal
       </div>
       <div class="help touch-only">
-        Left thumb moves. Drag on the right to look; pinch to zoom.
+        Left thumb moves. Drag on the right to look; pinch to zoom.<br>
+        Attack picks the nearest enemy: an arrow if they are far, the sword if they are near.
       </div>
       <div id="menu-status" class="help"></div>
     </div>

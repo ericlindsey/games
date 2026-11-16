@@ -11,6 +11,8 @@ import { forestDensity, thicketDensity } from './forest.js';
 import { inClearing, streamDistance, roadDistance } from './layout.js';
 import { plantedIn, houseDistance } from './oldworks.js';
 import { campNear } from './campSites.js';
+import { pathDistance } from './paths.js';
+import { relicDistance } from './relicSites.js';
 
 const S = WORLD.seed;
 const BARK = 0x5e4832, DARK_BARK = 0x4a3b2c;
@@ -145,6 +147,31 @@ define('youngFir', 0.2, (b) => {
   b.cyl(0, 1.0, 2.6, 0, 2.6, 0, 0x397a41, 6);
 });
 
+// ---- Deadfall and stone: the litter of an untended wood. ----
+define('log', 0, (b) => {
+  const m = new THREE.Matrix4().makeRotationZ(Math.PI / 2 - 0.06).setPosition(0, 0.42, 0);
+  b.add(new THREE.CylinderGeometry(0.4, 0.5, 6.5, 6), 0x5a4a38, m);
+  b.blob(0.9, -1.2, 0.75, 0.1, 0x6f9148, 1.6, 0.3, 0.7);
+  b.blob(0.6, 1.6, 0.7, -0.1, 0x7a9b4f, 1.4, 0.3, 0.7);
+  limb(b, 2.2, 0.5, 0, 2.9, 1.7, 0.6, 0.14, 0.06, 0x5a4a38);
+}, { shadow: false });
+define('stump', 0.5, (b) => {
+  b.cyl(0.5, 0.75, 0.9, 0, -0.1, 0, 0x5e4c38, 7);
+  b.cyl(0.46, 0.46, 0.05, 0, 0.8, 0, 0xb39a72, 7);
+  b.blob(0.5, 0.45, 0.25, 0.3, 0x6f9148, 1, 0.4, 1);
+}, { shadow: false });
+define('boulder', 1.5, (b) => {
+  b.add(new THREE.DodecahedronGeometry(1.8), 0x86827a, new THREE.Matrix4().makeScale(1.1, 0.75, 0.9));
+  b.blob(1.3, 0.2, 0.95, 0, 0x6f9148, 1.2, 0.35, 1);
+});
+define('mushrooms', 0, (b) => {
+  for (let i = 0; i < 5; i++) {
+    const x = Math.cos(i * 2.2) * (0.15 + i * 0.09), z = Math.sin(i * 2.2) * (0.15 + i * 0.09), h = 0.14 + (i % 3) * 0.06;
+    b.cyl(0.03, 0.04, h, x, 0, z, 0xe9e2cf, 4);
+    b.cyl(0.02, 0.11, 0.07, x, h, z, i % 2 ? 0xc9432f : 0xd98a3a, 6);
+  }
+}, { shadow: false });
+
 // ---- East of the road: heather and gorse standing above a man's head. ----
 define('gorse', 1.05, (b) => {
   b.blob(1.5, 0, 1.4, 0, 0x4d7a3c, 1, 1.05, 1);
@@ -218,15 +245,15 @@ const CANOPY = {
   foothill: [['stonePine', 1]],
 };
 const UNDER = {
-  central: [['bay', 0.25], ['olive', 0.2], ['hazel', 0.2], ['juniper', 0.15], ['tamarisk', 0.1], ['youngFir', 0.1]],
-  south: [['hazel', 0.35], ['bay', 0.3], ['youngFir', 0.2], ['juniper', 0.15]],
+  central: [['bay', 0.22], ['olive', 0.17], ['hazel', 0.18], ['juniper', 0.12], ['tamarisk', 0.09], ['youngFir', 0.08], ['log', 0.06], ['stump', 0.04], ['boulder', 0.04]],
+  south: [['hazel', 0.28], ['bay', 0.24], ['youngFir', 0.16], ['juniper', 0.1], ['log', 0.1], ['stump', 0.05], ['boulder', 0.07]],
   heath: [['juniper', 0.5], ['olive', 0.3], ['tamarisk', 0.2]],
   river: [['tamarisk', 0.4], ['hazel', 0.3], ['bay', 0.3]],
   foothill: [['juniper', 0.6], ['olive', 0.4]],
 };
 const COVER = {
-  central: [['tuft', 0.2], ['fern', 0.14], ['flowers', 0.16], ['sage', 0.12], ['thyme', 0.1], ['asphodel', 0.09], ['shrub', 0.08], ['broom', 0.05], ['mossRock', 0.06]],
-  south: [['fern', 0.34], ['tuft', 0.2], ['shrub', 0.14], ['mossRock', 0.12], ['flowers', 0.1], ['asphodel', 0.1]],
+  central: [['tuft', 0.2], ['fern', 0.14], ['flowers', 0.16], ['sage', 0.12], ['thyme', 0.1], ['asphodel', 0.09], ['shrub', 0.07], ['broom', 0.04], ['mossRock', 0.05], ['mushrooms', 0.03]],
+  south: [['fern', 0.32], ['tuft', 0.18], ['shrub', 0.12], ['mossRock', 0.12], ['flowers', 0.1], ['asphodel', 0.08], ['mushrooms', 0.08]],
   heath: [['heather', 0.42], ['broom', 0.2], ['thyme', 0.14], ['tuft', 0.12], ['rock', 0.12]],
   river: [['tuft', 0.34], ['reed', 0.22], ['flowers', 0.18], ['asphodel', 0.14], ['shrub', 0.12]],
   foothill: [['heather', 0.4], ['rock', 0.25], ['thyme', 0.2], ['tuft', 0.15]],
@@ -254,12 +281,11 @@ const _up = new THREE.Vector3(0, 1, 0), _col = new THREE.Color();
  */
 export function buildVegetation(cx, cz, quality) {
   const lists = {}; // species -> [x, y, z, rot, scale, tint r, g, b]
-  const circles = [], bushes = [];
+  const circles = [];
   const put = (name, x, y, z, rot, scale, r, g, b) => {
     (lists[name] ||= []).push(x, y, z, rot, scale, r, g, b);
     const sp = SPECIES[name];
     if (sp.trunk && (!name.endsWith('ock') || scale > 1.3)) circles.push({ x, z, r: sp.trunk * scale });
-    if (name === 'gorse' || name === 'tallHeather') bushes.push({ x, z, r: 1.5 * scale });
   };
   const size = CHUNK.size;
   const H = (gx, gz, k) => hash2(gx, gz, S + k);
@@ -276,6 +302,7 @@ export function buildVegetation(cx, cz, quality) {
       const density = forestDensity(x, z);
       if (H(gx, gz, 3) > Math.max(density, 0.03) * quality.trees) continue;
       if (inClearing(x, z) || streamDistance(x, z) < 5 || roadDistance(x, z) < 7 || houseDistance(x, z) < 6 || campNear(x, z, 9)) continue;
+      if (pathDistance(x, z) < 3 || relicDistance(x, z) < 10) continue;
       const h = heightAt(x, z);
       if (h < 0.8 || h > 150 || slopeAt(x, z) > 0.5) continue;
       regionWeights(x, z, w);
@@ -298,6 +325,7 @@ export function buildVegetation(cx, cz, quality) {
       const x = (gx + H(gx, gz, 11)) * UC, z = (gz + H(gx, gz, 12)) * UC;
       if (r > (0.1 + 0.32 * forestDensity(x, z)) * quality.under) continue;
       if (inClearing(x, z) || streamDistance(x, z) < 4 || roadDistance(x, z) < 6 || campNear(x, z, 8)) continue;
+      if (pathDistance(x, z) < 2.4 || relicDistance(x, z) < 8) continue;
       const h = heightAt(x, z);
       if (h < 1.2 || h > 150 || slopeAt(x, z) > 0.6) continue;
       regionWeights(x, z, w);
@@ -325,7 +353,7 @@ export function buildVegetation(cx, cz, quality) {
         continue;
       }
       if (roll > 0.5 * quality.cover) continue;
-      if (inClearing(x, z) || roadDistance(x, z) < 4.5 || campNear(x, z, 4)) continue;
+      if (inClearing(x, z) || roadDistance(x, z) < 4.5 || campNear(x, z, 4) || pathDistance(x, z) < 1.2) continue;
       const h = heightAt(x, z);
       if (h < 0.05 || h > 180) continue;
       regionWeights(x, z, w);
@@ -363,7 +391,7 @@ export function buildVegetation(cx, cz, quality) {
     mesh.computeBoundingSphere();
     meshes.push(mesh);
   }
-  return { meshes, circles, bushes };
+  return { meshes, circles };
 }
 
 /** Hand-placed trees of one species (for set pieces). items: [{x, z, scale}] */

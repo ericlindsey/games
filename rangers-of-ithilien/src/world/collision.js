@@ -10,7 +10,6 @@ const CELL = 32;
 const solidGrid = new Map();
 const circleGrid = new Map();
 const chunkCircles = new Map();
-const chunkBushes = new Map(); // tall thickets: they do not stop a walker twice, but they hide the camera's view
 const hollows = [];
 
 function cellsOf(minX, maxX, minZ, maxZ, fn) {
@@ -30,11 +29,12 @@ export function addSolid(s) {
   insert(solidGrid, s, s.minX - 1, s.maxX + 1, s.minZ - 1, s.maxZ + 1);
   return s;
 }
-export function addCircle(x, z, r) {
-  insert(circleGrid, { x, z, r }, x - r - 1, x + r + 1, z - r - 1, z + r + 1);
+/** @param tag optional label; resolveCircles can be told to ignore circles with a given tag */
+export function addCircle(x, z, r, tag) {
+  insert(circleGrid, { x, z, r, tag }, x - r - 1, x + r + 1, z - r - 1, z + r + 1);
 }
-export function setChunkCircles(key, list, bushes) { chunkCircles.set(key, list); if (bushes?.length) chunkBushes.set(key, bushes); }
-export function removeChunkCircles(key) { chunkCircles.delete(key); chunkBushes.delete(key); }
+export function setChunkCircles(key, list) { chunkCircles.set(key, list); }
+export function removeChunkCircles(key) { chunkCircles.delete(key); }
 /** A box under the terrain: below `ceiling`, the ground overhead does not count. */
 export function addHollow(h) { hollows.push(h); }
 
@@ -82,13 +82,6 @@ export function blockedBySolid(x, z, feetY, r) {
 export function pointBlocked(x, y, z) {
   const t = terrainAt(x, z, y);
   if (y < t + 0.25) return true;
-  if (y < t + 3.4) { // inside a head-high bush?
-    const bushes = chunkBushes.get(Math.floor(x / CHUNK.size) + ',' + Math.floor(z / CHUNK.size));
-    if (bushes) for (const b of bushes) {
-      const dx = x - b.x, dz = z - b.z;
-      if (dx < b.r && dx > -b.r && dz < b.r && dz > -b.r && dx * dx + dz * dz < b.r * b.r) return true;
-    }
-  }
   const list = near(x, z);
   if (!list) return false;
   for (const s of list) {
@@ -98,8 +91,9 @@ export function pointBlocked(x, y, z) {
   return false;
 }
 
-function pushOut(list, p, r) {
+function pushOut(list, p, r, skip) {
   for (const c of list) {
+    if (skip && c.tag === skip) continue;
     const dx = p.x - c.x, dz = p.z - c.z;
     const min = r + c.r;
     if (Math.abs(dx) >= min || Math.abs(dz) >= min) continue;
@@ -111,10 +105,10 @@ function pushOut(list, p, r) {
   }
 }
 
-/** Push a point {x, z} out of any trunk or pillar it overlaps. */
-export function resolveCircles(p, r) {
+/** Push a point {x, z} out of any trunk or pillar it overlaps (except those tagged `skip`). */
+export function resolveCircles(p, r, skip) {
   const fixed = circleGrid.get(Math.floor(p.x / CELL) + ',' + Math.floor(p.z / CELL));
-  if (fixed) pushOut(fixed, p, r);
+  if (fixed) pushOut(fixed, p, r, skip);
   const cx0 = Math.floor((p.x - 4) / CHUNK.size), cx1 = Math.floor((p.x + 4) / CHUNK.size);
   const cz0 = Math.floor((p.z - 4) / CHUNK.size), cz1 = Math.floor((p.z + 4) / CHUNK.size);
   for (let cz = cz0; cz <= cz1; cz++) {

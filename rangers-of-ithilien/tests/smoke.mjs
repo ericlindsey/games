@@ -69,7 +69,9 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(Math.abs(start.y - 40) < 0.1 && await page.evaluate(() => roi.refuge.isInside(roi.player.pos)), 'stands on the cave floor, under the rock');
   await shot(page, 'cave');
 
-  // Faramir is a few steps away: walk up and speak.
+  check((await page.textContent('#weapon')).includes('24 arrows'), 'the HUD shows weapon and arrows');
+
+  // Faramir is a few steps away: walk up, speak, and take his first task.
   await page.evaluate(() => roi.teleport(roi.refuge.faramir.x + 1.4, roi.refuge.faramir.z + 1.3, -2, 40));
   await page.waitForFunction(() => !document.getElementById('prompt').hidden, null, { timeout: 20000 });
   check((await page.textContent('#prompt')).includes('Faramir'), 'prompt offers to speak with Faramir');
@@ -77,10 +79,37 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.waitForSelector('#dialogue:not([hidden])');
   check((await page.textContent('#dialogue-name')) === 'Faramir', 'dialogue opens');
   await shot(page, 'dialogue');
+  check((await page.textContent('#dialogue-options button:first-child')).includes('task'), 'Faramir has a task to offer');
   await page.click('#dialogue-options button:first-child');
-  check((await page.textContent('#dialogue-text')).includes('Black Gate'), 'choosing a topic changes the text');
-  await page.click('#dialogue-options button:last-child');
-  check(await page.isHidden('#dialogue'), 'dialogue closes');
+  check((await page.textContent('#dialogue-text')).includes('camp'), 'he describes the task');
+  await page.click('#dialogue-options button:first-child');
+  check(await page.isHidden('#dialogue'), 'accepting closes the dialogue');
+  check(await page.evaluate(() => roi.state.quests.active.includes('f1')), 'the task is taken');
+  check((await page.textContent('#tracker')).includes('nearest fire'), 'and shown on the HUD');
+
+  // Mablung keeps the stores.
+  await page.evaluate(() => { roi.state.silver = 40; roi.teleport(roi.refuge.mablung.x - 1.6, roi.refuge.mablung.z + 0.6, 1.5, 40); });
+  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('Mablung'), null, { timeout: 20000 });
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('#dialogue:not([hidden])');
+  await page.click('#dialogue-options button:first-child');
+  await page.waitForSelector('#trade:not([hidden])');
+  await shot(page, 'trade');
+  const purse = await page.evaluate(() => ({ silver: roi.state.silver, bread: roi.state.items.waybread ?? 0 }));
+  await page.click('#trade-buy button');
+  const bought = await page.evaluate(() => ({ silver: roi.state.silver, bread: roi.state.items.waybread ?? 0 }));
+  check(bought.bread === purse.bread + 1 && bought.silver < purse.silver, 'buying from Mablung costs silver and fills the pack');
+  await page.click('#trade-sell button');
+  check(await page.evaluate((s) => roi.state.silver > s, bought.silver), 'selling to him pays');
+  await page.click('#trade-close');
+
+  // The pack.
+  await page.keyboard.press('KeyI');
+  await page.waitForSelector('#pack:not([hidden])');
+  check((await page.textContent('#pack-tasks')).includes('nearest fire') && (await page.textContent('#pack-gear')).includes('sword'), 'the pack lists tasks and gear');
+  await shot(page, 'pack');
+  await page.keyboard.press('KeyI');
+  check(await page.isHidden('#pack'), 'the pack closes');
 
   // The hidden stair: from the floor of the cut, up along the basin wall and in at the door.
   await page.evaluate(() => { roi.teleport(973, 1202.3, Math.PI / 2, 31); roi.rig.yaw = Math.PI / 2; });
@@ -145,10 +174,64 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.waitForFunction(() => roi.state.discovered.includes('arch'), null, { timeout: 20000 });
   check(true, 'walking up to a ruin discovers it');
   check(await page.evaluate(() => roi.camps.sites.length >= 100), 'more than a hundred camps exist');
-  await page.evaluate(() => { const c = roi.camps.byId.c1; roi.teleport(c.x + 0.5, c.z + 1.6, 3); });
-  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('camp'), null, { timeout: 20000 });
+
+  // Kingsfoil is gathered by walking over it.
+  await page.evaluate(() => { const h = roi.herbs.sites[0]; roi.teleport(h.x, h.z, 0); });
+  await page.waitForFunction(() => (roi.state.items.athelas ?? 0) === 1, null, { timeout: 20000 });
+  check(await page.evaluate(() => roi.state.picked.length === 1), 'kingsfoil is gathered underfoot');
+
+  // The first task: the nearest camp. They come at the ranger; the sword answers.
+  await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 13, c.z, -Math.PI / 2); roi.rig.yaw = -Math.PI / 2; });
+  await page.waitForFunction(() => roi.enemies.list.length >= 2, null, { timeout: 30000 });
+  check(true, 'enemies stand at an uncleared camp');
+  await page.waitForFunction(() => roi.enemies.list.some((e) => e.alerted), null, { timeout: 30000 });
+  check(true, 'they notice the ranger');
+  await page.keyboard.down('KeyF');
+  const drewBlood = await page.waitForFunction(() => roi.enemies.list.some((e) => e.hp < e.maxHp), null, { timeout: 60000 }).then(() => true, () => false);
+  check(drewBlood, 'the sword wounds them');
+  const wasHurt = await page.waitForFunction(() => roi.state.health < 100, null, { timeout: 60000 }).then(() => true, () => false);
+  check(wasHurt, 'and they wound the ranger');
+  await page.waitForFunction(() => roi.state.stats.kills >= 1 || roi.state.health < 30, null, { timeout: 90000 });
+  await page.keyboard.up('KeyF');
+  check(await page.evaluate(() => roi.state.stats.kills >= 1), 'an enemy can be killed with the sword');
+  await shot(page, 'fight');
+  // finish the rest by decree, to keep the test short
+  await page.evaluate(() => { for (const e of [...roi.enemies.list]) roi.enemies.damage(e, 9999); });
+  check(await page.evaluate(() => roi.state.cleared.includes(roi.quests.NEAREST_CAMP.id) && roi.camps.byId[roi.quests.NEAREST_CAMP.id].isCleared), 'when the last falls the camp is cleared');
+  check(await page.evaluate(() => roi.state.silver > 0), 'and its stores are taken');
+  check((await page.textContent('#tracker')).includes('Return to Faramir'), 'the task shows as done');
+
+  // The bow: hold to draw, release to loose.
+  await page.evaluate(() => { const c = roi.camps.sites.find((c) => !c.isCleared && c.size === 1); roi.teleport(c.x + 20, c.z, -Math.PI / 2); roi.rig.yaw = -Math.PI / 2; });
+  await page.keyboard.press('Digit2');
+  const marked = await page.waitForSelector('#crosshair:not([hidden])', { timeout: 20000 }).then(() => true, () => false);
+  check(marked && await page.evaluate(() => roi.state.weapon === 'bow'), 'the bow comes to hand, with a mark to aim by');
+  const quiver = await page.evaluate(() => roi.state.arrows);
+  await page.keyboard.down('KeyF');
+  await page.waitForFunction(() => roi.combat.draw > 0.5, null, { timeout: 30000 });
+  await page.keyboard.up('KeyF');
+  await page.waitForFunction((q) => roi.state.arrows === q - 1, quiver, { timeout: 20000 });
+  check(await page.evaluate(() => roi.combat.arrows.length >= 0), 'an arrow is loosed and leaves the quiver');
+  await shot(page, 'bow');
+  await page.keyboard.press('Digit1');
+
+  // Falling: the ranger wakes at home, whole.
+  await page.evaluate(() => roi.combat.hurt(9999));
+  check(await page.isVisible('#fallen'), 'at no health the ranger falls');
+  await page.waitForFunction(() => roi.state.health === 100 && roi.refuge.isInside(roi.player.pos), null, { timeout: 60000 });
+  check(await page.isHidden('#fallen') && await page.evaluate(() => roi.enemies.list.length === 0), 'and wakes in the cave, with the field forgotten');
+
+  // Hand the task in.
+  await page.evaluate(() => roi.teleport(roi.refuge.faramir.x + 1.4, roi.refuge.faramir.z + 1.3, -2, 40));
+  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('Faramir'), null, { timeout: 20000 });
   await page.keyboard.press('KeyE');
-  check(await page.evaluate(() => roi.state.cleared.includes('c1') && roi.camps.byId.c1.isCleared), 'a camp can be broken up');
+  await page.waitForSelector('#dialogue:not([hidden])');
+  check((await page.textContent('#dialogue-options button:first-child')).includes('It is done'), 'Faramir can be told it is done');
+  await page.click('#dialogue-options button:first-child');
+  check((await page.textContent('#dialogue-text')).includes('Received'), 'he gives the reward');
+  await page.click('#dialogue-options button:first-child');
+  check(await page.evaluate(() => roi.state.quests.done.includes('f1') && roi.state.items.draught >= 2 && roi.state.renown === 1), 'the task is finished and the reward is in the pack');
+
   await page.evaluate(() => { const s = roi.sites[0]; roi.teleport(s.x + 14, s.z + 3, 3); });
   await page.waitForFunction(() => roi.state.discovered.some((d) => d.startsWith('site:')), null, { timeout: 20000 });
   check(true, 'an old farm or village is noticed and remembered');
@@ -173,7 +256,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await ready(page);
   const after = await pos(page);
   check(dist(before, after) < 0.5, 'position is restored after a reload');
-  check(await page.evaluate(() => roi.state.cleared.includes('c1') && roi.state.discovered.includes('arch')), 'progress is restored after a reload');
+  check(await page.evaluate(() => roi.state.cleared.length === 1 && roi.state.discovered.includes('arch') && roi.state.quests.done.includes('f1') && roi.state.items.draught >= 2), 'progress, tasks and pack are restored after a reload');
 
   // Menu.
   await page.click('#btn-menu');
@@ -214,6 +297,17 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   await touch('touchEnd', 700, 200);
   await page.waitForTimeout(600);
   check(Math.abs((await page.evaluate(() => roi.rig.yaw)) - yaw0) > 0.1, 'dragging on the right turns the camera');
+
+  // One attack button: it picks the mark and the weapon.
+  check(await page.isVisible('#btn-attack') && await page.isVisible('#btn-heal'), 'attack and heal buttons are shown');
+  await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 16, c.z, -Math.PI / 2); });
+  await page.waitForFunction(() => roi.enemies.list.length >= 2, null, { timeout: 30000 });
+  const q0 = await page.evaluate(() => roi.state.arrows);
+  await page.evaluate(() => { roi.input.attackButton = true; });
+  const acted = await page.waitForFunction((q) => roi.state.arrows < q || roi.enemies.list.some((e) => e.hp < e.maxHp), q0, { timeout: 60000 }).then(() => true, () => false);
+  await page.evaluate(() => { roi.input.attackButton = false; });
+  check(acted, 'holding Attack shoots or strikes at the nearest enemy without aiming');
+  await shot(page, 'phone-fight');
 
   // Speak with Éowyn by tapping the prompt.
   await page.evaluate(() => roi.teleport(roi.refuge.eowyn.x + 1.6, roi.refuge.eowyn.z - 0.6, 1, 40));

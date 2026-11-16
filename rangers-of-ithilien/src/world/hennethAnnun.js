@@ -90,10 +90,14 @@ export function buildHennethAnnun(scene, water) {
     const place = (i, out) => {
       out.set(pos.getX(i) + cx, pos.getY(i) + cy, pos.getZ(i) + cz);
       const isTop = Math.abs(out.y - topMax) < 1e-3;
-      if (isTop && typeof s.top === 'function') out.y = s.top(out.x, out.z);
+      // A sloping top squeezes the whole column beneath it, sides included.
+      // (Moving only the top row leaves the side faces standing to full height
+      // as a shell that looks like a wall but stops nothing.)
+      if (typeof s.top === 'function') out.y = s.bottom + (out.y - s.bottom) * ((s.top(out.x, out.z) - s.bottom) / h);
       const y = out.y;
-      // the cliff face behind the fall is rougher than the walls within
-      rockDisplace(out, out.x < fx + 0.01 && amp > 0.3 ? amp * 2 : amp);
+      // The cliff face behind the fall is rougher than the walls within, but not
+      // around the door and the stair, where what you see must match what stops you.
+      rockDisplace(out, out.x < fx + 0.01 && out.z < fz + 8 && amp > 0.3 ? amp * 2 : amp > 0.3 && out.x < fx + 0.01 ? 0.12 : amp);
       if (isTop) out.y = y; // walkable tops stay true to the collision shape
       return out;
     };
@@ -110,7 +114,12 @@ export function buildHennethAnnun(scene, water) {
     }
   };
   for (const s of rock) addRock(s, paintRock, 0.5);
-  for (const s of stair) addRock(s, paintStair, 0.2);
+  for (const s of stair) addRock(s, paintStair, 0.08);
+  // Treads, so the two flights read as stairs.
+  const treads = new GeoBuilder(21, 0.05);
+  for (let x = stairX0 + 0.6; x < stairX1; x += 0.9) treads.box(0.5, 0.13, 3.5, fx + x, stairTop(fx + x) - 0.02, fz + 12.35, 0xb3aa95);
+  for (let x = upHead + 0.5; x < upLanding; x += 0.9) treads.box(0.5, 0.13, 3.3, fx + x, upTop(fx + x) - 0.02, fz + upZ0 + 1.75, 0xb3aa95);
+  scene.add(treads.mesh());
   scene.add(builder.mesh());
 
   // --- Furnishings of the refuge. ---
@@ -242,6 +251,7 @@ export function buildHennethAnnun(scene, water) {
     floorY,
     faramir: { x: fx + 15.2, z: fz - 4.4, heading: -2.2 },
     eowyn: { x: fx + 8.5, z: fz + 3.2, heading: 1.3 },
+    mablung: { x: fx + 25.4, z: fz - 4.6, heading: -1.9 },
     /** True inside the cave or its passages. */
     /** The upper flight: from the landing by the cave door up to the forest. */
     forestStair: { landingX: fx - 1.5, headX: fx + upHead - 2, z: fz + upZ0 + 2.2, exitZ: fz + upZ1, rimY },

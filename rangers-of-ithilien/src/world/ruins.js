@@ -9,28 +9,28 @@ import { GeoBuilder } from './build.js';
 import { plantTrees } from './vegetation.js';
 import { rng } from '../util/noise.js';
 
-const STONE = 0xd6cfba, WORN = 0xb5ae9a, MOSS = 0x8a9a62, DARK = 0x4b484c;
+export const STONE = 0xd6cfba, WORN = 0xb5ae9a, MOSS = 0x8a9a62, DARK = 0x4b484c;
 
 /** A standing or broken column; returns nothing, registers its collider. */
-function column(b, x, z, y, h, r = 0.55, capital = true) {
+export function column(b, x, z, y, h, r = 0.55, capital = true) {
   b.cyl(r * 1.25, r * 1.35, 0.35, x, y, z, WORN, 8);
   b.cyl(r * 0.9, r, h, x, y + 0.35, z, STONE, 8);
   if (capital) b.box(r * 2.6, 0.35, r * 2.6, x, y + 0.35 + h, z, STONE);
   else b.cyl(r * 0.5, r * 0.9, 0.3, x, y + 0.35 + h, z, WORN, 6);
   addCircle(x, z, r * 1.3);
 }
-function fallenColumn(b, x, z, y, len, ry, r = 0.5) {
+export function fallenColumn(b, x, z, y, len, ry, r = 0.5) {
   const m = new THREE.Matrix4().makeRotationY(ry).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2));
   m.setPosition(x, y + r * 0.8, z);
   b.add(new THREE.CylinderGeometry(r * 0.9, r, len, 8), WORN, m);
   addCircle(x, z, r * 1.2);
 }
 /** A wall block that also blocks the player. */
-function wall(b, x, z, y, w, h, d, color = STONE) {
+export function wall(b, x, z, y, w, h, d, color = STONE) {
   b.box(w, h, d, x, y - 0.3, z, color);
   addSolid({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, bottom: y - 2, top: y - 0.3 + h });
 }
-function rubble(b, rand, x, z, n, spread) {
+export function rubble(b, rand, x, z, n, spread) {
   for (let i = 0; i < n; i++) {
     const rx = x + (rand() - 0.5) * spread, rz = z + (rand() - 0.5) * spread;
     const s = 0.3 + rand() * 0.6;
