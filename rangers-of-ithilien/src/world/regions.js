@@ -60,11 +60,15 @@ export function regionName(x, z) {
   return NAMES[best];
 }
 
-/** 0 (refuge) to 4 (the shadowed edges). */
+/**
+ * 0 (refuge) to 4. Danger now runs north to south: the woods north of Henneth
+ * Annûn are the hunting ground of a new ranger, and the companies grow as the
+ * land runs down toward the Morgul road. The heather is a step worse than the
+ * woods beside it.
+ */
 export function dangerTier(x, z) {
-  const d = Math.hypot(x - HA.x, z - HA.z);
-  if (d < 220) return 0;
-  let t = d < 560 ? 1 : d < 1100 ? 2 : 3;
-  if (x > haradRoadX(z) - 40 || z < 280 || z > southRoadZ(x) - 250) t++;
+  if (Math.hypot(x - HA.x, z - HA.z) < 220) return 0;
+  let t = z < HA.z + 250 ? 1 : z < 2200 ? 2 : z < 3000 ? 3 : 4;
+  if (x > haradRoadX(z) - 40) t++;
   return Math.min(4, t);
 }

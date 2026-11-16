@@ -69,16 +69,25 @@ test('every landmark stands on dry land inside the world', () => {
   }
 });
 
-test('there are more than a hundred camps, none near home, all on usable ground', () => {
-  assert.ok(CAMPS.length >= 100, `${CAMPS.length} camps`);
+test('camps: many small ones north of home, larger to the south, diggings in the heather', () => {
+  assert.ok(CAMPS.length >= 150, `${CAMPS.length} camps`);
   assert.equal(new Set(CAMPS.map((c) => c.id)).size, CAMPS.length);
   for (const c of CAMPS) {
     assert.ok(Math.hypot(c.x - HA.x, c.z - HA.z) >= 249, `${c.id} keeps clear of home`);
-    assert.ok(heightAt(c.x, c.z) > 1.5 && c.size >= 1 && c.size <= 3 && c.tier >= 1, c.id);
+    assert.ok(heightAt(c.x, c.z) > 1.5 && c.size >= 1 && c.size <= 4 && c.tier >= 1, c.id);
     assert.equal(campNear(c.x, c.z, 5).id, c.id);
+    assert.equal(c.kind === 'mine', c.x > haradRoadX(c.z) + 15, `${c.id}: diggings lie east of the road and nowhere else`);
+    assert.ok(blightAt(c.x, c.z, () => 1) > 0.9, `${c.id} blights its own ground`);
   }
-  const far = CAMPS.filter((c) => c.tier >= 3).length, close = CAMPS.filter((c) => c.tier === 1).length;
-  assert.ok(far > close * 2, 'camps thicken away from home');
+  const north = CAMPS.filter((c) => c.z < HA.z && c.kind === 'camp');
+  assert.ok(north.length >= 60, `${north.length} camps in the northern hunting ground`);
+  assert.ok(north.filter((c) => c.size === 1).length > north.length * 0.75, 'and they are small');
+  const meanZ = (f) => { const cs = CAMPS.filter(f); return cs.reduce((n, c) => n + c.z, 0) / cs.length; };
+  assert.ok(meanZ((c) => c.size >= 3) > meanZ((c) => c.size === 1) + 800, 'the great camps lie well to the south');
+  assert.ok(CAMPS.some((c) => c.size === 4), 'there are war-camps');
+  // not laid out on a grid: the gaps between neighbours vary widely
+  const gaps = north.map((c) => Math.min(...north.filter((o) => o !== c).map((o) => Math.hypot(o.x - c.x, o.z - c.z))));
+  assert.ok(Math.max(...gaps) > 2.2 * Math.min(...gaps), `nearest-neighbour gaps from ${Math.min(...gaps).toFixed(0)} to ${Math.max(...gaps).toFixed(0)} m`);
 });
 
 test('old farms and villages leave fields and planted rows', () => {
@@ -116,13 +125,16 @@ test('region weights sum to one', () => {
 test('danger grows with distance from home', () => {
   assert.equal(dangerTier(HA.x, HA.z), 0);
   assert.equal(dangerTier(HA.x + 400, HA.z), 1);
+  assert.equal(dangerTier(900, 300), 1, 'the far north is still the hunting ground of a new ranger');
   assert.ok(dangerTier(CROSSROADS.x, CROSSROADS.z) >= 3);
-  assert.ok(dangerTier(600, 3400) > dangerTier(900, 1500));
+  assert.ok(dangerTier(600, 3400) > dangerTier(900, 2000) && dangerTier(900, 2000) > dangerTier(900, 900), 'danger grows southward');
+  assert.ok(dangerTier(1650, 900) > dangerTier(900, 900), 'and the heather is worse than the woods beside it');
 });
 
 test('blight lies on occupied camps and lifts when they are cleared', () => {
   const c = CAMPS[0];
   assert.ok(blightAt(c.x, c.z, () => 1) > 0.9);
+  assert.equal(blightAt(c.x + 150, c.z, (id) => (id === c.id ? 1 : 0)), 0, 'and it does not reach far');
   assert.equal(blightAt(c.x, c.z, () => 0), 0);
   assert.equal(blightAt(HA.x, HA.z, () => 1), 0, 'home is never blighted');
 });
@@ -302,19 +314,31 @@ test('tasks: offered in order, tracked, and rewarded once', async () => {
   assert.ok(CAMPS.some((c) => c.size === 3), 'there are stockades for the stockade task');
 });
 
-test('every camp has a company to fight, stronger with size and distance', async () => {
-  const { rosterFor, ENEMY_TYPES } = await import('../src/data/enemies.js');
-  let total = 0;
+test('every camp has a company to fight, stronger with size; archers are not everywhere', async () => {
+  const { rosterFor, patrolRoster, ENEMY_TYPES } = await import('../src/data/enemies.js');
+  let total = 0, withArchers = 0;
   for (const c of CAMPS) {
     const r = rosterFor(c);
     total += r.length;
+    if (r.includes('archer')) withArchers++;
     assert.ok(r.length >= 2 && r.every((t) => ENEMY_TYPES[t]), c.id);
     assert.deepEqual(r, rosterFor(c), 'the same company every time');
-    assert.equal(r.includes('chief'), c.size === 3, 'a captain in every stockade and nowhere else');
+    assert.equal(r.includes('chief'), c.size >= 3, 'a captain in every stockade and nowhere else');
+    if (c.size === 1 && c.tier === 1) assert.ok(r.length <= 3 && !r.includes('archer'), 'the smallest camps near home are two or three orcs and no archer');
   }
   const mean = (size) => { const cs = CAMPS.filter((c) => c.size === size); return cs.reduce((n, c) => n + rosterFor(c).length, 0) / cs.length; };
-  assert.ok(mean(1) < mean(2) && mean(2) < mean(3));
+  assert.ok(mean(1) < mean(2) && mean(2) < mean(3) && mean(3) < mean(4));
+  assert.ok(withArchers < CAMPS.length * 0.6, `${withArchers} of ${CAMPS.length} camps have archers`);
   assert.ok(total > 300, `${total} enemies in all`);
+
+  let n = 1, hosts = 0;
+  const rand = () => ((n = (n * 9301 + 49297) % 233280) / 233280);
+  for (let i = 0; i < 400; i++) {
+    const p = patrolRoster(3, rand);
+    assert.ok(p.list.every((t) => ENEMY_TYPES[t]));
+    if (p.host) { hosts++; assert.ok(p.list.length >= 10, 'a host is too many to fight'); } else assert.ok(p.list.length <= 4);
+  }
+  assert.ok(hosts > 15 && hosts < 100, `${hosts} hosts in 400 bands: rare but real`);
 });
 
 test('kingsfoil grows across the land and within reach of home', async () => {
@@ -324,4 +348,38 @@ test('kingsfoil grows across the land and within reach of home', async () => {
   assert.equal(new Set(sites.map((h) => h.id)).size, sites.length);
   assert.ok(sites.filter((h) => Math.hypot(h.x - HA.x, h.z - HA.z) < 250).length >= 5);
   for (const h of sites) assert.ok(heightAt(h.x, h.z) > 1, `${h.id} is on dry ground`);
+});
+
+test('streams run downhill all the way, in valleys of their own', async () => {
+  const { STREAMS, streamDistance } = await import('../src/world/terrain.js');
+  assert.ok(STREAMS.length >= 10, `${STREAMS.length} streams`);
+  assert.ok(STREAMS.filter((s) => s.joins).length >= 3, 'some join others before they reach the river');
+  for (const s of STREAMS) {
+    for (let i = 1; i < s.points.length; i++) {
+      assert.ok(s.points[i].bed <= s.points[i - 1].bed, 'a stream bed never rises on the way down');
+    }
+    if (s.joins) {
+      const at = STREAMS[s.joins.stream].points[s.joins.index];
+      assert.ok(at.bed <= s.points[s.points.length - 1].bed + 1e-9, 'and it meets the stream it joins at or above that stream\u2019s level');
+    }
+    const mid = s.points[Math.floor(s.points.length / 2)];
+    assert.ok(streamDistance(mid.x, mid.z) < 1);
+    if (!s.home) assert.ok(Math.abs(heightAt(mid.x, mid.z) - mid.bed) < 2.5, 'the ground is cut down to the bed');
+  }
+  // the water leaves the pool at Henneth Annûn below the pool, not above it
+  const cut = STREAMS.find((s) => s.home === 'cut');
+  assert.ok(cut.points[0].bed + 0.45 < HA.floor - 0.1, 'the stream leaves the pool lower than the pool');
+});
+
+test('ruins stand level with the land around them, not in a bowl or on a mound', () => {
+  for (const l of LANDMARKS.filter((x) => x.flat && x.id !== 'osgiliath')) {
+    const centre = heightAt(l.x, l.z);
+    let lowest = Infinity, highest = -Infinity;
+    for (let a = 0; a < 6.28; a += 0.4) {
+      const h = heightAt(l.x + Math.cos(a) * l.flat * 2.4, l.z + Math.sin(a) * l.flat * 2.4);
+      lowest = Math.min(lowest, h); highest = Math.max(highest, h);
+    }
+    assert.ok(centre > lowest - 1.5 && centre < highest + 1.5, `${l.id}: centre ${centre.toFixed(1)}, surroundings ${lowest.toFixed(1)} to ${highest.toFixed(1)}`);
+    assert.ok(Math.abs(heightAt(l.x + l.flat * 0.5, l.z) - centre) < 0.6, `${l.id} is level`);
+  }
 });

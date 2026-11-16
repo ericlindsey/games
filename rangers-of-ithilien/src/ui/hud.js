@@ -91,6 +91,15 @@ export class Hud {
     this.hurtTimer = setTimeout(() => this.hurt.classList.remove('on'), 90);
   }
 
+  /** A word by the aiming mark when a chosen shot tells. */
+  hitMark(text) {
+    const el = document.getElementById('hitmark');
+    el.textContent = text;
+    el.classList.remove('show');
+    void el.offsetWidth; // restart the fade
+    el.classList.add('show');
+  }
+
   showFallen(on) { document.getElementById('fallen').hidden = !on; }
 
   /**

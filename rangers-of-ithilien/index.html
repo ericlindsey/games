@@ -22,6 +22,7 @@
       <div id="tracker"></div>
     </div>
     <div id="crosshair" hidden></div>
+    <div id="hitmark"></div>
     <div id="hurt"></div>
     <div id="top-buttons">
       <button id="btn-pack" title="Pack and tasks (I)">Pack</button>
@@ -31,6 +32,7 @@
     <button id="btn-jump" class="touch-only">Jump</button>
     <button id="btn-attack" class="touch-only">Attack</button>
     <button id="btn-heal" class="touch-only">Heal</button>
+    <button id="btn-aim" class="touch-only">Aim</button>
     <div id="stick"><div id="stick-knob"></div></div>
     <div id="hint" class="mouse-only">Click to look around &middot; WASD to move &middot; click to strike</div>
     <pre id="debug" hidden></pre>
@@ -39,6 +41,7 @@
   <div id="dialogue" class="panel" hidden>
     <div id="dialogue-name"></div>
     <div id="dialogue-title"></div>
+    <div id="dialogue-picture" hidden></div>
     <p id="dialogue-text"></p>
     <div id="dialogue-options"></div>
   </div>
@@ -87,16 +90,20 @@
         <button data-quality="high">High</button>
       </div>
       <button id="menu-save">Save now</button>
+      <button id="menu-travel">Return to Henneth Ann&ucirc;n</button>
       <button id="menu-new">Begin anew</button>
       <div class="help mouse-only">
         <b>WASD</b> move &middot; <b>Mouse</b> look &middot; <b>Wheel</b> zoom &middot; <b>Shift</b> walk/run<br>
         <b>Space</b> jump &middot; <b>E</b> speak &middot; <b>M</b> map &middot; <b>I</b> pack &middot; <b>Esc</b> free the mouse, menu<br>
         <b>Click</b> or <b>F</b> strike; with the bow, hold to draw and release to loose<br>
+        <b>Right button</b> (hold) or <b>R</b> take aim: a shot to the head kills, to the heart wounds deeply<br>
         <b>Q</b> sword / bow &middot; <b>H</b> eat or drink to heal
       </div>
       <div class="help touch-only">
         Left thumb moves. Drag on the right to look; pinch to zoom.<br>
-        Attack picks the nearest enemy: an arrow if they are far, the sword if they are near.
+        Attack picks the nearest enemy: an arrow if they are far, the sword if they are near.<br>
+        Aim lets you choose the mark yourself: steer with the left thumb or a drag, then Attack to loose.
+        A shot to the head kills; to the heart wounds deeply.
       </div>
       <div id="menu-status" class="help"></div>
     </div>

@@ -51,12 +51,13 @@ css/style.css
 vendor/               three.module.min.js (pinned; see vendor/VERSION)
 src/
   main.js             boot, wiring, the game loop
+  dev.js              the testing panel (loaded only by debug.html / ?dev)
   config.js           world size, seed, player and quality tunables
   data/               dialogue.js, quests.js, items.js, enemies.js (types and camp rosters): all pure data
   world/
     layout.js         WHERE THINGS ARE: Henneth Annûn, landmarks, roads, streams (pure)
     regions.js        region weights, danger tier (pure)
-    terrain.js        heightAt(x, z), incl. the basin and cut at Henneth Annûn (pure)
+    terrain.js        heightAt(x, z); traces the streams; the basin and cut at Henneth Annûn (pure)
     oldworks.js       old farms and hamlets: houses, fields, lanes, planted rows (pure)
     relicSites.js     44 lesser ruins (pure)
     paths.js          the old paths joining everything (pure)
@@ -158,6 +159,10 @@ Rules of thumb:
 - Tasks are data (`data/quests.js`). Progress is computed from the saved state
   each time it is asked for, so there are no counters to keep in step. A new
   kind of objective needs a case in `systems/quests.js` `progress()`.
+- Water runs downhill. Stream beds come from `STREAMS` in terrain.js and never
+  rise along a stream; draw water from those beds, never from a formula of your own.
+- Anything built on the ground is levelled to the ground as it stands there
+  (`FLATS` in terrain.js). tests/unit.test.js checks no ruin sits in a bowl.
 - Everything a person can do must work by touch: on a phone there is no aiming,
   so anything aimed needs an automatic form (see `Combat.update`).
 - All in-game text is ours (dialogue, tasks, item notes, notices). Keep the
@@ -182,12 +187,14 @@ python3 -m http.server 8000     # open http://localhost:8000
 1. `node --test tests/unit.test.js`
 2. `node tests/smoke.mjs [dir-for-screenshots]` (starts its own server; needs the
    pre-installed Playwright). It fails on any console error or failed request.
-3. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
+3. For hands-on checking, open `debug.html`: it has its own save and shortcuts
+   for travel, gear, tasks and enemies.
+4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
    the title, `?debug` shows the overlay, `?quality=low|medium|high`.
    In the console, `roi.teleport(x, z, yaw)` moves the ranger, and `roi.state`,
    `roi.enemies`, `roi.combat`, `roi.quests` and `roi.inv` expose the rest; backtick toggles
    the overlay; `G` toggles a fast debug run.
-4. Headless Chromium renders in software (single-digit fps), so it proves
+5. Headless Chromium renders in software (single-digit fps), so it proves
    behaviour, not performance. Say so rather than claiming a frame rate.
 
 Add a check to `tests/smoke.mjs` for each new player-facing behaviour.

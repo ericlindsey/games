@@ -10,7 +10,9 @@ import { CAMPS } from '../world/campSites.js';
 import { heightAt } from '../world/terrain.js';
 import { groundAt, blockedBySolid, resolveCircles } from '../world/collision.js';
 import { makeFigure, animateFigure, LOOKS } from './figure.js';
-import { ENEMY_TYPES, rosterFor } from '../data/enemies.js';
+import { ENEMY_TYPES, rosterFor, patrolRoster } from '../data/enemies.js';
+import { haradRoadX } from '../world/layout.js';
+import { dangerTier } from '../world/regions.js';
 
 export { ENEMY_TYPES, rosterFor };
 
@@ -31,16 +33,33 @@ export class Enemies {
     this.camps = new Map(); // campId -> { alive }
     this.tick = 0;
     this.barMaterial = new THREE.SpriteMaterial({ color: 0xc23a2e, fog: false });
+    this.patrolIn = 30;   // seconds until the next band may come down the road
+    this.patrolCount = 0;
+    this.rand = rng(9191);
   }
 
-  spawnCamp(camp) {
+  /**
+   * A band marching on the Harad Road. `dir` is +1 for southward. They are a
+   * company like a camp's, but their home moves with them.
+   */
+  spawnPatrol(z, dir, forced) {
+    const x = haradRoadX(z);
+    const { list, host } = forced ?? patrolRoster(dangerTier(x - 60, z), this.rand);
+    const camp = { id: 'patrol' + ++this.patrolCount, x, z, tier: Math.max(2, dangerTier(x - 60, z)), size: 2, patrol: { dir, host } };
+    this.spawnCamp(camp, list);
+    if (host) this.api.onHost?.(camp);
+    return camp;
+  }
+
+  spawnCamp(camp, roster = rosterFor(camp)) {
     const rand = rng(Math.round(camp.x + camp.z * 7));
-    const roster = rosterFor(camp);
-    this.camps.set(camp.id, { alive: roster.length });
+    this.camps.set(camp.id, { alive: roster.length, camp });
     roster.forEach((type, i) => {
       const def = ENEMY_TYPES[type];
       const a = (i / roster.length) * Math.PI * 2 + rand() * 0.8, r = 2.6 + rand() * (2 + camp.size * 1.3);
-      const x = camp.x + Math.cos(a) * r, z = camp.z + Math.sin(a) * r;
+      // a camp's company stands about its fire; a band on the road walks in file
+      const x = camp.patrol ? haradRoadX(camp.z - camp.patrol.dir * i * 1.8) + (i % 2 ? 1.2 : -1.2) : camp.x + Math.cos(a) * r;
+      const z = camp.patrol ? camp.z - camp.patrol.dir * i * 1.8 : camp.z + Math.sin(a) * r;
       const fig = makeFigure(LOOKS[type]);
       const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
       fig.traverse((o) => { if (o.isMesh) { o.material = material; o.castShadow = true; } });
@@ -104,7 +123,7 @@ export class Enemies {
     e.bar.visible = false;
     this.api.onKill(e);
     const c = this.camps.get(e.camp.id);
-    if (c && --c.alive === 0) this.api.onCampCleared(e.camp);
+    if (c && --c.alive === 0) { if (e.camp.patrol) this.api.onPatrolBeaten?.(e.camp); else this.api.onCampCleared(e.camp); }
   }
 
   /** Try to move an enemy to (nx, nz), sliding along what blocks it. Returns true if it moved. */
@@ -164,6 +183,22 @@ export class Enemies {
         if (!here && d < SPAWN_AT && !this.api.isCleared(camp.id)) this.spawnCamp(camp);
         else if (here && d > FORGET_AT) this.forgetCamp(camp.id);
       }
+      // Bands on the road: forgotten when far behind, and a new one now and then
+      // while the ranger is anywhere near the road.
+      for (const [id, c] of this.camps) {
+        if (!c.camp.patrol) continue;
+        const lead = this.list.find((e) => e.camp === c.camp && !e.dead);
+        const any = this.list.some((e) => e.camp === c.camp);
+        if (!any) this.camps.delete(id); // all fallen and gone
+        else if (lead && (Math.hypot(lead.x - p.x, lead.z - p.z) > 300 || lead.z < 80 || lead.z > 3800)) this.forgetCamp(id);
+      }
+      const nearRoad = Math.abs(p.x - haradRoadX(p.z)) < 240 && p.z > 260 && p.z < 3700;
+      this.patrolIn -= nearRoad ? 0.5 : 0;
+      if (nearRoad && this.patrolIn <= 0 && alive && ![...this.camps.values()].some((c) => c.camp.patrol)) {
+        const dir = this.rand() < 0.75 ? 1 : -1; // most come south from the Black Gate
+        this.spawnPatrol(p.z - dir * 190, dir);
+        this.patrolIn = 50 + this.rand() * 70;
+      }
     }
     const atHome = Math.hypot(p.x - HA.x, p.z - HA.z) < 210; // they will not come near the falls
 
@@ -176,7 +211,9 @@ export class Enemies {
         continue;
       }
       const dx = p.x - e.x, dz = p.z - e.z, dist = Math.hypot(dx, dz), dy = Math.abs(p.y - e.y);
-      const fromCamp = Math.hypot(e.x - e.camp.x, e.z - e.camp.z);
+      const pat = e.camp.patrol;
+      // a band's "camp" is the road itself: how far it has strayed from it
+      const fromCamp = pat ? Math.abs(e.x - haradRoadX(e.z)) : Math.hypot(e.x - e.camp.x, e.z - e.camp.z);
       e.cooldown -= dt;
       e.speed = 0;
 
@@ -188,13 +225,20 @@ export class Enemies {
 
       switch (e.state) {
         case 'idle': {
+          if (pat) { // on the march
+            const tz = e.z + pat.dir * 8;
+            this.moveToward(e, haradRoadX(tz) + (e.side > 0 ? 1.2 : -1.2), tz, 2.1, dt);
+            break;
+          }
           e.timer -= dt;
           if (e.timer < 0) { e.timer = 3 + ((e.x * 7 + time) % 4); e.wander = { x: e.home.x + Math.sin(time + e.x) * 2.5, z: e.home.z + Math.cos(time * 1.3 + e.z) * 2.5 }; }
           if (e.wander && Math.hypot(e.wander.x - e.x, e.wander.z - e.z) > 0.4) this.moveToward(e, e.wander.x, e.wander.z, 1.2, dt);
           break;
         }
         case 'return': {
-          if (Math.hypot(e.home.x - e.x, e.home.z - e.z) < 1) { e.state = 'idle'; e.hp = e.maxHp; } else this.moveToward(e, e.home.x, e.home.z, e.def.speed * 0.8, dt);
+          if (pat) { // back to the road, then march on
+            if (fromCamp < 3) e.state = 'idle'; else this.moveToward(e, haradRoadX(e.z), e.z + pat.dir * 4, e.def.speed * 0.8, dt);
+          } else if (Math.hypot(e.home.x - e.x, e.home.z - e.z) < 1) { e.state = 'idle'; e.hp = e.maxHp; } else this.moveToward(e, e.home.x, e.home.z, e.def.speed * 0.8, dt);
           break;
         }
         case 'chase': {

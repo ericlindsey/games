@@ -2,7 +2,8 @@
 
 import * as THREE from 'three';
 import { QUALITY, SAVE } from './config.js';
-import { HA, LANDMARKS } from './world/layout.js';
+import { HA, LANDMARKS, haradRoadX } from './world/layout.js';
+import { trunkAt } from './world/collision.js';
 import { CAMPS, blightAt } from './world/campSites.js';
 import { SITES } from './world/oldworks.js';
 import { RELICS, RELIC_KINDS } from './world/relicSites.js';
@@ -39,7 +40,8 @@ const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
 async function boot() {
   let storage = null;
   try { storage = window.localStorage; } catch { /* blocked: play without saving */ }
-  const store = new SaveStore(storage ?? { getItem: () => null, setItem: () => { throw new Error('no storage'); }, removeItem() {} });
+  const dev = params.has('dev'); // the testing page: its own save, and a panel of shortcuts
+  const store = new SaveStore(storage ?? { getItem: () => null, setItem: () => { throw new Error('no storage'); }, removeItem() {} }, dev ? SAVE.key + '.dev' : SAVE.key);
   const saved = store.load();
   const state = saved ?? newState();
 
@@ -127,6 +129,7 @@ async function boot() {
     onSave: save,
     onQuality: (name) => { state.settings.quality = name; save(); location.search = ''; },
     onNew: () => { store.clear(); saveOnExit = false; location.reload(); },
+    onTravel: () => { if (!enemies.inCombat()) { menu.close(); goHome('You slip away by the ways the rangers know, and are home before the light changes.'); } },
   });
 
   player.onNotice = (text) => hud.toast('', text);
@@ -138,6 +141,8 @@ async function boot() {
     hurtPlayer: (amount) => combat.hurt(amount),
     shoot: (from, to, damage) => combat.shoot(from, to, damage, 27, false),
     onKill: (e) => { state.stats.kills++; combat.dropLoot(e); },
+    onHost: () => hud.toast('A host on the road', 'Too many for one bow. Get off the road and let them pass.'),
+    onPatrolBeaten: () => hud.toast('', 'The road is quiet again.'),
     onCampCleared: (camp) => {
       camps.clear(camp.id);
       state.cleared.push(camp.id);
@@ -151,17 +156,21 @@ async function boot() {
   const combat = new Combat({
     scene, camera, player, rig, input, state, enemies, hud,
     onFallen: () => { // carried home
-      enemies.reset();
-      combat.reset();
       state.health = 100;
-      state.player = { x: HA.spawn.x, z: HA.spawn.z, heading: HA.spawn.heading };
-      placePlayer();
-      while (ground.update(player.pos.x, player.pos.z, 4) > 0) { /* build home at once */ }
-      hud.setHealth(state.health);
-      hud.toast('Henneth Annûn', 'You wake in the cave. Someone carried you home; no one will say who.');
-      save();
+      goHome('You wake in the cave. Someone carried you home; no one will say who.');
     },
   });
+  /** Set the ranger down in the cave, with the field behind them forgotten. */
+  const goHome = (words) => {
+    enemies.reset();
+    combat.reset();
+    state.player = { x: HA.spawn.x, z: HA.spawn.z, heading: HA.spawn.heading };
+    placePlayer();
+    while (ground.update(player.pos.x, player.pos.z, 4) > 0) { /* build home at once */ }
+    hud.setHealth(state.health);
+    hud.toast('Henneth Annûn', words);
+    save();
+  };
 
   // ---- talk: what each of them has to say, with any tasks woven in ----
   const speakerFor = (id) => {
@@ -189,7 +198,7 @@ async function boot() {
     const offer = quests.offerFrom(id, state);
     if (offer) {
       nodes['offer_' + offer.id] = {
-        text: offer.offer,
+        text: offer.offer, picture: offer.picture,
         options: [
           { label: 'I will do it.', do: () => { quests.accept(state, offer.id); refreshHud(); save(); hud.toast('New task', offer.title); } },
           { label: 'Not yet.', to: 'hello' },
@@ -246,7 +255,8 @@ async function boot() {
     if (herb) {
       state.picked.push(herb);
       inv.addItem(state, 'athelas');
-      hud.toast('', `Kingsfoil gathered (${inv.count(state, 'athelas')}).`);
+      if (state.picked.length === 1) hud.toast('Kingsfoil', 'The low plant with white stars and a pale glimmer over it. Éowyn can steep it.');
+      else hud.toast('', `Kingsfoil gathered (${inv.count(state, 'athelas')}).`);
       hud.setTracker(quests.tracker(state));
     }
   };
@@ -257,7 +267,7 @@ async function boot() {
     if (action === 'menu') {
       const open = [dialogue, map, pack, trade, menu].find((p) => p.open);
       if (open) open.close();
-      else { openPanel(); menu.show(qualityName, storage ? '' : 'Saving is not available in this browser.'); }
+      else { openPanel(); menu.show(qualityName, storage ? '' : 'Saving is not available in this browser.', { atHome: refuge.isInside(player.pos), inFight: enemies.inCombat() }); }
       return;
     }
     if (action === 'map') {
@@ -273,11 +283,13 @@ async function boot() {
     else if (action === 'swap') combat.swap();
     else if (action === 'sword' || action === 'bow') combat.swap(action);
     else if (action === 'heal') combat.heal();
+    else if (action === 'aim') combat.setAim(!combat.aim);
   };
   $('btn-map').onclick = () => input.onAction('map');
   $('btn-pack').onclick = () => input.onAction('pack');
   $('btn-menu').onclick = () => input.onAction('menu');
   $('btn-heal').onclick = () => input.onAction('heal');
+  $('btn-aim').onclick = () => input.onAction('aim');
   hud.prompt.onclick = () => input.onAction('interact');
   const hold = (el, on) => {
     el.addEventListener('pointerdown', () => on(true));
@@ -329,14 +341,19 @@ async function boot() {
     input.update();
     const down = combat.fallen > 0;
     const fight = combat.update(dt, time, input.attack && !down);
-    rig.aiming = state.weapon === 'bow' && !input.touch && rig.wantDist > 0.5;
-    player.update(dt, time, input, rig.yaw, { pose: fight.pose, slow: fight.slow, holdYaw: fight.slow || combat.swing > 0, down });
+    // Aim mode: toggled (R, or the Aim button), or held on the right mouse button.
+    const aiming = (combat.aim || (input.aimMouse && input.enabled && state.weapon === 'bow')) && !down;
+    $('btn-aim').classList.toggle('on', combat.aim);
+    rig.aiming = state.weapon === 'bow' && (!input.touch || combat.aim) && rig.wantDist > 0.5;
+    rig.zoomed = aiming;
+    player.update(dt, time, input, rig.yaw, { pose: fight.pose, slow: fight.slow, still: fight.still, holdYaw: fight.slow || combat.swing > 0, down });
     rig.update(dt, input, player);
-    hud.setCrosshair(started && state.weapon === 'bow' && !input.touch && !anyPanel(), combat.draw >= 0.8);
+    hud.setCrosshair(started && state.weapon === 'bow' && (!input.touch || combat.aim) && !anyPanel(), combat.draw >= 0.8);
     if (input.enabled && (input.move.x || input.move.y)) hud.hideHint();
 
     ground.update(player.pos.x, player.pos.z, 1);
-    camps.update(dt);
+    camps.update(dt, time, player.pos.x, player.pos.z);
+    herbs.update(time);
     camera.updateMatrixWorld();
     enemies.update(dt, time, player, input.walk, !down, camera);
     const blight = blightAt(player.pos.x, player.pos.z, camps.strength);
@@ -383,7 +400,7 @@ async function boot() {
   requestAnimationFrame(loop);
 
   // For tests and for poking at the world from the console.
-  window.roi = {
+  const api = {
     ready: true, state, player, rig, input, camps, ground, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
     landmarks: LANDMARKS, sites: SITES, relics: RELICS,
     teleport(x, z, yaw = player.yaw, y = undefined) {
@@ -391,7 +408,10 @@ async function boot() {
       rig.yaw = yaw;
       while (ground.update(x, z, 4) > 0) { /* build everything in range now */ }
     },
+    hud, map, pack, refreshHud, goHome, openPanel, store, trunkAt, haradRoadX,
   };
+  window.roi = api;
+  if (dev) (await import('./dev.js')).attach(api);
 }
 
 boot().catch((err) => {

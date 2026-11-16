@@ -152,3 +152,16 @@ body.panel-open #btn-attack, body.panel-open #btn-heal, body.panel-open #crossha
 .task .bar div { height: 100%; background: var(--leaf); border-radius: 3px; }
 .task.done .what b { color: #2f5f2a; }
 .empty { color: var(--ink-soft); font-style: italic; font-size: 14px; }
+
+#hitmark { position: absolute; left: 50%; top: calc(50% - 46px); transform: translateX(-50%); color: #ffe08a; font-size: 20px; font-style: italic;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; }
+#hitmark.show { animation: hitmark 1.1s ease-out; }
+@keyframes hitmark { 0% { opacity: 1; transform: translate(-50%, 6px); } 100% { opacity: 0; transform: translate(-50%, -18px); } }
+#btn-aim { position: absolute; right: max(132px, calc(env(safe-area-inset-right) + 110px)); bottom: calc(max(34px, env(safe-area-inset-bottom)) + 104px);
+  width: 64px; height: 64px; border-radius: 50%; background: rgba(239, 228, 200, 0.55); font-size: 13px; }
+#btn-aim.on { background: rgba(255, 224, 138, 0.9); }
+body.panel-open #btn-aim, body.panel-open #hitmark { display: none !important; }
+#dialogue-picture { float: right; margin: 0 0 8px 14px; width: 150px; padding: 6px; background: #f6edd2; border: 1px solid var(--ink-soft); border-radius: 3px;
+  box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.25); transform: rotate(1.5deg); }
+#dialogue-picture svg { display: block; width: 100%; height: auto; }
+#dialogue-picture figcaption { text-align: center; font-size: 12px; font-style: italic; color: var(--ink-soft); }

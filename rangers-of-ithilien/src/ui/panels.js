@@ -14,6 +14,16 @@ import * as quests from '../systems/quests.js';
 
 const $ = (id) => document.getElementById(id);
 
+// Small drawings that a speaker may show. Our own artwork, drawn here in SVG.
+const PICTURES = {
+  kingsfoil: `<figure style="margin:0"><svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <g fill="none" stroke="#4a3d28" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <g fill="#8fb37a">${[0, 52, 104, 156, 208, 260, 312].map((a) => `<path transform="rotate(${a} 60 92)" d="M60 92 C52 78 52 62 60 50 C68 62 68 78 60 92 Z"/><path transform="rotate(${a} 60 92)" d="M60 90 L60 56" stroke-width="0.9"/>`).join('')}</g>
+      ${[[60, 30, 58], [44, 40, 52], [77, 38, 54], [52, 22, 46], [70, 20, 44]].map(([x, y, top]) => `<path d="M${x} ${y + 8} Q${(x + 60) / 2} ${(top + 92) / 2 + 10} 60 88" stroke="#5f7a48"/>
+        <g transform="translate(${x} ${y})" fill="#fffdf4">${[0, 72, 144, 216, 288].map((a) => `<path transform="rotate(${a})" d="M0 0 L-2.6 -5 L0 -10 L2.6 -5 Z"/>`).join('')}<circle r="1.8" fill="#e8c95a"/></g>`).join('')}
+    </g></svg><figcaption>Kingsfoil. Look for the glimmer.</figcaption></figure>`,
+};
+
 export class DialoguePanel {
   constructor(onClose) {
     this.root = $('dialogue');
@@ -33,6 +43,9 @@ export class DialoguePanel {
   go(id) {
     const node = this.speaker.nodes[id];
     $('dialogue-text').textContent = typeof node.text === 'function' ? node.text(this.ctx) : node.text;
+    const pic = $('dialogue-picture');
+    pic.hidden = !node.picture;
+    if (node.picture) pic.innerHTML = PICTURES[node.picture];
     const box = $('dialogue-options');
     box.replaceChildren();
     for (const opt of node.options) {
@@ -58,6 +71,13 @@ export class MapPanel {
     this.base = null;
     this.onClose = onClose;
     $('map-close').onclick = () => this.close();
+    /** If set, called with world (x, z) when the map is clicked (used by the testing page). */
+    this.onPick = null;
+    this.canvas.addEventListener('click', (e) => {
+      if (!this.onPick) return;
+      const r = this.canvas.getBoundingClientRect();
+      this.onPick(((e.clientX - r.left) / r.width) * WORLD.width, ((e.clientY - r.top) / r.height) * WORLD.length);
+    });
     this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
   }
 
@@ -180,10 +200,20 @@ export class MenuPanel {
     $('menu-new').onclick = () => {
       if (confirm('Begin anew? Your discoveries and cleared camps will be forgotten.')) handlers.onNew();
     };
+    $('menu-travel').onclick = () => handlers.onTravel();
     for (const b of this.root.querySelectorAll('[data-quality]')) b.onclick = () => handlers.onQuality(b.dataset.quality);
     this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
   }
-  show(quality, status) {
+  /**
+   * @param where { atHome, inFight }: at home the game can be begun anew; abroad
+   *   the ranger can instead go straight home, unless the enemy has seen them.
+   */
+  show(quality, status, where = { atHome: true, inFight: false }) {
+    $('menu-new').hidden = !where.atHome;
+    const travel = $('menu-travel');
+    travel.hidden = where.atHome;
+    travel.disabled = where.inFight;
+    travel.textContent = where.inFight ? 'No slipping away while they have seen you' : 'Return to Henneth Ann\u00fbn';
     for (const b of this.root.querySelectorAll('[data-quality]')) b.classList.toggle('on', b.dataset.quality === quality);
     $('menu-status').textContent = status;
     this.root.hidden = false;

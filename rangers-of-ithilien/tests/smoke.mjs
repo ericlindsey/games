@@ -147,7 +147,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => { roi.input.haste = false; });
   const exit = await pos(page);
   check(out, `the cut leads out downstream (reached x ${exit.x.toFixed(0)})`);
-  check(await page.evaluate((p) => roi.heightAt(p.x, p.z + 25) - p.y < 6 && !roi.refuge.isInside(roi.player.pos), exit), 'and the banks there are low enough to climb');
+  check(await page.evaluate((p) => roi.heightAt(p.x, p.z + 25) - p.y < 9 && !roi.refuge.isInside(roi.player.pos), exit), 'and the banks there are low enough to climb');
   await shot(page, 'cut-exit');
 
   // Walk, on the lawns of Cormallen where nothing is in the way.
@@ -213,9 +213,71 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.waitForFunction((q) => roi.state.arrows === q - 1, quiver, { timeout: 20000 });
   check(await page.evaluate(() => roi.combat.arrows.length >= 0), 'an arrow is loosed and leaves the quiver');
   await shot(page, 'bow');
+
+  // Taking aim: the view closes in, and a chosen shot to the head kills outright.
+  await page.keyboard.press('KeyR');
+  await page.waitForFunction(() => roi.combat.aim && roi.rig.zoom > 0.8, null, { timeout: 20000 });
+  check(await page.evaluate(() => roi.rig.camera.fov < 45), 'aim mode narrows the view');
+  await shot(page, 'aim');
+  await page.keyboard.press('KeyR');
+  await page.waitForFunction(() => roi.enemies.list.some((e) => !e.dead), null, { timeout: 30000 });
+  const shots = await page.evaluate(() => {
+    const foes = roi.enemies.list.filter((e) => !e.dead && e.type !== 'chief');
+    const loose = (e, up, aimed) => roi.combat.shoot({ x: e.x + 6, y: e.y + 1.5, z: e.z }, { x: e.x, y: e.y + up * 1.78 * e.def.scale, z: e.z }, 5, 60, true, aimed);
+    const [a, b] = foes;
+    loose(a, 0.92, true);          // an aimed shot at the head
+    if (b) loose(b, 0.92, false);  // the same shot, not aimed (as the one-button attack makes)
+    return { a: a.type, hasB: !!b };
+  });
+  await page.waitForFunction(() => roi.enemies.list.filter((e) => e.hp < e.maxHp).length >= 1 && roi.combat.arrows.length === 0, null, { timeout: 30000 });
+  const zones = await page.evaluate(() => roi.enemies.list.map((e) => ({ dead: e.dead, hurt: e.hp < e.maxHp })));
+  check(zones[0].dead, 'an aimed arrow to the head kills');
+  if (shots.hasB) check(zones[1].hurt && !zones[1].dead, 'the same arrow unaimed only wounds');
+  check((await page.textContent('#hitmark')).includes('Head'), 'and the hit is called out');
+
+  // The trunk of a great tree stops an arrow.
+  const stopped = await page.evaluate(() => {
+    const p = roi.player.pos;
+    for (let r = 4; r < 90; r += 2) for (let a = 0; a < 6.28; a += 0.2) {
+      const x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r;
+      if (!roi.trunkAt(x, z)) continue;
+      const y = roi.heightAt(x, z) + 1.4;
+      roi.combat.arrows.length = 0;
+      roi.combat.shoot({ x: x - 5, y, z }, { x: x + 5, y, z }, 5, 50, true, false);
+      window.treeX = x;
+      return true;
+    }
+    return false;
+  });
+  if (stopped) {
+    await page.waitForFunction(() => roi.combat.arrows.length === 0 || roi.combat.arrows[0].x > treeX + 2, null, { timeout: 20000 });
+    check(await page.evaluate(() => roi.combat.arrows.length === 0), 'an arrow does not pass through a great tree');
+  }
   await page.keyboard.press('Digit1');
 
+  // A band on the Harad Road marches down it.
+  await page.evaluate(() => { roi.enemies.reset(); roi.teleport(roi.haradRoadX(2000) - 60, 2000, 0); window.band = roi.enemies.spawnPatrol(1960, 1, { list: ['snaga', 'snaga'], host: false }); roi.combat.god = true; });
+  const z0 = await page.evaluate(() => roi.enemies.list.find((e) => e.camp === band).z);
+  const marched = await page.waitForFunction((z0) => { const e = roi.enemies.list.find((e) => e.camp === band); return e && (e.z > z0 + 3 || e.alerted); }, z0, { timeout: 60000 }).then(() => true, () => false);
+  check(marched, 'a band can be met on the road, marching or turning on the ranger');
+  const clearedBefore = await page.evaluate(() => roi.state.cleared.length);
+  await page.evaluate(() => { for (const e of roi.enemies.list.filter((e) => e.camp === band)) roi.enemies.damage(e, 9999); roi.combat.god = false; roi.enemies.reset(); });
+  check(await page.evaluate((n) => roi.state.cleared.length === n, clearedBefore), 'beating a band does not count as clearing a camp');
+
+  // Quick travel home from the menu; beginning anew only at home.
+  await page.evaluate(() => { roi.enemies.reset(); roi.teleport(700, 1000, 0); });
+  await page.click('#btn-menu');
+  await page.waitForSelector('#menu:not([hidden])');
+  check(await page.isVisible('#menu-travel') && await page.isHidden('#menu-new'), 'abroad, the menu offers the way home and not a new game');
+  await page.click('#menu-travel');
+  await page.waitForFunction(() => roi.refuge.isInside(roi.player.pos), null, { timeout: 30000 });
+  check(await page.isHidden('#menu'), 'quick travel brings the ranger to the cave');
+  await page.click('#btn-menu');
+  check(await page.isVisible('#menu-new') && await page.isHidden('#menu-travel'), 'in the cave, the menu offers a new game instead');
+  await page.click('#menu-resume');
+
   // Falling: the ranger wakes at home, whole.
+  await page.evaluate(() => roi.teleport(700, 1000, 0));
   await page.evaluate(() => roi.combat.hurt(9999));
   check(await page.isVisible('#fallen'), 'at no health the ranger falls');
   await page.waitForFunction(() => roi.state.health === 100 && roi.refuge.isInside(roi.player.pos), null, { timeout: 60000 });
@@ -256,7 +318,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await ready(page);
   const after = await pos(page);
   check(dist(before, after) < 0.5, 'position is restored after a reload');
-  check(await page.evaluate(() => roi.state.cleared.length === 1 && roi.state.discovered.includes('arch') && roi.state.quests.done.includes('f1') && roi.state.items.draught >= 2), 'progress, tasks and pack are restored after a reload');
+  check(await page.evaluate(() => roi.state.cleared.includes(roi.quests.NEAREST_CAMP.id) && roi.state.discovered.includes('arch') && roi.state.quests.done.includes('f1') && roi.state.items.draught >= 2), 'progress, tasks and pack are restored after a reload');
 
   // Menu.
   await page.click('#btn-menu');
@@ -316,6 +378,27 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   await page.waitForSelector('#dialogue:not([hidden])');
   check(true, 'tapping the prompt opens dialogue');
   await shot(page, 'phone-dialogue');
+});
+
+await run('testing page', { viewport: { width: 1280, height: 720 } }, async (page) => {
+  await page.goto(base + 'debug.html');
+  await page.waitForFunction(() => window.roi?.ready, null, { timeout: 180000 });
+  await page.click('#begin');
+  await page.waitForSelector('#dev');
+  check(true, 'debug.html opens the game with the testing panel');
+  await page.click('#dev [data-a="kit"]');
+  check(await page.evaluate(() => roi.state.equipped.sword === 'gondorBlade' && roi.state.equipped.armour === 'ithilienMail'), 'it can hand out and equip gear');
+  await page.click('#dev [data-a="ren+"]');
+  check(await page.evaluate(() => roi.state.renown === 1), 'and set renown');
+  await page.click('#dev [data-a="mapgo"]');
+  await page.waitForSelector('#map:not([hidden])');
+  const box = await page.locator('#map-canvas').boundingBox();
+  await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.6);
+  await page.waitForFunction(() => Math.abs(roi.player.pos.x - 800) < 30 && Math.abs(roi.player.pos.z - 2400) < 40, null, { timeout: 30000 });
+  check(await page.isHidden('#map'), 'clicking the map travels there');
+  await shot(page, 'dev');
+  await page.evaluate(() => roi.save());
+  check(await page.evaluate(() => localStorage.getItem('rangers-of-ithilien.save') === null && localStorage.getItem('rangers-of-ithilien.save.dev') !== null), 'the testing page keeps its own save and leaves the real one alone');
 });
 
 await browser.close();

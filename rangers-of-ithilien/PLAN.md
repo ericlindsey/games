@@ -320,7 +320,9 @@ more animation, tuning.
 | Hosting | GitHub Pages from the repo root, with a landing page linking each game. |
 | Combat | Aimed, real-time, especially the bow. On touch, one Attack button picks target and weapon. |
 | Death | The ranger wakes at home and loses nothing. |
-| Camps | Cleared by defeating everyone in them, not by a key press. |
+| Camps | Cleared by defeating everyone in them, not by a key press. Many small ones north of home; larger to the south. |
+| Archery | Aim mode on all devices; head kills, heart wounds deeply; great trees stop arrows. |
+| Quick travel | Home from the menu when not in a fight. Starting over only from the cave. |
 | Player | A fixed, unnamed ranger for now. |
 | Tone | Upbeat: the war is won. Occupied land is grey and sour; cleared land turns bright and healthy again. |
 | Sharing | Personal project, not for publication. |
@@ -341,20 +343,40 @@ more animation, tuning.
 
 ### The enemy and the fighting (M3)
 
-- 125 camps hold 500-odd enemies (`data/enemies.js`): orcs, orc archers, Uruks,
-  Southrons, and a captain in each stockade. Tougher with danger tier.
+- 188 camps hold about 680 enemies (`data/enemies.js`): orcs, orc archers (in a
+  pale cowl, to be picked out), Uruks, Southrons, and a captain in each stockade.
+- **Where they are** (`world/campSites.js`): danger runs north to south. The
+  woods north of Henneth Annûn are a hunting ground of many small camps (two or
+  three orcs, no archers). Southward the camps grow: bands, stockades, and a few
+  war-camps of a dozen. Camps lie in knots with pickets, not at even spacing.
+  East of the road they lair in old diggings with a fire out front. Fewer than
+  half of all camps have archers.
+- Each lit camp has a flame and a column of smoke standing above the trees, pale
+  hide shelters and (from size 2) a red standard, so it can be found by looking.
 - A camp's company appears when the ranger comes within 120 m and is forgotten
   beyond 190 m. They notice at 27 m (13 m if you walk), rouse the whole camp,
   chase, strike with a visible wind-up, and shoot. They give up 80 m from camp
   and will not come within about 200 m of the falls.
-- When the last of a company falls, the camp is cleared for good, its stores are
-  taken, and the blight lifts.
+- **Bands on the Harad Road**: while the ranger is near the road, a band comes
+  marching down it every minute or two. Usually two to four; about one in eight
+  is a host of ten or more with a captain, announced so the ranger can get clear.
+  Beating a band is loot and practice; it clears no camp.
+- When the last of a camp's company falls, the camp is cleared for good, its
+  stores are taken, and the blight (55 to 140 m by size) lifts.
 - Sword: click or F. Bow: hold to draw, release to loose; over-shoulder camera
   and an aiming mark; arrows fly in an arc and are spent. Q or 1/2 to change.
+- **Aim mode** (hold right mouse, or R; the Aim button on touch): the view closes
+  in and steadies. On touch the left thumb pad (or a drag) aims, the bow bends
+  by itself and Attack looses. A chosen shot to the head kills outright (a
+  captain's helm turns it: triple damage instead), to the heart of the body does
+  1.6 times, to a limb 0.8. The one-button touch attack never gets these.
+- The trunks of great trees stop arrows, both sides'. Saplings and bushes do not.
 - Touch: one Attack button. It picks the nearest enemy, shoots if they are far
   and there are arrows, and strikes if they are near.
 - Health mends slowly out of combat; waybread and draughts mend it faster (H).
   At no health the ranger falls and wakes in the cave, losing nothing.
+- **Quick travel**: away from home the menu offers "Return to Henneth Annûn"
+  (not while any enemy has seen you). "Begin anew" is offered only in the cave.
 
 ### Things, tasks and trade (M2, M4)
 
@@ -368,22 +390,40 @@ more animation, tuning.
   roads south, ending with every camp), four from Éowyn (kingsfoil, the old
   places, a village). Offered and handed in through dialogue; the first active
   task shows on the HUD, as a marker on the compass and a ring on the map.
-- Kingsfoil grows at glade edges (221 plants) and is gathered by walking over
-  it. After her first task Éowyn steeps two plants into a draught.
+- Kingsfoil grows at glade edges (about 220 plants) and is gathered by walking
+  over it. Each plant has a pale glimmer above it, and Éowyn shows a drawing
+  of it when she asks for it. After her first task Éowyn steeps two plants into a draught.
 - Saves are version 3 and carry all of this.
+
+### Streams
+
+Streams are traced, not drawn (`world/terrain.js`): each starts at a spring under
+the mountains and is walked downhill over the base terrain, joining any stream it
+meets. Its bed is a running minimum along the course, so it never rises, and the
+ground is cut down to it in a small valley. Water is a ribbon a fixed depth above
+the bed. The home stream keeps a fixed course across the shelf, over the fall and
+through the cut, then is traced from the cut's mouth to the river. Ruin sites are
+levelled to the ground as it stands and streams are traced round them.
+
+### The testing page
+
+`debug.html` (or `index.html?dev`) runs the real game with its own save and a
+panel of shortcuts (`src/dev.js`): click the map to travel, jump to any named
+place, set renown, hand out items or the best kit, take or finish any task,
+toggle haste and taking no hurt, go to the nearest camp, slay or clear, and call
+up a band or a host on the road.
 
 ### Known gaps to pick up
 
-- **Balance is untested by a person.** Numbers were set by reasoning and by
-  automated fights, not by play. Expect the first camps to be easy and far
-  stockades to be deadly; both may be too much so.
-- **Performance is unmeasured on real hardware** beyond one report that High ran
-  smoothly on a phone. Each living enemy adds about a dozen draw calls.
+- **Balance is still a guess**, now with one playtest behind it (three in a camp
+  was comfortable, five was too many at starting gear). The north should now be
+  gentle; nobody has yet tried the south with good gear.
 - Enemies steer simply: straight at the ranger, side-stepping what blocks them.
-  They pass through their own stockade stakes (which stop the ranger), and can
-  be led round trees. Arrows ignore tree trunks.
-- No blocking or dodging move; you avoid a blow by stepping away during the
-  wind-up. No stealth beyond walking. No hit sounds, because there is no sound.
+  They pass through their own stockade stakes (which stop the ranger).
+- A mine is a rock heap with a black mouth, not a cave you can enter.
+- Streams bend at 9 m joints and do not yet have falls or pools of their own.
+  Paths and roads ford them; there are no bridges but the broken one.
+- No blocking or dodging move. No stealth beyond walking. No sound.
 - Loot bags and a camp's dead are forgotten if you leave and return.
 - The blight changes sky, fog and light but not the colour of ground and plants.
 - Trees appear at the edge of the loaded radius without a fade.
