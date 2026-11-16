@@ -43,38 +43,6 @@ export function roadDistance(x, z) {
   return Math.min(dH, dS);
 }
 
-// Streams run from the mountains west to the Anduin.
-const HOME_STREAM = 1;
-const STREAMS = [
-  { z0: 510, a: 35, b: 9, p1: 0.4, p2: 2.1 },
-  { z0: HA.z, a: 30, b: 8, p1: 1.7, p2: 0.3 },
-  { z0: 2000, a: 38, b: 10, p1: 3.1, p2: 1.2 },
-  { z0: 2740, a: 32, b: 8, p1: 5.2, p2: 4.0 },
-  { z0: 3400, a: 26, b: 7, p1: 0.9, p2: 5.5 },
-];
-export const STREAM_COUNT = STREAMS.length;
-export const STREAM_END_X = 1850;
-
-/** Z of stream i's centre line at a given x. */
-export function streamZ(i, x) {
-  const s = STREAMS[i];
-  let m = s.a * Math.sin(x / 165 + s.p1) + s.b * Math.sin(x / 61 + s.p2);
-  if (i === HOME_STREAM) {
-    // Dead straight through the cut and over the fall; in the cut it keeps to the north side.
-    m *= smoothstep(200, 430, Math.abs(x - 860));
-    if (x < HA.basin.minX + 4) m += HA.gorge.channelOffset * smoothstep(620, 700, x);
-  }
-  return s.z0 + m;
-}
-export function isHomeStream(i) { return i === HOME_STREAM; }
-
-/** Distance to the nearest stream centre line (measured north-south). */
-export function streamDistance(x, z) {
-  let d = Infinity;
-  for (let i = 0; i < STREAMS.length; i++) d = Math.min(d, Math.abs(z - streamZ(i, x)));
-  return d;
-}
-
 export const CAIR_ANDROS = { x: bankX(940) - ANDUIN_WIDTH / 2, z: 940, rx: 45, rz: 220 };
 
 const crossZ = 3862;
@@ -108,7 +76,8 @@ export const LANDMARKS = [
     blurb: 'The stump of a watch-tower that once looked east.' },
   { id: 'colonnade', name: 'The Fallen Colonnade', kind: 'colonnade', x: 650, z: 1700, r: 60, flat: 26, clear: 22,
     blurb: 'A walk of pillars, most of them long since laid down.' },
-  { id: 'pier', name: 'The Old Bridge', kind: 'bridge', x: 940, z: streamZ(2, 940), r: 60, clear: 20,
+  // (terrain.js moves the bridge onto the nearest stream once the streams are traced)
+  { id: 'pier', name: 'The Old Bridge', kind: 'bridge', x: 940, z: 2000, r: 60, clear: 20,
     blurb: 'Stone piers stand in the stream. The span is gone.' },
   { id: 'shrine', name: 'The Roofless Shrine', kind: 'shrine', x: 450, z: 2490, r: 55, flat: 20, clear: 16,
     blurb: 'Open to the sky, and the better for it.' },

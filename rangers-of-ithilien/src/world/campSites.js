@@ -3,8 +3,8 @@
 
 import { rng, smoothstep } from '../util/noise.js';
 import { WORLD } from '../config.js';
-import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, streamDistance, roadDistance, inClearing } from './layout.js';
-import { heightAt, slopeAt } from './terrain.js';
+import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, roadDistance, inClearing } from './layout.js';
+import { heightAt, slopeAt, streamDistance } from './terrain.js';
 import { dangerTier } from './regions.js';
 import { houseDistance } from './oldworks.js';
 import { pathDistance } from './paths.js';

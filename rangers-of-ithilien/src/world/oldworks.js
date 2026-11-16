@@ -4,8 +4,8 @@
 
 import { rng } from '../util/noise.js';
 import { WORLD, CHUNK } from '../config.js';
-import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, streamDistance, roadDistance, inClearing } from './layout.js';
-import { heightAt, slopeAt } from './terrain.js';
+import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, roadDistance, inClearing } from './layout.js';
+import { heightAt, slopeAt, streamDistance } from './terrain.js';
 
 const rand = rng(WORLD.seed + 101);
 const between = (a, b) => a + (b - a) * rand();

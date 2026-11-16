@@ -1,9 +1,9 @@
 // Panels that sit over the world: dialogue, the map, the menu and the title.
 
 import { WORLD } from '../config.js';
-import { heightAt } from '../world/terrain.js';
+import { heightAt, STREAMS } from '../world/terrain.js';
 import { groundColor } from '../world/groundColor.js';
-import { LANDMARKS, haradRoadX, southRoadZ, bankX, streamZ, STREAM_COUNT, STREAM_END_X } from '../world/layout.js';
+import { LANDMARKS, haradRoadX, southRoadZ, bankX } from '../world/layout.js';
 import { CAMPS } from '../world/campSites.js';
 import { SITES } from '../world/oldworks.js';
 import { PATHS } from '../world/paths.js';
@@ -102,11 +102,7 @@ export class MapPanel {
       ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash); ctx.stroke();
       ctx.setLineDash([]);
     };
-    for (let i = 0; i < STREAM_COUNT; i++) {
-      const pts = [];
-      for (let x = STREAM_END_X - 100; x > bankX(streamZ(i, x)); x -= 15) pts.push([x, streamZ(i, x)]);
-      line(pts, 'rgba(70,120,140,0.8)', 1.4);
-    }
+    for (const st of STREAMS) line(st.points.filter((p) => p.x > bankX(p.z)).map((p) => [p.x, p.z]), 'rgba(70,120,140,0.8)', 1.3);
     for (const pts of PATHS) line(pts, 'rgba(110,85,50,0.42)', 1, [2, 3]); // the old ways, faintly
     const harad = [], south = [];
     for (let z = 0; z <= WORLD.length; z += 40) harad.push([haradRoadX(z), z]);
