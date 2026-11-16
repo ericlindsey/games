@@ -19,7 +19,7 @@ function generate() {
     if (x < bankX(z) + 40 || x > haradRoadX(z) + 150 || z > southRoadZ(x) - 30) continue;
     const tier = dangerTier(x, z);
     if (tier === 0 || Math.hypot(x - HA.x, z - HA.z) < 250) continue;
-    if (Math.abs(z - HA.z) < 40 && x > HA.gorge.endX - 40 && x < HA.x + 60) continue;
+    if (Math.abs(z - HA.z) < 40 && x > 600 && x < HA.x + 60) continue;
     if (inClearing(x, z) || streamDistance(x, z) < 12 || roadDistance(x, z) < 14 || houseDistance(x, z) < 11) continue;
     if (LANDMARKS.some((l) => Math.hypot(x - l.x, z - l.z) < l.r * 0.5 + 25)) continue;
     if (heightAt(x, z) < 2 || slopeAt(x, z) > 0.28) continue;

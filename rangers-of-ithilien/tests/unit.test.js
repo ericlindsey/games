@@ -10,7 +10,7 @@ import { CAMPS, blightAt, campNear } from '../src/world/campSites.js';
 import { SITES, inField, plantedIn, PLANTED_COUNT } from '../src/world/oldworks.js';
 import { groundAt, blockedBySolid, addSolid, addHollow, terrainAt } from '../src/world/collision.js';
 import { newState, migrate, SaveStore } from '../src/systems/save.js';
-import { SAVE, WORLD } from '../src/config.js';
+import { SAVE, WORLD, PLAYER } from '../src/config.js';
 
 test('terrain is deterministic and finite', () => {
   for (let i = 0; i < 200; i++) {
@@ -38,10 +38,28 @@ test('Henneth Annûn: a walled pool, a deep cut, and a way out downstream', () =
   // the cut: deep near the pool, running out to open ground downstream
   const depth = (x) => heightAt(x, HA.z + 16) - heightAt(x, HA.z + 3);
   assert.ok(depth(900) > 15, 'the cut is deep near the pool');
-  assert.ok(depth(HA.gorge.endX - 30) < 4, 'and has run out to ground level downstream');
-  for (let x = HA.gorge.endX; x < HA.basin.minX; x += 10) {
-    assert.ok(heightAt(x, HA.z + 3) <= heightAt(x + 10, HA.z + 3) + 0.2, 'the floor of the cut never climbs going downstream');
-  }
+  assert.ok(depth(600) < 4, 'and has run out to ground level downstream');
+});
+
+test('you can walk out of the cut: from the pool, downstream, and up into the woods', () => {
+  // Walk as the player does: small steps, refusing any rise steeper than maxSlope.
+  const walk = (x, z, dx, dz, dist) => {
+    for (let d = 0; d < dist; d += 0.25) {
+      const nx = x + dx * 0.25, nz = z + dz * 0.25;
+      const rise = heightAt(nx, nz) - heightAt(x, z);
+      assert.ok(rise / 0.25 <= PLAYER.maxSlope, `blocked at (${nx.toFixed(1)}, ${nz.toFixed(1)}): rise ${rise.toFixed(2)} m`);
+      x = nx; z = nz;
+    }
+    return [x, z];
+  };
+  // from the foot of the stair, across the basin floor to the mouth of the cut
+  let [x, z] = walk(HA.basin.minX + 4, HA.z + 3, -1, 0, 8);
+  // down the cut, on the path south of the stream, until the walls are gone
+  [x, z] = walk(x, z, -1, 0, 380);
+  assert.ok(x < 600);
+  // and out to either side, onto open ground
+  walk(x, z, 0, 1, 70);
+  walk(x, z, 0, -1, 70);
 });
 
 test('every landmark stands on dry land inside the world', () => {

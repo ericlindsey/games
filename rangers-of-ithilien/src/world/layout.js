@@ -14,7 +14,7 @@ export const HA = {
   floor: 31,        // floor of the basin and the head of the cut
   caveFloor: 40,
   basin: { minX: 968, halfZ: 14, wall: 4 },            // floor: x in [minX, x], |z - HA.z| < halfZ
-  gorge: { endX: 680, halfFloor: 6, halfTop: 10, fall: 0.01, channelOffset: -2.5 },
+  gorge: { endX: 540, halfFloor: 6, halfTop: 10, fall: 0.01, channelOffset: -2.5 },
   pool: { x: 985, z: 1187, r: 12 },
   rock: { minX: 1000, maxX: 1036, minZ: 1168, maxZ: 1212 }, // the mass that holds the cave
   spawn: { x: 1022, z: 1192, heading: -Math.PI / 2 },
@@ -62,7 +62,7 @@ export function streamZ(i, x) {
   if (i === HOME_STREAM) {
     // Dead straight through the cut and over the fall; in the cut it keeps to the north side.
     m *= smoothstep(200, 430, Math.abs(x - 860));
-    if (x < HA.basin.minX + 4) m += HA.gorge.channelOffset * smoothstep(HA.gorge.endX - 60, HA.gorge.endX + 20, x);
+    if (x < HA.basin.minX + 4) m += HA.gorge.channelOffset * smoothstep(620, 700, x);
   }
   return s.z0 + m;
 }
@@ -122,7 +122,7 @@ export const LANDMARKS = [
 export function inClearing(x, z) {
   // the basin and the cut at Henneth Annûn (the woods crowd right up to the rim)
   const dz = Math.abs(z - HA.z);
-  if (dz < 21 && x > HA.gorge.endX && x < HA.x + 3) {
+  if (dz < 21 && x > 640 && x < HA.x + 3) {
     if (x > HA.basin.minX - 6 || dz < HA.gorge.halfTop + 1.5) return true;
   }
   for (const l of LANDMARKS) {

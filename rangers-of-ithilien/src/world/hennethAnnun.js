@@ -220,7 +220,7 @@ export function buildHennethAnnun(scene, water) {
   for (let z = fz - edge + 6; z < fz + edge - 5; z += 6) {
     if (Math.abs(z - fz) > HA.gorge.halfTop + 2) rim(b.minX - b.wall - 2.5, z, 1.8 + rand() * 1.4);
   }
-  for (let x = HA.gorge.endX + 90; x < b.minX - 10; x += 9) {
+  for (let x = 770; x < b.minX - 10; x += 9) {
     for (const s of [-1, 1]) if (rand() < 0.5) rim(x + rand() * 5, fz + s * (HA.gorge.halfTop + 2.5 + rand() * 2), 1.2 + rand() * 1.5);
   }
   for (let i = 0; i < 9; i++) { // fallen rock at the foot of the walls

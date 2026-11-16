@@ -94,6 +94,17 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate(() => roi.refuge.isInside(roi.player.pos)), 'and leads inside the rock');
   await shot(page, 'hall');
 
+  // The way out: from the pool, down the cut, to open ground in the woods.
+  await page.evaluate(() => { roi.teleport(970, 1193, -Math.PI / 2, 31); roi.rig.yaw = -Math.PI / 2; roi.input.haste = true; });
+  await page.keyboard.down('KeyW');
+  const out = await page.waitForFunction(() => roi.player.pos.x < 610, null, { timeout: 60000 }).then(() => true, () => false);
+  await page.keyboard.up('KeyW');
+  await page.evaluate(() => { roi.input.haste = false; });
+  const exit = await pos(page);
+  check(out, `the cut leads out downstream (reached x ${exit.x.toFixed(0)})`);
+  check(await page.evaluate((p) => roi.heightAt(p.x, p.z + 25) - p.y < 6 && !roi.refuge.isInside(roi.player.pos), exit), 'and the banks there are low enough to climb');
+  await shot(page, 'cut-exit');
+
   // Walk, on the lawns of Cormallen where nothing is in the way.
   await page.evaluate(() => roi.teleport(337, 1195, 0));
   const a = await pos(page);
