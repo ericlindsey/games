@@ -29,8 +29,9 @@ export function addSolid(s) {
   insert(solidGrid, s, s.minX - 1, s.maxX + 1, s.minZ - 1, s.maxZ + 1);
   return s;
 }
-export function addCircle(x, z, r) {
-  insert(circleGrid, { x, z, r }, x - r - 1, x + r + 1, z - r - 1, z + r + 1);
+/** @param tag optional label; resolveCircles can be told to ignore circles with a given tag */
+export function addCircle(x, z, r, tag) {
+  insert(circleGrid, { x, z, r, tag }, x - r - 1, x + r + 1, z - r - 1, z + r + 1);
 }
 export function setChunkCircles(key, list) { chunkCircles.set(key, list); }
 export function removeChunkCircles(key) { chunkCircles.delete(key); }
@@ -90,8 +91,9 @@ export function pointBlocked(x, y, z) {
   return false;
 }
 
-function pushOut(list, p, r) {
+function pushOut(list, p, r, skip) {
   for (const c of list) {
+    if (skip && c.tag === skip) continue;
     const dx = p.x - c.x, dz = p.z - c.z;
     const min = r + c.r;
     if (Math.abs(dx) >= min || Math.abs(dz) >= min) continue;
@@ -103,10 +105,10 @@ function pushOut(list, p, r) {
   }
 }
 
-/** Push a point {x, z} out of any trunk or pillar it overlaps. */
-export function resolveCircles(p, r) {
+/** Push a point {x, z} out of any trunk or pillar it overlaps (except those tagged `skip`). */
+export function resolveCircles(p, r, skip) {
   const fixed = circleGrid.get(Math.floor(p.x / CELL) + ',' + Math.floor(p.z / CELL));
-  if (fixed) pushOut(fixed, p, r);
+  if (fixed) pushOut(fixed, p, r, skip);
   const cx0 = Math.floor((p.x - 4) / CHUNK.size), cx1 = Math.floor((p.x + 4) / CHUNK.size);
   const cz0 = Math.floor((p.z - 4) / CHUNK.size), cz1 = Math.floor((p.z + 4) / CHUNK.size);
   for (let cz = cz0; cz <= cz1; cz++) {

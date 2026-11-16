@@ -1,8 +1,8 @@
 # Rangers of Ithilien: Plan
 
-Status: **Milestone 1 is built and playable, and has had one round of playtest changes** (smaller
-world, great forest, old farmland, hidden pool, 129 camps). Next is Milestone 2 (tasks and things).
-Decisions made so far are recorded in section 9.
+Status: **Milestones 1 to 3 are built, with the core of 4** (gear and trade). The game is
+playable from first task to last camp. Next: Milestone 5 (atmosphere: sound, day and night)
+and the tuning listed in section 10.
 
 ---
 
@@ -271,7 +271,7 @@ Each ends with something you can open and play.
 **M0. Skeleton.** Folder, vendored Three.js, page, render loop, resize handling,
 debug overlay, a flat test ground with a walking player on desktop and touch.
 
-**M1. The land (first prototype).** Everything in section 2 "In".
+**M1. The land. (built)** Everything in section 2 "In".
 Suggested build order, each step viewable:
 1. Terrain function and chunked rendering; fog and sky.
 2. Player controller and camera on real terrain; both control schemes.
@@ -282,15 +282,15 @@ Suggested build order, each step viewable:
 7. Compass, discovery notices, map, save/load, menu.
 8. Performance pass on a phone-sized profile; smoke tests.
 
-**M2. Tasks and things.** Dialogue trees, a quest log, a first handful of tasks
+**M2. Tasks and things. (built)** Dialogue trees, a quest log, a first handful of tasks
 from Faramir and Éowyn (scout a place, find a stash, light a beacon), inventory,
 stashes to open, items to carry home. Still playable on mobile.
 
-**M3. The enemy.** Health, melee and bow combat (keyboard and mouse), a few enemy
+**M3. The enemy. (built)** Health, melee and bow combat (keyboard and mouse), a few enemy
 types with simple AI (idle at camp, notice, pursue, attack, give up), camps that
 can be cleared and stay cleared, loot drops, traps, death and return to the falls.
 
-**M4. Gear and trade.** Weapons and armour with stats, equipment screen, trading
+**M4. Gear and trade. (core built)** Weapons and armour with stats, equipment screen, trading
 at Henneth Annûn using renown earned from tasks, enemy tiers matched to danger.
 
 **M5. Atmosphere.** Sound and music, day/night, weather, more ruins and secrets,
@@ -318,36 +318,74 @@ more animation, tuning.
 | Camps | A hundred or more. |
 | Tooling | No build step. Three.js r170 vendored. |
 | Hosting | GitHub Pages from the repo root, with a landing page linking each game. |
-| Combat (M3) | Aimed, real-time, especially the bow. On touch, offer an auto-attack / aim-assist option. |
+| Combat | Aimed, real-time, especially the bow. On touch, one Attack button picks target and weapon. |
+| Death | The ranger wakes at home and loses nothing. |
+| Camps | Cleared by defeating everyone in them, not by a key press. |
 | Player | A fixed, unnamed ranger for now. |
 | Tone | Upbeat: the war is won. Occupied land is grey and sour; cleared land turns bright and healthy again. |
 | Sharing | Personal project, not for publication. |
 
-## 10. What Milestone 1 actually contains
+## 10. What is built
+
+### The land (M1, with playtest changes)
 
 - Terrain, the Anduin, five streams, the Ephel Dúath, both roads, soft boundaries.
-- Henneth Annûn: hidden pool, the cut, the stair, the cave with Faramir and Éowyn.
-- Forest of great trees with understory and herbs; fens; Cormallen; heather slopes.
-- 52 old farms and hamlets with field walls, houses, orchards and avenues.
-- Seven named ruins, the Cross-roads, the edge of Osgiliath, the barred Morgul
-  Vale, Cair Andros across the water.
-- 129 cold enemy camps. Each lays blight on the land; "Break up the camp" clears
-  it and the sky and light recover. A stand-in for clearing by combat in M3.
-- Compass with a home marker, place names, discovery notices, a map of what has
-  been found (ruins, farms, camps), menu with detail levels, save/resume.
-- Keyboard and mouse, and touch (stick, drag-look, pinch-zoom, buttons).
+- Henneth Annûn: hidden pool, the cut, the forked stair, the cave.
+- Forest of great trees with understory, herbs and litter; fens; Cormallen;
+  heather slopes where the camera rides above the bushes.
+- 52 old farms and hamlets; seven named ruins; 44 lesser ruins of ten kinds; the
+  Cross-roads, the edge of Osgiliath, the barred Morgul Vale, Cair Andros.
+- 26 km of half-seen old paths (`world/paths.js`) joining all of the above and
+  the two ways out of Henneth Annûn. They thin the trees, show on the ground
+  and the map, and carry worn slabs and small cairns.
+
+### The enemy and the fighting (M3)
+
+- 125 camps hold 500-odd enemies (`data/enemies.js`): orcs, orc archers, Uruks,
+  Southrons, and a captain in each stockade. Tougher with danger tier.
+- A camp's company appears when the ranger comes within 120 m and is forgotten
+  beyond 190 m. They notice at 27 m (13 m if you walk), rouse the whole camp,
+  chase, strike with a visible wind-up, and shoot. They give up 80 m from camp
+  and will not come within about 200 m of the falls.
+- When the last of a company falls, the camp is cleared for good, its stores are
+  taken, and the blight lifts.
+- Sword: click or F. Bow: hold to draw, release to loose; over-shoulder camera
+  and an aiming mark; arrows fly in an arc and are spent. Q or 1/2 to change.
+- Touch: one Attack button. It picks the nearest enemy, shoots if they are far
+  and there are arrows, and strikes if they are near.
+- Health mends slowly out of combat; waybread and draughts mend it faster (H).
+  At no health the ranger falls and wakes in the cave, losing nothing.
+
+### Things, tasks and trade (M2, M4)
+
+- Items in `data/items.js`: four swords, four bows, three armours, food,
+  draughts, kingsfoil, and loot to sell.
+- Loot drops from the fallen in bags you walk over; more from each camp's stores.
+- The pack panel (I) shows tasks, gear and goods; wield, wear and use from there.
+- Mablung, in the cave, buys and sells. Better goods need renown, which comes
+  from finishing tasks.
+- Twelve tasks in `data/quests.js`: eight from Faramir (clearing camps, the long
+  roads south, ending with every camp), four from Éowyn (kingsfoil, the old
+  places, a village). Offered and handed in through dialogue; the first active
+  task shows on the HUD, as a marker on the compass and a ring on the map.
+- Kingsfoil grows at glade edges (221 plants) and is gathered by walking over
+  it. After her first task Éowyn steeps two plants into a draught.
+- Saves are version 3 and carry all of this.
 
 ### Known gaps to pick up
 
-- **Performance is unmeasured on real hardware.** The forest roughly doubled the
-  triangle count (about 300k on Low, 500-800k on Medium in the densest places).
-  If phones struggle, the levers are `QUALITY` in config.js and simpler tree
-  models at distance.
+- **Balance is untested by a person.** Numbers were set by reasoning and by
+  automated fights, not by play. Expect the first camps to be easy and far
+  stockades to be deadly; both may be too much so.
+- **Performance is unmeasured on real hardware** beyond one report that High ran
+  smoothly on a phone. Each living enemy adds about a dozen draw calls.
+- Enemies steer simply: straight at the ranger, side-stepping what blocks them.
+  They pass through their own stockade stakes (which stop the ranger), and can
+  be led round trees. Arrows ignore tree trunks.
+- No blocking or dodging move; you avoid a blow by stepping away during the
+  wind-up. No stealth beyond walking. No hit sounds, because there is no sound.
+- Loot bags and a camp's dead are forgotten if you leave and return.
 - The blight changes sky, fog and light but not the colour of ground and plants.
-- Trees appear at the edge of the loaded radius without a fade; beyond it the far
-  forest is a flat-shaded green roof.
-- Field walls and houses are axis-aligned (collision boxes are). Lanes can run at
-  any angle.
-- Third-person camera in the tall heather often has to pull in to first person.
-- Clearing 129 camps by pressing E is busywork; it is waiting for M3.
-- Osgiliath is plain blocks. Cair Andros cannot be reached. No sound. No day/night.
+- Trees appear at the edge of the loaded radius without a fade.
+- Field walls and houses are axis-aligned. Osgiliath is plain blocks.
+- Nothing yet happens when every camp is cleared beyond Faramir's last words.

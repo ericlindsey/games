@@ -119,7 +119,7 @@ export class Enemies {
     const x0 = e.x, z0 = e.z;
     if (ok(nx, e.z)) e.x = nx;
     if (ok(e.x, nz)) e.z = nz;
-    resolveCircles(e, 0.4);
+    resolveCircles(e, 0.4, 'stake');
     e.y = groundAt(e.x, e.z, e.y);
     return Math.hypot(e.x - x0, e.z - z0) > 1e-4;
   }

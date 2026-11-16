@@ -56,7 +56,7 @@ export class Camps {
           if (off < 0.19 || rand() < 0.06) continue;
           const sx = c.x + Math.cos(a) * R, sz = c.z + Math.sin(a) * R, sy = at(sx, sz);
           always.cyl(0, 0.17, 2.5 + rand() * 0.6, sx, sy - 0.2, sz, STAKE, 4, (rand() - 0.5) * 0.2, (rand() - 0.5) * 0.2);
-          addCircle(sx, sz, 0.42);
+          addCircle(sx, sz, 0.42, 'stake'); // stops the ranger; the camp's own company slips between
         }
       }
 
