@@ -12,7 +12,8 @@ export const ENEMY_TYPES = {
 
 /**
  * Who holds a camp: a list of type names, fixed for each camp. Pure.
- * Archers are the dangerous ones to leave alone, so small camps often have none.
+ * Archers are the dangerous ones to leave alone; the smallest camps near home
+ * have none, but most others do.
  */
 export function rosterFor(camp) {
   const rand = rng(Math.round(camp.x * 31 + camp.z * 17));
@@ -20,15 +21,15 @@ export function rosterFor(camp) {
   const list = ['snaga', 'snaga'];
   if (camp.size === 1) {
     if (rand() < 0.3) list.push('snaga');
-    if (camp.tier >= 2 && rand() < 0.35) list.push('archer');
+    if (camp.tier >= 2 && rand() < 0.6) list.push('archer');
     if (camp.tier >= 3) list[0] = strong();
   } else if (camp.size === 2) {
     list.push(strong());
-    if (rand() < 0.6) list.push('archer');
-    if (camp.tier >= 3) list.push('snaga');
+    if (rand() < 0.8) list.push('archer');
+    if (camp.tier >= 3) list.push(rand() < 0.4 ? 'archer' : 'snaga');
   } else if (camp.size === 3) {
     list.push('snaga', 'archer', strong(), strong(), 'chief');
-    if (rand() < 0.5) list.push('archer');
+    if (rand() < 0.75) list.push('archer');
   } else {
     list.push('snaga', 'snaga', 'archer', 'archer', strong(), strong(), strong(), strong(), 'chief');
     if (rand() < 0.5) list.push('archer');

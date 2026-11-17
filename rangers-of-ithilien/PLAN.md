@@ -1,6 +1,6 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.1.** The land, the enemy, fighting, gear, tasks and trade are built and
+Status: **v0.1, working toward v0.2.** The land, the enemy, fighting, gear, tasks and trade are built and
 have had three rounds of playtest. Next: Milestone 5 (sound, day and night) and the
 gaps listed at the end of section 10.
 
@@ -434,6 +434,27 @@ up a band or a host on the road.
 - The old places are laid out on a grid first (4 across, 10 down) so none of the
   land is more than about 300 m from one. Any old place found, and Henneth
   Annûn, can be travelled to by clicking it on the map (not in a fight).
+
+### Toward v0.2: fixes after the fourth playtest
+
+- Only an enemy chasing the ranger jumps when stuck, and not while crowding
+  the ranger (within 3 m). Enemies idling in camp never jump; those walking
+  home or marching are only set aside after four seconds stuck.
+- Kingsfoil is about twice as common (370 plants, was 196); it now also grows
+  in the deeper southern woods (forest density up to 0.93, was 0.8). The six
+  plants beside Henneth Annûn are unchanged.
+- More archers: small camps from tier 2 have one 60% of the time (was 35%),
+  middling camps 80% (was 60%) and a second in tier 3, large camps a second 75%
+  (was 50%). The smallest tier-1 camps still have none. 123 archers in all (was 93).
+- On an upright phone the HUD stacks: health and buttons on the first row, then
+  the compass, the place name, and the task list.
+- Phone browser bars: overlays are sized to the visible screen (`dvh`), so the
+  map's Close button is not hidden under Safari's toolbar. On Begin, a touch
+  device that allows it (Android, iPad) goes full screen, and the menu has a
+  Full screen button. An iPhone cannot hide Safari's bars from a page, so the
+  game has a web manifest and home-screen tags: added to the home screen, it
+  opens with no bars, and the menu says how. (A home-screen copy keeps its own
+  save, apart from Safari's.)
 
 ### Known gaps to pick up
 

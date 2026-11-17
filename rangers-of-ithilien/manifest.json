@@ -1,0 +1,11 @@
+{
+  "name": "Rangers of Ithilien",
+  "short_name": "Rangers",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#1c2418",
+  "theme_color": "#2c3a26",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

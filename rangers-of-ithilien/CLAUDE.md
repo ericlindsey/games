@@ -47,6 +47,7 @@ When a decision is unclear, choose the option that serves these, in this order:
 
 ```
 index.html            canvas, import map, HUD and panel markup
+manifest.json, icon.svg   lets a phone add the game to its home screen (no browser bars)
 css/style.css
 vendor/               three.module.min.js (pinned; see vendor/VERSION)
 src/

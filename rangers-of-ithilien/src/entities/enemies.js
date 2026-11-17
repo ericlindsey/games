@@ -146,11 +146,11 @@ export class Enemies {
 
   /**
    * Getting unstuck. Every second, see how far an enemy that wants to move has
-   * got. After a second of going nowhere it jumps (which clears a low wall);
-   * after four it is set down a step or two aside, on open ground, toward
-   * where it was trying to go.
+   * got. Only one that is after the ranger jumps, after a second of going nowhere
+   * (which clears a low wall); any that is stuck four seconds is set down a step
+   * or two aside, on open ground, toward where it was trying to go.
    */
-  unstick(e, tx, tz, dt) {
+  unstick(e, tx, tz, dt, jump) {
     const c = e.check;
     c.t += dt;
     if (c.t < 1) return;
@@ -158,7 +158,7 @@ export class Enemies {
     c.t = 0; c.x = e.x; c.z = e.z;
     if (moved > 1.2) { e.stuckFor = 0; return; }
     e.stuckFor++;
-    if (e.stuckFor >= 1 && !e.air) { e.vy = 6.8; e.air = true; }
+    if (jump && !e.air) { e.vy = 6.8; e.air = true; }
     if (e.stuckFor >= 4) {
       const want = Math.atan2(tx - e.x, tz - e.z);
       for (const off of [0, 0.7, -0.7, 1.4, -1.4, 2.2, -2.2, Math.PI]) {
@@ -174,7 +174,8 @@ export class Enemies {
     }
   }
 
-  moveToward(e, tx, tz, speed, dt) {
+  /** `unstick`: 'jump' when chasing, 'shift' to only be set aside, else nothing. */
+  moveToward(e, tx, tz, speed, dt, unstick = null) {
     let dx = tx - e.x, dz = tz - e.z;
     const d = Math.hypot(dx, dz);
     if (d < 0.05) return;
@@ -188,7 +189,8 @@ export class Enemies {
     const s = Math.min(d, speed * dt);
     const x0 = e.x, z0 = e.z;
     this.step(e, e.x + dx * s, e.z + dz * s);
-    if (d > 1.5) this.unstick(e, tx, tz, dt);
+    if (unstick && d > 1.5) this.unstick(e, tx, tz, dt, unstick === 'jump' && d > 3); // not when crowding the ranger
+    else { e.check.t = 0; e.check.x = e.x; e.check.z = e.z; e.stuckFor = 0; }
     if (Math.hypot(e.x - x0, e.z - z0) < s * 0.35 && e.stuck <= 0) { e.stuck = 0.7; e.side = -e.side; }
     e.speed = speed;
     this.face(e, dx, dz, dt);
@@ -265,7 +267,7 @@ export class Enemies {
         case 'idle': {
           if (pat) { // on the march
             const tz = e.z + pat.dir * 8;
-            this.moveToward(e, haradRoadX(tz) + (e.side > 0 ? 1.2 : -1.2), tz, 2.1, dt);
+            this.moveToward(e, haradRoadX(tz) + (e.side > 0 ? 1.2 : -1.2), tz, 2.1, dt, 'shift');
             break;
           }
           e.timer -= dt;
@@ -275,19 +277,19 @@ export class Enemies {
         }
         case 'return': {
           if (pat) { // back to the road, then march on
-            if (fromCamp < 3) e.state = 'idle'; else this.moveToward(e, haradRoadX(e.z), e.z + pat.dir * 4, e.def.speed * 0.8, dt);
-          } else if (Math.hypot(e.home.x - e.x, e.home.z - e.z) < 1) { e.state = 'idle'; e.hp = e.maxHp; } else this.moveToward(e, e.home.x, e.home.z, e.def.speed * 0.8, dt);
+            if (fromCamp < 3) e.state = 'idle'; else this.moveToward(e, haradRoadX(e.z), e.z + pat.dir * 4, e.def.speed * 0.8, dt, 'shift');
+          } else if (Math.hypot(e.home.x - e.x, e.home.z - e.z) < 1) { e.state = 'idle'; e.hp = e.maxHp; } else this.moveToward(e, e.home.x, e.home.z, e.def.speed * 0.8, dt, 'shift');
           break;
         }
         case 'chase': {
           if (e.def.ranged) {
             if (dist < 8) this.moveToward(e, e.x - dx, e.z - dz, e.def.speed, dt);           // too close: fall back
-            else if (dist > 23) this.moveToward(e, p.x, p.z, e.def.speed, dt);
+            else if (dist > 23) this.moveToward(e, p.x, p.z, e.def.speed, dt, 'jump');
             else {
               this.face(e, dx / dist, dz / dist, dt);
               if (e.cooldown <= 0) { e.state = 'aim'; e.timer = 0.8; }
             }
-          } else if (dist > REACH) this.moveToward(e, p.x, p.z, e.def.speed, dt);
+          } else if (dist > REACH) this.moveToward(e, p.x, p.z, e.def.speed, dt, 'jump');
           else {
             this.face(e, dx / dist, dz / dist, dt);
             if (e.cooldown <= 0) { e.state = 'windup'; e.timer = 0.45; }

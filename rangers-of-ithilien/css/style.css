@@ -83,10 +83,11 @@ body.touch #prompt kbd { display: none; }
   background: linear-gradient(180deg, var(--parchment), var(--parchment-dark)); border: 1px solid var(--ink-soft);
   border-radius: 6px; box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5), inset 0 0 40px rgba(120, 90, 40, 0.15);
 }
-.overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 26, 16, 0.55); padding: 12px; }
+.overlay { position: fixed; inset: 0; height: 100dvh; display: flex; align-items: center; justify-content: center; background: rgba(20, 26, 16, 0.55);
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
 #dialogue {
   position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%);
-  width: min(680px, calc(100vw - 24px)); padding: 16px 20px 14px; max-height: 70vh; overflow-y: auto;
+  width: min(680px, calc(100vw - 24px)); padding: 16px 20px 14px; max-height: 70vh; max-height: 70dvh; overflow-y: auto;
 }
 #dialogue-name { font-size: 22px; }
 #dialogue-title { font-size: 13px; font-style: italic; color: var(--ink-soft); margin-bottom: 6px; }
@@ -94,7 +95,7 @@ body.touch #prompt kbd { display: none; }
 #dialogue-options { display: flex; flex-wrap: wrap; gap: 8px; }
 #dialogue-options button { font-size: 15px; text-align: left; }
 .map-panel { padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; max-height: 100%; }
-#map-canvas { max-height: calc(100vh - 100px); max-width: calc(100vw - 48px); border: 1px solid var(--ink-soft); background: var(--parchment-dark); }
+#map-canvas { max-height: calc(100vh - 100px); max-height: calc(100dvh - 100px); max-width: calc(100vw - 48px); border: 1px solid var(--ink-soft); background: var(--parchment-dark); }
 .menu-panel { padding: 18px 22px; width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; max-height: 100%; overflow-y: auto; }
 .menu-panel h2 { margin: 0 0 4px; font-weight: normal; text-align: center; letter-spacing: 0.05em; }
 .menu-panel .row { display: flex; align-items: center; gap: 6px; }
@@ -167,3 +168,20 @@ body.panel-open #btn-aim, body.panel-open #hitmark { display: none !important; }
 #map-hint { font-size: 13px; font-style: italic; color: var(--ink-soft); text-align: center; max-width: 420px; }
 #map-canvas { cursor: pointer; }
 .version { margin-top: 22px; font-size: 12px; letter-spacing: 0.1em; opacity: 0.5; }
+
+/* ---- Tall, narrow screens (a phone held upright) ----
+   The top edge cannot hold vitals, compass and buttons side by side, so they stack:
+   vitals and buttons on the first row, then the compass, the place name, and the tasks. */
+@media (orientation: portrait) and (max-width: 760px) {
+  #top-buttons { gap: 4px; }
+  #top-buttons button { padding: 0.35em 0.6em; font-size: 13px; }
+  #vitals { width: calc(100vw - 210px); max-width: 230px; }
+  #compass { top: calc(max(10px, env(safe-area-inset-top)) + 54px); width: min(340px, 82vw); }
+  #place { top: calc(max(10px, env(safe-area-inset-top)) + 90px); }
+  #tracker {
+    position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 114px); left: max(10px, env(safe-area-inset-left));
+    width: min(320px, 70vw); margin: 0;
+  }
+  #toast { top: 34%; }
+  #debug { top: 180px; }
+}
