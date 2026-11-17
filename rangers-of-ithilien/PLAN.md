@@ -512,6 +512,12 @@ up a band or a host on the road.
   enemy felled ("Orc archer felled"). Up to three lines; each fades in about
   three seconds.
 
+- Loading on Safari (iOS) stalled at "Gathering the land" after the v0.2
+  release. Most likely a mix of fresh and cached files: modules now carry the
+  release in their URLs, and a load failure is shown on the title. Also, a
+  change of weapon asked for mid-stroke now happens when the stroke ends,
+  instead of being lost.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
