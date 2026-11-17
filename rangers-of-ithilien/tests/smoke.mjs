@@ -257,7 +257,8 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => { const c = roi.camps.sites.find((c) => !c.isCleared && c.size === 1); roi.teleport(c.x + 20, c.z, -Math.PI / 2); roi.rig.yaw = -Math.PI / 2; });
   await page.keyboard.press('Digit2');
   const marked = await page.waitForSelector('#crosshair:not([hidden])', { timeout: 20000 }).then(() => true, () => false);
-  check(marked && await page.evaluate(() => roi.state.weapon === 'bow'), 'the bow comes to hand, with a mark to aim by');
+  const bowState = await page.evaluate(() => ({ weapon: roi.state.weapon, enabled: roi.input.enabled, swing: roi.combat.swing, drawing: roi.combat.drawing, panel: document.body.className, fallen: roi.combat.fallen }));
+  check(marked && bowState.weapon === 'bow', `the bow comes to hand, with a mark to aim by${marked ? '' : ' ' + JSON.stringify(bowState)}`);
   const quiver = await page.evaluate(() => roi.state.arrows);
   await page.keyboard.down('KeyF');
   await page.waitForFunction(() => roi.combat.draw > 0.5, null, { timeout: 30000 });

@@ -47,7 +47,9 @@ export class Combat {
   }
 
   swap(to) {
-    if (this.swing > 0 || this.drawing) return;
+    // mid-stroke or with the bow bent, the change waits until the stroke is done
+    if (this.swing > 0 || this.drawing) { this.pendingSwap = to ?? (this.state.weapon === 'sword' ? 'bow' : 'sword'); return; }
+    this.pendingSwap = null;
     this.state.weapon = to ?? (this.state.weapon === 'sword' ? 'bow' : 'sword');
     this.syncWeapon();
   }
@@ -242,6 +244,9 @@ export class Combat {
       }
       if (this.swing <= 0) this.cooldown = 0.08;
     }
+    if (this.pendingSwap && this.swing <= 0 && !this.drawing) {
+      this.swap(this.pendingSwap);
+    }
 
     this.wasAttack = attack;
     this.flyArrows(dt);
@@ -301,6 +306,6 @@ export class Combat {
     for (const a of this.arrows) this.scene.remove(a.mesh);
     for (const b of this.bags) this.scene.remove(b.mesh);
     this.arrows = []; this.bags = [];
-    this.swing = 0; this.drawing = false; this.draw = 0; this.autoShot = null; this.aim = false;
+    this.swing = 0; this.drawing = false; this.draw = 0; this.autoShot = null; this.aim = false; this.pendingSwap = null;
   }
 }

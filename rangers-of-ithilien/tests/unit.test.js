@@ -570,3 +570,22 @@ test('ruins stand level with the land around them, not in a bowl or on a mound',
     assert.ok(Math.abs(heightAt(l.x + l.flat * 0.5, l.z) - centre) < 0.6, `${l.id} is level`);
   }
 });
+
+test('every module is in the import map, at one release, so caches never mix releases', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const root = new URL('..', import.meta.url);
+  const html = await readFile(new URL('index.html', root), 'utf8');
+  const map = JSON.parse(html.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1]).imports;
+  const files = (await readdir(new URL('src', root), { recursive: true })).filter((f) => f.endsWith('.js')).map((f) => f.split('\\').join('/'));
+  const versions = new Set();
+  for (const f of files) {
+    const to = map['./src/' + f];
+    assert.ok(to, `src/${f} is in the import map`);
+    const [path, v] = to.split('?v=');
+    assert.equal(path, './src/' + f);
+    versions.add(v);
+  }
+  assert.equal(versions.size, 1, 'all at the same release');
+  assert.ok(html.includes(`css/style.css?v=${[...versions][0]}`), 'and so is the stylesheet');
+  assert.ok(html.includes(`import './src/main.js'`), 'the game is started through the map');
+});

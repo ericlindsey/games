@@ -186,6 +186,17 @@ Rules of thumb:
 - A missing or corrupt save must never break the game: fall back to a new game.
 - Any change to the save shape needs a version bump and a migration.
 
+## Releasing
+
+- `index.html`'s import map lists every module with the release in its URL
+  (`?v=0.2.1`), and the stylesheet carries it too. Safari in particular will
+  otherwise mix freshly fetched files with cached ones from the last release,
+  and a module asking an old file for a new export stalls loading silently.
+  **Bump `v` (everywhere in index.html) whenever a change is published**, and add
+  any new module to the map; `tests/unit.test.js` fails if one is missing.
+- If the code fails to load, a small script in index.html puts the error on the
+  title screen; if loading stalls for 30 s it suggests a reload.
+
 ## Running
 
 ```
