@@ -3,12 +3,12 @@
 import * as THREE from 'three';
 import { QUALITY, SAVE } from './config.js';
 import { HA, LANDMARKS, haradRoadX } from './world/layout.js';
-import { trunkAt } from './world/collision.js';
+import { trunkAt, blockedBySolid } from './world/collision.js';
 import { CAMPS, blightAt } from './world/campSites.js';
 import { SITES } from './world/oldworks.js';
 import { RELICS, RELIC_KINDS } from './world/relicSites.js';
 import { forestDensity } from './world/forest.js';
-import { heightAt } from './world/terrain.js';
+import { heightAt, STREAMS } from './world/terrain.js';
 import { regionName, dangerTier } from './world/regions.js';
 import { Ground } from './world/terrainMesh.js';
 import { Atmosphere } from './world/atmosphere.js';
@@ -118,7 +118,7 @@ async function boot() {
     state.player.x = player.pos.x; state.player.y = player.pos.y; state.player.z = player.pos.z; state.player.heading = player.yaw;
     return store.save(state);
   };
-  const refreshHud = () => { hud.setHealth(state.health); hud.setWeapon(state); hud.setTracker(quests.tracker(state)); combat.syncWeapon(); };
+  const refreshHud = () => { hud.setHealth(state.health); hud.setWeapon(state); hud.setTracker(quests.trackers(state)); combat.syncWeapon(); };
 
   const dialogue = new DialoguePanel(resume);
   const map = new MapPanel(resume);
@@ -147,9 +147,12 @@ async function boot() {
       camps.clear(camp.id);
       state.cleared.push(camp.id);
       if (!state.discovered.includes('camp:' + camp.id)) state.discovered.push('camp:' + camp.id);
-      hud.toast('The camp is broken', 'Give it a little while. The land remembers how to be green.');
+      if (camp.size >= 3) { // a captain down is told of at Henneth Annûn
+        state.renown++;
+        hud.toast(camp.size === 4 ? 'The war-camp is broken' : 'The stockade is broken', 'Word of it will reach Henneth Ann\u00fbn. (Renown +1)');
+      } else hud.toast('The camp is broken', 'Give it a little while. The land remembers how to be green.');
       combat.give(inv.stashLoot(camp, lootRand), 'From their stores');
-      hud.setTracker(quests.tracker(state));
+      hud.setTracker(quests.trackers(state));
       save();
     },
   });
@@ -160,6 +163,39 @@ async function boot() {
       goHome('You wake in the cave. Someone carried you home; no one will say who.');
     },
   });
+  /**
+   * The places the ranger can travel to from the map: home, and every old
+   * place (ruin) they have found. Each has a spot to arrive at on open ground.
+   */
+  const RUINS = [
+    ...LANDMARKS.filter((l) => l.kind && !['crossroads', 'osgiliath', 'morgul'].includes(l.kind)).map((l) => ({ id: l.id, name: l.name, x: l.x, z: l.z, ax: l.x, az: l.z + (l.flat ?? 10) + 6 })),
+    ...RELICS.map((r) => ({ id: r.id, name: RELIC_KINDS[r.kind][0], x: r.x, z: r.z, ax: r.x, az: r.z + 11 })),
+  ];
+  const travelPlaces = () => [
+    { id: 'home', name: 'Henneth Ann\u00fbn', x: HA.x - 14, z: HA.z, home: true },
+    ...RUINS.filter((p) => state.discovered.includes(p.id)),
+  ];
+  const travelTo = (p) => {
+    if (enemies.inCombat()) { hud.toast('', 'Not while the enemy has seen you.'); return; }
+    map.close();
+    if (p.home) { goHome('You go home by the hidden ways, and the falls are loud again.'); return; }
+    enemies.reset();
+    combat.reset();
+    // arrive on open ground near the place, not inside a wall
+    let ax = p.ax, az = p.az;
+    for (let t = 0; t < 40; t++) {
+      const a = t * 2.4, r = t * 0.6, x = p.ax + Math.cos(a) * r, z = p.az + Math.sin(a) * r;
+      if (!blockedBySolid(x, z, heightAt(x, z), 0.6)) { ax = x; az = z; break; }
+    }
+    const yaw = Math.atan2(p.x - ax, p.z - az);
+    player.place(ax, az, yaw);
+    rig.yaw = yaw;
+    while (ground.update(ax, az, 4) > 0) { /* build it all now */ }
+    hud.toast(p.name, 'By the old roads, that are only paths now.');
+    save();
+  };
+  map.onTravel = travelTo;
+
   /** Set the ranger down in the cave, with the field behind them forgotten. */
   const goHome = (words) => {
     enemies.reset();
@@ -232,7 +268,7 @@ async function boot() {
   const found = (id, title, blurb) => {
     state.discovered.push(id);
     if (title) hud.toast(title, blurb);
-    hud.setTracker(quests.tracker(state));
+    hud.setTracker(quests.trackers(state));
     save();
   };
   const discover = () => {
@@ -257,7 +293,7 @@ async function boot() {
       inv.addItem(state, 'athelas');
       if (state.picked.length === 1) hud.toast('Kingsfoil', 'The low plant with white stars and a pale glimmer over it. Éowyn can steep it.');
       else hud.toast('', `Kingsfoil gathered (${inv.count(state, 'athelas')}).`);
-      hud.setTracker(quests.tracker(state));
+      hud.setTracker(quests.trackers(state));
     }
   };
 
@@ -271,7 +307,7 @@ async function boot() {
       return;
     }
     if (action === 'map') {
-      if (map.open) map.close(); else if (!anyPanel()) { openPanel(); map.show(state, player); }
+      if (map.open) map.close(); else if (!anyPanel()) { openPanel(); map.show(state, player, travelPlaces(), enemies.inCombat()); }
       return;
     }
     if (action === 'pack') {
@@ -408,7 +444,7 @@ async function boot() {
       rig.yaw = yaw;
       while (ground.update(x, z, 4) > 0) { /* build everything in range now */ }
     },
-    hud, map, pack, refreshHud, goHome, openPanel, store, trunkAt, haradRoadX,
+    hud, map, pack, trade, refreshHud, goHome, openPanel, store, trunkAt, haradRoadX, travelTo, travelPlaces, streams: STREAMS,
   };
   window.roi = api;
   if (dev) (await import('./dev.js')).attach(api);

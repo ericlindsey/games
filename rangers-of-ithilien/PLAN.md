@@ -1,8 +1,8 @@
 # Rangers of Ithilien: Plan
 
-Status: **Milestones 1 to 3 are built, with the core of 4** (gear and trade). The game is
-playable from first task to last camp. Next: Milestone 5 (atmosphere: sound, day and night)
-and the tuning listed in section 10.
+Status: **v0.1.** The land, the enemy, fighting, gear, tasks and trade are built and
+have had three rounds of playtest. Next: Milestone 5 (sound, day and night) and the
+gaps listed at the end of section 10.
 
 ---
 
@@ -400,7 +400,10 @@ more animation, tuning.
 Streams are traced, not drawn (`world/terrain.js`): each starts at a spring under
 the mountains and is walked downhill over the base terrain, joining any stream it
 meets. Its bed is a running minimum along the course, so it never rises, and the
-ground is cut down to it in a small valley. Water is a ribbon a fixed depth above
+ground is cut down to it in a small valley. Where a trace comes round in a loop
+it has found a hollow: the loop is cut out and a pool (6 to 13 m) lies there
+instead, 37 in all. Streams that come within 28 m of another join it; nothing
+joins the home stream above its fall, and others are steered away from it. Water is a ribbon a fixed depth above
 the bed. The home stream keeps a fixed course across the shelf, over the fall and
 through the cut, then is traced from the cut's mouth to the river. Ruin sites are
 levelled to the ground as it stands and streams are traced round them.
@@ -413,6 +416,25 @@ place, set renown, hand out items or the best kit, take or finish any task,
 toggle haste and taking no hurt, go to the nearest camp, slay or clear, and call
 up a band or a host on the road.
 
+### v0.1 changes after the third playtest
+
+- Enemies that make no progress for a second jump (clearing a low wall); after
+  four seconds they are set down a step or two aside on open ground.
+- The hit word ("Head!", "Heart") is faded by the game loop, not a CSS
+  animation, which some browsers did not redraw until something else did.
+- Every task in hand is listed under the health bar with its count.
+- Stream loops became pools; near-parallel streams join; the cut below
+  Henneth Annûn is about 210 m long (was 320), 13 m wide at the top (was 20),
+  and winds (`gorgeZ` in layout.js).
+- Leaner economy: less silver and fewer arrows from the fallen and from
+  stores; quest silver cut by about 40 per cent; prices raised a little.
+  Mablung's stock runs to renown 15 with seven new pieces of gear and a great
+  healing salve. Gear already owned is greyed out. Breaking a stockade or
+  war-camp is worth 1 renown.
+- The old places are laid out on a grid first (4 across, 10 down) so none of the
+  land is more than about 300 m from one. Any old place found, and Henneth
+  Annûn, can be travelled to by clicking it on the map (not in a fight).
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -421,8 +443,8 @@ up a band or a host on the road.
 - Enemies steer simply: straight at the ranger, side-stepping what blocks them.
   They pass through their own stockade stakes (which stop the ranger).
 - A mine is a rock heap with a black mouth, not a cave you can enter.
-- Streams bend at 9 m joints and do not yet have falls or pools of their own.
-  Paths and roads ford them; there are no bridges but the broken one.
+- Streams bend at 9 m joints and have no falls of their own. Paths and roads
+  ford them; there are no bridges but the broken one.
 - No blocking or dodging move. No stealth beyond walking. No sound.
 - Loot bags and a camp's dead are forgotten if you leave and return.
 - The blight changes sky, fog and light but not the colour of ground and plants.

@@ -92,10 +92,18 @@ export function turnIn(state, id) {
   return loot;
 }
 
-/** One line for the HUD: the first active task and how far along it is. */
+/** A line for the HUD for every task in hand, in the order they were taken. */
+export function trackers(state) {
+  return state.quests.active.map((id) => trackerFor(byId[id], state));
+}
+
+/** The first task in hand that has somewhere to go, or else the first; null if none. */
 export function tracker(state) {
-  const q = byId[state.quests.active[0]];
-  if (!q) return null;
+  const all = trackers(state);
+  return all.find((t) => t.target) ?? all[0] ?? null;
+}
+
+function trackerFor(q, state) {
   const p = progress(q.objective, state);
   const done = p.have >= p.need;
   return {

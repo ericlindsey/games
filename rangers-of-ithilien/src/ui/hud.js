@@ -72,12 +72,20 @@ export class Hud {
     if (this.weapon.textContent !== text) this.weapon.textContent = text;
   }
 
-  /** @param t { text, target, done } from systems/quests.js tracker(), or null */
-  setTracker(t) {
-    const text = t ? t.text : '';
-    if (this.tracker.textContent !== text) this.tracker.textContent = text;
-    this.tracker.classList.toggle('done', !!t?.done);
-    this.taskTarget = t?.target ?? null;
+  /** @param list [{ text, target, done }] from systems/quests.js trackers(): every task in hand */
+  setTracker(list) {
+    const key = list.map((t) => (t.done ? '+' : '-') + t.text).join('|');
+    if (key !== this.trackerKey) {
+      this.trackerKey = key;
+      this.tracker.replaceChildren(...list.map((t) => {
+        const el = document.createElement('div');
+        el.textContent = t.text;
+        if (t.done) el.className = 'done';
+        return el;
+      }));
+    }
+    // the compass points to the first task that has a place to go
+    this.taskTarget = list.find((t) => t.target)?.target ?? null;
   }
 
   setCrosshair(show, drawn) {
@@ -93,11 +101,12 @@ export class Hud {
 
   /** A word by the aiming mark when a chosen shot tells. */
   hitMark(text) {
-    const el = document.getElementById('hitmark');
-    el.textContent = text;
-    el.classList.remove('show');
-    void el.offsetWidth; // restart the fade
-    el.classList.add('show');
+    // Faded by hand in update() rather than by a CSS animation: restarting a
+    // CSS animation is not reliably redrawn on every browser until something
+    // else forces a repaint, which is why the word sometimes appeared late.
+    this.hitEl ??= document.getElementById('hitmark');
+    this.hitEl.textContent = text;
+    this.hitT = 1.1;
   }
 
   showFallen(on) { document.getElementById('fallen').hidden = !on; }
@@ -121,6 +130,13 @@ export class Hud {
     const tt = this.taskTarget;
     if (tt && Math.hypot(tt.x - pos.x, tt.z - pos.z) > 12) set(this.task, (Math.atan2(tt.x - pos.x, -(tt.z - pos.z)) * 180) / Math.PI, true);
     else this.task.style.display = 'none';
+
+    if (this.hitT > 0) {
+      this.hitT -= dt;
+      const t = 1 - Math.max(0, this.hitT) / 1.1;
+      this.hitEl.style.opacity = String(1 - t);
+      this.hitEl.style.transform = `translate(-50%, ${6 - 24 * t}px)`;
+    }
 
     this.toastTimer -= dt;
     if (this.toastTimer <= 0) {

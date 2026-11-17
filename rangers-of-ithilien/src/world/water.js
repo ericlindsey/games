@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { makeNoiseTexture } from './build.js';
-import { WATER_LEVEL, STREAMS, heightAt } from './terrain.js';
+import { WATER_LEVEL, STREAMS, POOLS, inPool, heightAt } from './terrain.js';
 
 export const STREAM_DEPTH = 0.45;
 const HALF_WIDTH = 2.6;
@@ -33,14 +33,39 @@ export class Water {
     for (const st of STREAMS) {
       const pts = [];
       let level = Infinity;
+      const flush = () => { if (pts.length > 3) scene.add(this.ribbon(pts)); pts.length = 0; };
+      let prev = null, prevIn = false;
       for (const p of st.points) {
         // Lie on the bed; where another stream's deeper valley has taken the
         // ground lower still (near a meeting), follow the ground. Never rise.
         level = Math.min(level, p.bed, st.home === 'cut' ? Infinity : heightAt(p.x, p.z));
         if (level + STREAM_DEPTH < WATER_LEVEL + 0.08) break; // it has reached the Great River
-        pts.push(p.x, level + STREAM_DEPTH, p.z);
+        const isIn = inPool(p.x, p.z);
+        if (prev && isIn !== prevIn) {
+          // Crossing a pool's edge: end (or begin) the stream just inside it, so
+          // the two waters meet without the stream lying across the pool.
+          let a = prev, b = p;
+          for (let k = 0; k < 12; k++) {
+            const m = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
+            if (inPool(m.x, m.z) === prevIn) a = m; else b = m;
+          }
+          pts.push(b.x, level + STREAM_DEPTH, b.z);
+          if (isIn) flush();
+        }
+        if (!isIn) pts.push(p.x, level + STREAM_DEPTH, p.z);
+        prev = p; prevIn = isIn;
       }
-      if (pts.length > 3) scene.add(this.ribbon(pts));
+      flush();
+    }
+
+    // The pools where streams rest in a hollow.
+    const poolMaterial = new THREE.MeshLambertMaterial({ color: 0x6fa7b4, map: this.ripples, transparent: true, opacity: 0.82, depthWrite: false });
+    for (const p of POOLS) {
+      const m = new THREE.Mesh(new THREE.CircleGeometry(p.r + 1.9, 28), poolMaterial);
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(p.x, p.bed + STREAM_DEPTH, p.z);
+      m.renderOrder = 1;
+      scene.add(m);
     }
   }
 

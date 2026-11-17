@@ -29,4 +29,6 @@ export const QUALITY = {
   high:   { loadRadius: 360, fogFar: 3200, shadows: true,  pixelRatio: 2,    trees: 1,   under: 1,   cover: 1,   motes: 200 },
 };
 
+export const VERSION = '0.1';
+
 export const SAVE = { key: 'rangers-of-ithilien.save', version: 3, autosaveSeconds: 30 };
