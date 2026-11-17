@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#2c3a26">
+  <!-- Added to a phone's home screen, the game opens with no browser bars. -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rangers">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
   <title>Rangers of Ithilien</title>
   <link rel="stylesheet" href="css/style.css">
   <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
@@ -90,6 +97,7 @@
         <button data-quality="medium">Medium</button>
         <button data-quality="high">High</button>
       </div>
+      <button id="menu-full" class="touch-only" hidden>Full screen</button>
       <button id="menu-save">Save now</button>
       <button id="menu-travel">Return to Henneth Ann&ucirc;n</button>
       <button id="menu-new">Begin anew</button>
@@ -104,7 +112,10 @@
         Left thumb moves. Drag on the right to look; pinch to zoom.<br>
         Attack picks the nearest enemy: an arrow if they are far, the sword if they are near.<br>
         Aim lets you choose the mark yourself: steer with the left thumb or a drag, then Attack to loose.
-        A shot to the head kills; to the heart wounds deeply.
+        A shot to the head kills; to the heart wounds deeply.<br>
+        <span id="menu-install">To play without the browser's bars, add the game to your home screen
+        (in Safari: Share, then Add to Home Screen) and open it from there.
+        Its save is kept apart from the browser's.</span>
       </div>
       <div id="menu-status" class="help"></div>
     </div>

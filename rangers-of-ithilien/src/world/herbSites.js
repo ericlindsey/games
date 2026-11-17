@@ -15,12 +15,12 @@ export function herbSites() {
   const out = [];
   for (let gz = 2; gz < WORLD.length / CELL - 1; gz++) {
     for (let gx = 2; gx < WORLD.width / CELL; gx++) {
-      if (hash2(gx, gz, WORLD.seed + 600) > 0.2) continue;
+      if (hash2(gx, gz, WORLD.seed + 600) > 0.34) continue;
       const x = (gx + hash2(gx, gz, WORLD.seed + 601)) * CELL, z = (gz + hash2(gx, gz, WORLD.seed + 602)) * CELL;
       if (x < bankX(z) + 30 || x > haradRoadX(z) - 20) continue;
       if (inClearing(x, z) || roadDistance(x, z) < 8 || streamDistance(x, z) < 6 || houseDistance(x, z) < 6 || campNear(x, z, 30)) continue;
       const d = forestDensity(x, z);
-      if (d > 0.8 || heightAt(x, z) < 2 || slopeAt(x, z) > 0.3) continue; // it wants light
+      if (d > 0.93 || heightAt(x, z) < 2 || slopeAt(x, z) > 0.3) continue; // it wants light
       out.push({ id: 'h' + gx + '_' + gz, x, z });
     }
   }

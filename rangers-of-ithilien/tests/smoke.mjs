@@ -442,6 +442,44 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   await shot(page, 'phone-dialogue');
 });
 
+await run('phone upright (touch)', { ...devices['iPhone 13'] }, async (page) => {
+  await page.goto(base + '?quality=low');
+  await page.waitForSelector('#begin:not([hidden])', { timeout: 180000 });
+  await page.tap('#begin');
+  await ready(page);
+  // Two tasks in hand, so the tracker has lines to show.
+  await page.evaluate(() => { roi.state.quests.active.push('f1', 'e1'); roi.refreshHud(); });
+  await page.waitForTimeout(800);
+  const boxes = await page.evaluate(() => Object.fromEntries(['vitals', 'top-buttons', 'compass', 'place', 'tracker'].map((id) => {
+    const r = document.getElementById(id).getBoundingClientRect();
+    return [id, { l: r.left, r: r.right, t: r.top, b: r.bottom }];
+  })));
+  const ids = Object.keys(boxes), clash = [];
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const a = boxes[ids[i]], b = boxes[ids[j]];
+    if (ids[i] === 'vitals' && ids[j] === 'tracker') continue; // the tracker lives inside the vitals block
+    if (a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1) clash.push(ids[i] + '/' + ids[j]);
+  }
+  check(clash.length === 0, `the upright HUD has nothing on top of anything else${clash.length ? ': ' + clash.join(', ') : ''}`);
+  await shot(page, 'phone-upright');
+
+  // Enemies at ease in their camp do not jump about.
+  await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 60, c.z, -Math.PI / 2); });
+  await page.waitForFunction(() => roi.enemies.list.length >= 2, null, { timeout: 30000 });
+  const jumped = await page.evaluate(() => new Promise((done) => {
+    let any = false;
+    const t = setInterval(() => { if (roi.enemies.list.some((e) => e.air)) any = true; }, 50);
+    setTimeout(() => { clearInterval(t); done(any || roi.enemies.list.some((e) => e.alerted)); }, 8000);
+  }));
+  check(!jumped, 'a camp at ease stays on its feet (no jumping, nobody roused)');
+
+  await page.tap('#btn-map');
+  await page.waitForSelector('#map:not([hidden])');
+  const close = await page.locator('#map-close').boundingBox();
+  check(close && close.y + close.height <= await page.evaluate(() => innerHeight), 'the map\'s Close button is on screen');
+  await shot(page, 'phone-upright-map');
+});
+
 await run('testing page', { viewport: { width: 1280, height: 720 } }, async (page) => {
   await page.goto(base + 'debug.html');
   await page.waitForFunction(() => window.roi?.ready, null, { timeout: 180000 });

@@ -337,8 +337,24 @@ async function boot() {
   addEventListener('visibilitychange', () => { if (document.hidden && started && saveOnExit) save(); });
   addEventListener('pagehide', () => { if (started && saveOnExit) save(); });
 
+  // ---- full screen ----
+  // A phone's browser bars eat the screen. Where the page may go full screen
+  // (Android, iPad) it does so on Begin; an iPhone cannot, so the menu tells how
+  // to add the game to the home screen, where it opens with no bars at all.
+  const root = document.documentElement;
+  const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+  const goFull = () => {
+    if (!canFull || standalone || document.fullscreenElement || document.webkitFullscreenElement) return;
+    try { (root.requestFullscreen?.({ navigationUI: 'hide' }) ?? root.webkitRequestFullscreen?.())?.catch?.(() => {}); } catch { /* refused: carry on */ }
+  };
+  $('menu-full').hidden = !canFull || standalone;
+  $('menu-full').onclick = goFull;
+  $('menu-install').hidden = canFull || standalone;
+
   // ---- title ----
   const begin = () => {
+    if (document.body.classList.contains('touch')) goFull();
     started = true;
     $('title').classList.add('fade');
     setTimeout(() => { $('title').hidden = true; }, 900);
