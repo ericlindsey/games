@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { rng } from '../util/noise.js';
 import { pointBlocked, trunkAt } from '../world/collision.js';
 import { heightAt } from '../world/terrain.js';
-import { stats, addItem, describeLoot, enemyLoot, quickHeal, useItem, BASE_HEALTH } from './inventory.js';
+import { stats, addItem, describeLoot, enemyLoot, quickHeal, useItem, wearOnce, BASE_HEALTH } from './inventory.js';
 import { ITEMS } from '../data/items.js';
 import { GeoBuilder } from '../world/build.js';
 
@@ -68,6 +68,14 @@ export class Combat {
     if (!this.aim) { this.drawing = false; this.draw = 0; }
   }
 
+  /** The weapon in hand is used once; say so when it grows dull. */
+  wear(slot) {
+    const said = wearOnce(this.state, slot);
+    if (!said) return;
+    const what = slot === 'sword' ? (said === 'worn' ? 'Your blade is badly blunted' : 'Your blade is losing its edge') : (said === 'worn' ? 'Your bowstring is fraying' : 'Your bowstring is wearing slack');
+    this.hud.toast('', `${what}. ${this.state.skills?.repair ? (slot === 'sword' ? 'A whetstone will mend it.' : 'A spare string will mend it.') : 'Mablung can put it right.'}`);
+  }
+
   /** The ranger is struck. */
   hurt(amount) {
     if (this.fallen > 0 || this.god) return;
@@ -98,7 +106,7 @@ export class Combat {
   }
 
   dropLoot(e) {
-    const loot = enemyLoot(e.type, e.camp.tier, this.rand);
+    const loot = enemyLoot(e.type, e.camp.tier, this.rand, !!e.camp.patrol);
     if (!loot.length) return;
     const mesh = new THREE.Mesh(this.bagGeo, this.bagMat);
     mesh.position.set(e.x, e.y, e.z);
@@ -132,6 +140,7 @@ export class Combat {
     const from = { x: p.x + Math.sin(this.player.yaw) * 0.5, y: p.y + 1.45, z: p.z + Math.cos(this.player.yaw) * 0.5 };
     this.shoot(from, target, s.bow * (0.5 + 0.5 * power), 36 + 26 * power, true, aimed);
     this.state.arrows--;
+    this.wear('bow');
     this.hud.setWeapon(this.state);
     this.cooldown = 0.35;
   }
@@ -220,13 +229,16 @@ export class Combat {
       if (!this.struck && t >= 0.42) {
         this.struck = true;
         const fx = Math.sin(this.player.yaw), fz = Math.cos(this.player.yaw), dmg = stats(st).sword;
+        let landed = false;
         for (const e of this.enemies.list) {
           if (e.dead) continue;
           const dx = e.x - p.x, dz = e.z - p.z, d = Math.hypot(dx, dz);
           if (d > 2.8 || Math.abs(e.y - p.y) > 2.5) continue;
           if (d > 0.6 && (dx * fx + dz * fz) / d < 0.35) continue; // not in front
           this.enemies.damage(e, dmg * (0.85 + 0.3 * this.rand()), dx / (d || 1), dz / (d || 1));
+          landed = true;
         }
+        if (landed) this.wear('sword');
       }
       if (this.swing <= 0) this.cooldown = 0.08;
     }

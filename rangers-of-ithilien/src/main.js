@@ -28,10 +28,12 @@ import { SaveStore, newState } from './systems/save.js';
 import { Combat } from './systems/combat.js';
 import * as inv from './systems/inventory.js';
 import * as quests from './systems/quests.js';
+import { addHonour, HONOUR } from './systems/renown.js';
 import { rng } from './util/noise.js';
 import { Hud } from './ui/hud.js';
 import { DialoguePanel, MapPanel, MenuPanel, PackPanel, TradePanel } from './ui/panels.js';
 import { DIALOGUE } from './data/dialogue.js';
+import { ITEMS } from './data/items.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -86,6 +88,7 @@ async function boot() {
 
   // ---- people ----
   const player = new Player(scene);
+  player.dress(state.equipped);
   const rig = new CameraRig(camera);
   const npcs = ['faramir', 'eowyn', 'mablung'].map((id) => {
     const spot = refuge[id];
@@ -118,7 +121,18 @@ async function boot() {
     state.player.x = player.pos.x; state.player.y = player.pos.y; state.player.z = player.pos.z; state.player.heading = player.yaw;
     return store.save(state);
   };
-  const refreshHud = () => { hud.setHealth(state.health); hud.setWeapon(state); hud.setTracker(quests.trackers(state)); combat.syncWeapon(); };
+  let dressedAs = JSON.stringify(state.equipped);
+  const refreshHud = () => {
+    const gear = JSON.stringify(state.equipped);
+    if (gear !== dressedAs) { dressedAs = gear; player.dress(state.equipped); } // what they wear shows
+    hud.setHealth(state.health); hud.setWeapon(state); hud.setTracker(quests.trackers(state)); combat.syncWeapon();
+  };
+  /** Renown points for a deed; when the level rises, say so (after whatever else is being said). */
+  const honour = (n) => {
+    const rose = addHonour(state, n);
+    if (rose) hud.toast('Your name grows', `Renown ${rose}. ${rose % 5 === 0 ? 'The enemy hears of you too, and gathers.' : 'Mablung may have more to show you.'}`);
+    return rose;
+  };
 
   const dialogue = new DialoguePanel(resume);
   const map = new MapPanel(resume);
@@ -140,17 +154,22 @@ async function boot() {
     isCleared: (id) => state.cleared.includes(id),
     hurtPlayer: (amount) => combat.hurt(amount),
     shoot: (from, to, damage) => combat.shoot(from, to, damage, 27, false),
-    onKill: (e) => { state.stats.kills++; combat.dropLoot(e); },
+    onKill: (e) => { state.stats.kills++; combat.dropLoot(e); honour(HONOUR.kill[e.type] ?? 1); },
+    renown: () => state.renown,
     onHost: () => hud.toast('A host on the road', 'Too many for one bow. Get off the road and let them pass.'),
-    onPatrolBeaten: () => hud.toast('', 'The road is quiet again.'),
+    onPatrolBeaten: (camp) => {
+      state.stats.bands = (state.stats.bands ?? 0) + 1;
+      hud.toast('', camp?.patrol?.host ? 'The host is broken! That will be sung of.' : 'The road is quiet again.');
+      honour(camp?.patrol?.host ? HONOUR.host : HONOUR.band);
+      hud.setTracker(quests.trackers(state));
+    },
     onCampCleared: (camp) => {
       camps.clear(camp.id);
       state.cleared.push(camp.id);
       if (!state.discovered.includes('camp:' + camp.id)) state.discovered.push('camp:' + camp.id);
-      if (camp.size >= 3) { // a captain down is told of at Henneth Annûn
-        state.renown++;
-        hud.toast(camp.size === 4 ? 'The war-camp is broken' : 'The stockade is broken', 'Word of it will reach Henneth Ann\u00fbn. (Renown +1)');
-      } else hud.toast('The camp is broken', 'Give it a little while. The land remembers how to be green.');
+      if (camp.size >= 3) hud.toast(camp.size === 4 ? 'The war-camp is broken' : 'The stockade is broken', 'Word of it will reach Henneth Ann\u00fbn.');
+      else hud.toast('The camp is broken', 'Give it a little while. The land remembers how to be green.');
+      honour(HONOUR.camp[camp.size] ?? 3);
       combat.give(inv.stashLoot(camp, lootRand), 'From their stores');
       hud.setTracker(quests.trackers(state));
       save();
@@ -218,17 +237,22 @@ async function boot() {
       for (const k in nodes) nodes[k] = withTrade(nodes[k]);
       return { ...base, nodes };
     }
-    for (const q of quests.activeFrom(id, state)) {
+        for (const q of quests.activeFrom(id, state)) {
       if (quests.isComplete(q, state)) {
-        nodes['done_' + q.id] = { text: () => q.done + (nodes['done_' + q.id].got ? `\n\nReceived: ${nodes['done_' + q.id].got}.` : ''), options: [{ label: 'Thank you.' }] };
+        const node = (nodes['done_' + q.id] = { text: () => q.done + (node.got ? `\n\nReceived: ${node.got}.` : '') + (node.rose ? `\n\nYour renown grows to ${node.rose}.` : ''), options: [{ label: 'Thank you.' }] });
         extra.push({
           label: `It is done. (${q.title})`, to: 'done_' + q.id,
-          do: () => { const loot = quests.turnIn(state, q.id); nodes['done_' + q.id].got = loot?.length ? inv.describeLoot(loot) : ''; refreshHud(); save(); },
+          do: () => {
+            const r = quests.turnIn(state, q.id);
+            node.got = r?.loot.length ? inv.describeLoot(r.loot) : '';
+            node.rose = r?.rose ?? 0;
+            refreshHud(); save();
+          },
         });
       } else {
-        const p = quests.progress(q.objective, state);
-        nodes['remind_' + q.id] = { text: q.remind + (p.need > 1 ? ` (${Math.min(p.have, p.need)} of ${p.need} so far.)` : ''), options: [{ label: 'I will see to it.', to: 'hello' }] };
-        extra.push({ label: `About my task… (${q.title})`, to: 'remind_' + q.id });
+        // asked again, they give a direction; asked a third time, they mark it on the map
+        nodes['remind_' + q.id] = { text: () => { const t = quests.remindText(q, state); refreshHud(); save(); return t; }, options: [{ label: 'I will see to it.', to: 'hello' }] };
+        extra.push({ label: `About my task\u2026 (${q.title})`, to: 'remind_' + q.id });
       }
     }
     const offer = quests.offerFrom(id, state);
@@ -241,6 +265,30 @@ async function boot() {
         ],
       };
       extra.push({ label: 'Have you a task for me?', to: 'offer_' + offer.id });
+    }
+    const errand = quests.errandFrom(id, state);
+    if (errand) {
+      nodes.errand = {
+        text: errand.offer,
+        options: [
+          { label: 'I will do it.', do: () => { quests.acceptErrand(state, errand); refreshHud(); save(); hud.toast('New task', errand.title); } },
+          { label: 'Not now.', to: 'hello' },
+        ],
+      };
+      extra.push({ label: offer ? 'Is there other work?' : 'Have you a task for me?', to: 'errand' });
+    }
+    if (id === 'faramir' && state.quests.done.includes('f1')) {
+      // his map always has a few more camps on it than the ranger's
+      const scouted = quests.scoutedCamps(state);
+      nodes.map = {
+        text: scouted.length ? `Here. The scouts bring me word of camps you have not found; there are ${scouted.length === 1 ? 'one' : scouted.length} on mine that are not on yours. Copy them, and welcome.` : 'My map has nothing yours does not. You have found every camp there is.',
+        options: [{ label: 'Thank you.', do: () => {
+          for (const c of scouted) if (!state.told.includes(c.id)) state.told.push(c.id);
+          save();
+          if (scouted.length) setTimeout(() => { openPanel(); map.show(state, player, [], false, { title: 'Faramir\u2019s map', scouted }); }, 0);
+        } }],
+      };
+      extra.push({ label: 'May I see your map?', to: 'map' });
     }
     if (id === 'eowyn' && state.quests.done.includes('e1') && inv.count(state, 'athelas') >= 2) {
       nodes.brew = { text: 'Give them here. … There: steeped, strained, and stoppered. Drink it when you must, not before.', options: [{ label: 'Thank you.' }] };
@@ -267,6 +315,8 @@ async function boot() {
 
   const found = (id, title, blurb) => {
     state.discovered.push(id);
+    if (ruinIds.includes(id)) honour(HONOUR.place);
+    else if (id.startsWith('site:')) honour(HONOUR.village);
     if (title) hud.toast(title, blurb);
     hud.setTracker(quests.trackers(state));
     save();
@@ -289,10 +339,13 @@ async function boot() {
     }
     const herb = herbs.gatherAt(p.x, p.z);
     if (herb) {
-      state.picked.push(herb);
-      inv.addItem(state, 'athelas');
-      if (state.picked.length === 1) hud.toast('Kingsfoil', 'The low plant with white stars and a pale glimmer over it. Éowyn can steep it.');
-      else hud.toast('', `Kingsfoil gathered (${inv.count(state, 'athelas')}).`);
+      const first = !state.picked.some((id) => quests.plantKind(id) === herb.kind);
+      state.picked.push(herb.id);
+      inv.addItem(state, herb.kind);
+      const it = ITEMS[herb.kind];
+      if (first && herb.kind === 'athelas') hud.toast('Kingsfoil', 'The low plant with white stars and a pale glimmer over it. Éowyn can steep it.');
+      else if (first) hud.toast(it.name, it.text);
+      else hud.toast('', `${it.name} gathered (${inv.count(state, herb.kind)}).`);
       hud.setTracker(quests.trackers(state));
     }
   };

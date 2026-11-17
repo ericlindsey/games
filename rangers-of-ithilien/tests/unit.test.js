@@ -189,8 +189,11 @@ test('a save round-trips', () => {
   assert.equal(store.load(), null);
   const s = newState();
   s.player = { x: 1234.5, y: 30, z: 2345.5, heading: 1.2 };
-  assert.equal(s.version, 3);
-  s.items = { draught: 2, orcTrinket: 3 }; s.equipped.armour = 'mailShirt'; s.silver = 77; s.quests.active = ['f2']; s.quests.done = ['f1']; s.health = 61.5; s.picked = ['h3_4'];
+  assert.equal(s.version, 4);
+  s.items = { draught: 2, orcTrinket: 3 }; s.equipped.body = 'mailShirt'; s.equipped.helm = 'leatherCap'; s.silver = 77; s.quests.done = ['f1']; s.health = 61.5; s.picked = ['h3_4'];
+  s.honour = 140; s.renown = 4; s.wear = { rangerSword: 0.5 }; s.honed = { rangerBow: 1 }; s.skills = { repair: true }; s.told = ['c9']; s.stats.bands = 2;
+  const errand = { id: 'xf0', giver: 'faramir', errand: 'bands', title: 'Watch on the road', offer: '', remind: '', done: '', objective: { type: 'bands', count: 1, base: 2 }, reward: { silver: 8, honour: 14, items: {} } };
+  s.quests.active = ['f2', 'xf0']; s.quests.errands = [errand]; s.quests.count = { eowyn: 3 }; s.quests.asked = { f2: 2 }; s.quests.marks = { f2: { x: 5, z: 6 } };
   s.discovered.push('arch', 'camp:c1');
   s.cleared.push('c1');
   s.settings.quality = 'low';
@@ -200,7 +203,7 @@ test('a save round-trips', () => {
   assert.deepEqual(back.discovered, s.discovered);
   assert.deepEqual(back.cleared, ['c1']);
   assert.equal(back.settings.quality, 'low');
-  for (const k of ['items', 'equipped', 'silver', 'quests', 'health', 'picked', 'arrows', 'renown']) assert.deepEqual(back[k], s[k], k);
+  for (const k of ['items', 'equipped', 'silver', 'quests', 'health', 'picked', 'arrows', 'renown', 'honour', 'wear', 'honed', 'skills', 'told', 'stats']) assert.deepEqual(back[k], s[k], k);
   store.clear();
   assert.equal(store.load(), null);
 });
@@ -213,15 +216,23 @@ test('bad saves are rejected or repaired, never thrown', () => {
   assert.deepEqual(old.player, newState().player, 'a save from the old, larger world starts again at home');
   assert.deepEqual(old.cleared, []);
   assert.equal(old.settings.quality, 'low', 'but keeps its settings');
-  const v2 = migrate({ version: 2, player: { x: 700, z: 1000, heading: 1 }, discovered: ['arch'], cleared: ['c5'] });
-  assert.deepEqual(v2.cleared, ['c5'], 'a save from before gear and tasks keeps its progress');
-  assert.deepEqual(v2.equipped, newState().equipped, 'and is given the starting kit');
-  const junk = migrate({ version: 3, items: { nonsense: 4, draught: -2, waybread: 3.7 }, equipped: { sword: 'greatBow', armour: 'mailShirt' }, health: 9999 });
+  const v3 = migrate({ version: 3, player: { x: 700, z: 1000, heading: 1 }, discovered: ['arch'], cleared: ['c5'], renown: 17, equipped: { sword: 'guardBlade' }, settings: { quality: 'high' } });
+  assert.deepEqual(v3.cleared, [], 'a save from before the v0.2 gear and renown begins again');
+  assert.equal(v3.renown, 0);
+  assert.deepEqual(v3.equipped, newState().equipped, 'with the starting kit');
+  assert.equal(v3.settings.quality, 'high', 'but keeps its settings');
+  const junk = migrate({ version: 4, items: { nonsense: 4, draught: -2, waybread: 3.7 }, equipped: { sword: 'greatBow', bow: null, body: 'mailShirt', helm: 'mailShirt' }, health: 9999,
+    honour: 300, renown: 49, wear: { rangerSword: 7, nonsense: 0.5 }, quests: { active: ['xf9', 'f1'], errands: [{ id: 'xf9' }] } });
   assert.deepEqual(junk.items, { waybread: 3 });
   assert.equal(junk.equipped.sword, 'rangerSword', 'a bow cannot be worn as a sword');
-  assert.equal(junk.equipped.armour, 'mailShirt');
+  assert.equal(junk.equipped.bow, 'rangerBow', 'nor a ranger go without a bow');
+  assert.equal(junk.equipped.body, 'mailShirt');
+  assert.equal(junk.equipped.helm, null, 'mail is not a helm');
   assert.equal(junk.health, 100);
-  const fixed = migrate({ version: 2, player: { x: 1e9, z: NaN }, discovered: [1, 'arch'], cleared: 'no' });
+  assert.equal(junk.renown, 8, 'renown is worked out from the points, not trusted');
+  assert.deepEqual(junk.wear, { rangerSword: 1 });
+  assert.deepEqual(junk.quests.active, ['f1'], 'a broken errand is dropped');
+  const fixed = migrate({ version: 4, player: { x: 1e9, z: NaN }, discovered: [1, 'arch'], cleared: 'no' });
   assert.deepEqual(fixed.player, newState().player, 'out-of-world position falls back to home');
   assert.deepEqual(fixed.discovered, ['henneth', 'arch']);
   assert.deepEqual(fixed.cleared, []);
@@ -236,7 +247,7 @@ test('old paths join the places worth finding, and never lead over the cliff', a
   assert.ok(PATHS.length > 80 && RELICS.length >= 30);
   for (const r of RELICS) assert.ok(pathDistance(r.x, r.z + 7) < 3, `${r.id} is on a path`);
   for (const s of SITES) assert.ok(pathDistance(s.x, s.z + (s.kind === 'hamlet' ? 0 : 9)) < 3, `${s.id} is on a path`);
-  assert.ok(pathDistance(HA.x - 29, HA.z + 26) < 3, 'a path starts at the head of the stair');
+  assert.ok(pathDistance((HA.hatch.x0 + HA.hatch.x1) / 2, (HA.hatch.z0 + HA.hatch.z1) / 2) > 40, 'no path leads to the hidden stair');
   for (const pts of PATHS) for (const [x, z] of pts) {
     assert.ok(!(x > HA.basin.minX - 6 && x < HA.x + 30 && Math.abs(z - HA.z) < 20), 'no path crosses the pool');
     assert.ok(!(x > HA.gorge.endX && x < HA.basin.minX && Math.abs(z - gorgeZ(x)) < HA.gorge.halfTop + 2), 'or the cut');
@@ -250,13 +261,17 @@ test('the pack: carrying, wearing, using, buying and selling', async () => {
   const { ITEMS, SHOP } = await import('../src/data/items.js');
   const s = newState();
   assert.equal(inv.stats(s).sword, ITEMS.rangerSword.damage);
-  inv.addItem(s, 'gondorBlade');
-  assert.ok(inv.equip(s, 'gondorBlade'));
-  assert.equal(inv.stats(s).sword, ITEMS.gondorBlade.damage);
+  inv.addItem(s, 'guardBlade');
+  assert.ok(inv.equip(s, 'guardBlade'));
+  assert.equal(inv.stats(s).sword, ITEMS.guardBlade.damage);
   assert.equal(inv.count(s, 'rangerSword'), 1, 'the old sword goes back in the pack');
-  assert.equal(inv.count(s, 'gondorBlade'), 0);
+  assert.equal(inv.count(s, 'guardBlade'), 0);
   assert.ok(!inv.equip(s, 'mailShirt'), 'cannot wear what is not carried');
   assert.ok(!inv.removeItem(s, 'draught'), 'cannot remove what is not there');
+  for (const id of ['mailShirt', 'gondorHelm', 'ironGreaves']) { inv.addItem(s, id); assert.ok(inv.equip(s, id)); }
+  assert.ok(Math.abs(inv.stats(s).defence - (ITEMS.mailShirt.defence + ITEMS.gondorHelm.defence + ITEMS.ironGreaves.defence)) < 1e-9, 'the pieces of armour add up');
+  assert.ok(inv.unequip(s, 'helm') && s.equipped.helm === null && inv.count(s, 'gondorHelm') === 1, 'a helm can be taken off');
+  assert.ok(!inv.unequip(s, 'sword'), 'but the sword stays in hand');
 
   s.health = 100;
   assert.equal(inv.useItem(s, 'waybread'), 0, 'food is not wasted at full health');
@@ -275,15 +290,13 @@ test('the pack: carrying, wearing, using, buying and selling', async () => {
   assert.ok(inv.buy(s, SHOP.find((e) => e.item === 'arrows')));
   assert.equal(s.arrows, 34);
   assert.equal(s.silver, 2);
-  inv.addItem(s, 'mailShirt');
-  s.renown = 2; s.silver = 500;
+  s.renown = mail.renown; s.silver = 500;
   assert.ok(!inv.buy(s, mail), 'gear already owned is not sold twice');
-  assert.ok(inv.owns(s, 'rangerSword'), 'worn gear counts as owned');
+  assert.ok(inv.owns(s, 'rangerBow'), 'worn gear counts as owned');
   assert.equal(s.silver, 500);
   s.silver = 2;
   assert.ok(!inv.buy(s, SHOP.find((e) => e.item === 'draught')), 'cannot buy without the silver');
   assert.ok(SHOP.every((e) => e.item === 'arrows' || ITEMS[e.item]), 'everything in the shop is a real item');
-  assert.ok(Math.max(...SHOP.map((e) => e.renown)) >= 12, 'and there is something to work toward');
   inv.addItem(s, 'haradGold');
   assert.ok(inv.sell(s, 'haradGold'));
   assert.equal(s.silver, 2 + ITEMS.haradGold.value);
@@ -291,9 +304,157 @@ test('the pack: carrying, wearing, using, buying and selling', async () => {
   let n = 0;
   const rand = () => ((n = (n * 9301 + 49297) % 233280) / 233280);
   for (const type of ['snaga', 'archer', 'uruk', 'haradrim', 'chief']) {
-    for (let i = 0; i < 50; i++) for (const [id, c] of inv.enemyLoot(type, 3, rand)) assert.ok((id === 'silver' || id === 'arrows' || ITEMS[id]) && c > 0);
+    for (let i = 0; i < 50; i++) for (const [id, c] of inv.enemyLoot(type, 3, rand, i % 2 === 0)) assert.ok((id === 'silver' || id === 'arrows' || ITEMS[id]) && c > 0);
   }
+  let heads = 0;
+  for (let i = 0; i < 200; i++) {
+    heads += inv.enemyLoot('archer', 3, rand, true).some(([id]) => id === 'arrowheads') ? 1 : 0;
+    assert.ok(!inv.enemyLoot('archer', 3, rand, false).some(([id]) => id === 'arrowheads'), 'only archers on the road carry the arrowheads');
+  }
+  assert.ok(heads > 100, 'and most of those do');
   for (const c of CAMPS) for (const [id, k] of inv.stashLoot(c, rand)) assert.ok((id === 'silver' || id === 'arrows' || ITEMS[id]) && k > 0);
+});
+
+test('gear is many, spread across the whole of renown, and every piece shows on the ranger', async () => {
+  const { ITEMS, SHOP, SLOTS } = await import('../src/data/items.js');
+  const gear = Object.entries(ITEMS).filter(([, it]) => it.slot);
+  for (const slot of SLOTS) assert.ok(gear.filter(([, it]) => it.slot === slot).length >= 4, `at least four kinds of ${slot}`);
+  for (const [id, it] of gear) assert.ok(it.look && typeof it.value === 'number', `${id} has a look and a value`);
+  const levels = {};
+  for (const [, it] of gear) if (it.damage) levels[it.slot + it.damage] = (levels[it.slot + it.damage] ?? 0) + 1;
+  assert.ok(Object.values(levels).filter((k) => k > 1).length >= 3, 'several weapons share a damage level');
+  const rs = SHOP.map((e) => e.renown);
+  assert.ok(Math.max(...rs) >= 45, 'the best of the shop comes late');
+  assert.ok(rs.filter((r) => r >= 25).length >= 6, 'and there is plenty to work toward after the middle');
+  const best = (slot) => Math.max(...gear.filter(([, it]) => it.slot === slot).map(([, it]) => it.damage ?? it.defence));
+  const early = (slot) => Math.max(...SHOP.filter((e) => e.renown <= 17 && ITEMS[e.item]?.slot === slot).map((e) => ITEMS[e.item].damage ?? ITEMS[e.item].defence));
+  assert.ok(early('sword') < best('sword') * 0.75 && early('bow') < best('bow') * 0.75, 'at renown 17 the best is still far off');
+  const { rangerLook } = await import('../src/entities/figure.js').catch(() => ({}));
+  if (rangerLook) { // (needs Three.js; skipped where it cannot load)
+    const look = rangerLook({ sword: 'southronScimitar', bow: 'hornBow', body: 'blackMail', helm: 'gondorHelm', legs: 'ironGreaves' });
+    assert.equal(look.bladeShape, 'curved');
+    assert.equal(look.bowTips, ITEMS.hornBow.look.tips);
+    assert.equal(look.mail, ITEMS.blackMail.look.mail);
+    assert.ok(look.helm && !look.hood && look.greaves);
+  }
+});
+
+test('weapons wear, and can be mended, honed and restrung', async () => {
+  const inv = await import('../src/systems/inventory.js');
+  const { ITEMS, REPAIR, HONE } = await import('../src/data/items.js');
+  const s = newState();
+  const full = inv.stats(s).sword;
+  let said = [];
+  for (let i = 0; i < 1 / inv.WEAR_PER_USE + 5; i++) { const w = inv.wearOnce(s, 'sword'); if (w) said.push(w); }
+  assert.deepEqual(said, ['dull', 'worn'], 'the ranger is told twice as the edge goes');
+  assert.equal(inv.condition(s, 'rangerSword'), 0);
+  assert.ok(inv.stats(s).sword < full * 0.65 && inv.stats(s).sword > full * 0.55, 'a worn blade does a little over half');
+  s.silver = 100;
+  const price = inv.repairPrice(s, 'rangerSword');
+  assert.ok(price > 0 && inv.repair(s, 'rangerSword'));
+  assert.equal(s.silver, 100 - price);
+  assert.equal(inv.stats(s).sword, full, 'mended');
+  assert.equal(inv.repairPrice(s, 'rangerSword'), 0);
+
+  for (let i = 0; i < 30; i++) inv.wearOnce(s, 'bow');
+  inv.addItem(s, 'bowstring');
+  assert.ok(!inv.useKit(s, 'bowstring'), 'a kit is no use until Mablung has taught it');
+  assert.ok(!inv.canLearnRepair(s), 'and he teaches only a ranger of some renown');
+  s.renown = REPAIR.teachRenown; s.silver = REPAIR.teachPrice;
+  assert.ok(inv.learnRepair(s) && s.skills.repair && s.silver === 0);
+  assert.ok(inv.shopFor(s).some((e) => e.item === 'whetstone'), 'then he sells the kits');
+  assert.ok(inv.useKit(s, 'bowstring') && inv.condition(s, 'rangerBow') === 1 && inv.count(s, 'bowstring') === 0);
+
+  s.renown = 0; s.silver = 1000;
+  assert.ok(!inv.hone(s, 'rangerSword'), 'honing waits on renown');
+  for (const step of HONE) { s.renown = step.renown; assert.ok(inv.hone(s, 'rangerSword')); }
+  assert.ok(!inv.hone(s, 'rangerSword'), 'three times at most');
+  assert.equal(inv.stats(s).sword, ITEMS.rangerSword.damage + 3);
+});
+
+test('renown: slow to earn, fifty only near the end, and the enemy grows with it', async () => {
+  const r = await import('../src/systems/renown.js');
+  const { rosterFor } = await import('../src/data/enemies.js');
+  const { QUESTS } = await import('../src/data/quests.js');
+  for (let n = 1; n <= r.MAX_RENOWN; n++) assert.ok(r.pointsFor(n) > r.pointsFor(n - 1));
+  assert.equal(r.levelFor(r.pointsFor(12)), 12);
+  assert.equal(r.levelFor(r.pointsFor(12) - 1), 11);
+  assert.equal(r.levelFor(1e9), r.MAX_RENOWN);
+  // everything the camps and the told tasks are worth
+  let camps = 0;
+  for (const c of CAMPS) { camps += r.HONOUR.camp[c.size]; for (const t of rosterFor(c, 25)) camps += r.HONOUR.kill[t]; }
+  const told = QUESTS.reduce((n, q) => n + (q.reward.honour ?? 0), 0);
+  assert.ok(camps + told < r.pointsFor(r.MAX_RENOWN), 'camps and told tasks alone do not reach fifty');
+  assert.ok(camps + told > r.pointsFor(40), 'but they come within reach of it');
+  const s = newState();
+  assert.equal(r.addHonour(s, r.pointsFor(3)), 3);
+  assert.equal(s.renown, 3);
+  assert.equal(r.addHonour(s, 1), 0, 'no news when the level does not change');
+  const c = CAMPS.find((k) => k.size === 2);
+  assert.ok(rosterFor(c, 45).length > rosterFor(c, 0).length, 'a famous ranger meets bigger companies');
+  assert.ok(r.enemyStrength(50).hp > 1.4 && r.enemyStrength(0).hp === 1);
+});
+
+test('errands never run out, grow slowly, and can be done', async () => {
+  const q = await import('../src/systems/quests.js');
+  const { ITEMS } = await import('../src/data/items.js');
+  const s = newState();
+  const seen = { faramir: new Set(), eowyn: new Set() };
+  for (let n = 0; n < 40; n++) {
+    for (const giver of ['faramir', 'eowyn']) {
+      const e = q.errandFrom(giver, s);
+      assert.ok(e, `${giver} has errand ${n}`);
+      seen[giver].add(e.errand);
+      for (const id of Object.keys(e.reward.items)) assert.ok(ITEMS[id], `${e.id} rewards a real item`);
+      assert.ok(e.title && e.offer && e.remind && e.done && e.reward.honour > 0);
+      q.acceptErrand(s, e);
+      assert.equal(q.errandFrom(giver, s), null, 'one errand at a time from each');
+      const p = q.progress(e.objective, s);
+      assert.ok(p.have < p.need, `${e.id} is not done before it is begun`);
+      s.quests.errands = s.quests.errands.filter((x) => x.id !== e.id); // (as if handed in)
+      s.quests.active = s.quests.active.filter((x) => x !== e.id);
+      s.quests.count[giver] = n + 1;
+    }
+  }
+  assert.ok(seen.faramir.size >= 5 && seen.eowyn.size >= 4, 'they cycle through their kinds');
+  // and even with every camp broken and every place found there is work
+  const done = newState();
+  done.cleared = CAMPS.map((c) => c.id);
+  done.discovered.push(...q.PLACES.map((p) => p.id));
+  for (const giver of ['faramir', 'eowyn']) assert.ok(q.errandFrom(giver, done), `${giver} still has work at the end`);
+
+  // a trophy errand, done and handed in
+  const t = newState();
+  t.quests.count.faramir = 0;
+  const e = q.errandFrom('faramir', t);
+  assert.equal(e.objective.type, 'gather');
+  q.acceptErrand(t, e);
+  t.items[e.objective.item] = e.objective.count + 1;
+  const back = q.turnIn(t, e.id);
+  assert.ok(back && back.loot.some(([id]) => id === 'silver'));
+  assert.equal(t.items[e.objective.item], 1, 'trophies are handed over');
+  assert.equal(t.quests.count.faramir, 1);
+  assert.ok(t.honour > 0);
+});
+
+test('asked again, they give a direction; a third time, they mark it on the map', async () => {
+  const q = await import('../src/systems/quests.js');
+  const s = newState();
+  q.accept(s, 'e2');
+  const def = q.byId.e2;
+  assert.ok(!q.remindText(def, s).includes(' of here'));
+  assert.ok(q.remindText(def, s).includes(' of here'), 'the second asking names a direction');
+  assert.ok(!s.quests.marks.e2);
+  assert.ok(q.remindText(def, s).includes('mark'));
+  assert.ok(s.quests.marks.e2, 'the third puts a mark on the map');
+  assert.deepEqual(q.tracker(s).target, s.quests.marks.e2, 'and the tracker follows it');
+  assert.equal(q.directionWords(HA.x, HA.z - 2000).slice(0, 12), 'to the north');
+  // Faramir's map always shows a few camps more than the ranger's
+  const scouted = q.scoutedCamps(s);
+  assert.equal(scouted.length, 3);
+  for (const c of scouted) assert.ok(!s.discovered.includes('camp:' + c.id));
+  s.discovered.push(...scouted.map((c) => 'camp:' + c.id));
+  assert.ok(q.scoutedCamps(s).every((c) => !scouted.includes(c)), 'found, they give way to others');
 });
 
 test('tasks: offered in order, tracked, and rewarded once', async () => {
@@ -301,7 +462,8 @@ test('tasks: offered in order, tracked, and rewarded once', async () => {
   const { QUESTS } = await import('../src/data/quests.js');
   const { ITEMS } = await import('../src/data/items.js');
   for (const def of QUESTS) { // every task is well formed
-    q.progress(def.objective, newState());
+    const p = q.progress(def.objective, newState());
+    assert.ok(p.need > 0 && Number.isFinite(p.need), `${def.id} has something to do`);
     for (const r of def.requires ?? []) assert.ok(q.byId[r], `${def.id} requires a real task`);
     for (const id of Object.keys(def.reward.items ?? {})) assert.ok(ITEMS[id], `${def.id} rewards a real item`);
   }
@@ -315,10 +477,10 @@ test('tasks: offered in order, tracked, and rewarded once', async () => {
   assert.equal(q.turnIn(s, 'f1'), null, 'cannot hand in an unfinished task');
   s.cleared.push(q.NEAREST_CAMP.id);
   assert.ok(q.tracker(s).done);
-  const loot = q.turnIn(s, 'f1');
+  const { loot } = q.turnIn(s, 'f1');
   assert.ok(loot.some(([id]) => id === 'silver'));
-  assert.equal(s.silver, 20);
-  assert.equal(s.renown, 1);
+  assert.equal(s.silver, q.byId.f1.reward.silver);
+  assert.equal(s.honour, q.byId.f1.reward.honour);
   assert.equal(q.turnIn(s, 'f1'), null, 'and only once');
   assert.equal(q.offerFrom('faramir', s).id, 'f2');
 

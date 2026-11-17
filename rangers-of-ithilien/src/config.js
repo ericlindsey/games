@@ -31,4 +31,4 @@ export const QUALITY = {
 
 export const VERSION = '0.1';
 
-export const SAVE = { key: 'rangers-of-ithilien.save', version: 3, autosaveSeconds: 30 };
+export const SAVE = { key: 'rangers-of-ithilien.save', version: 4, autosaveSeconds: 30 };

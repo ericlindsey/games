@@ -28,16 +28,34 @@ export function buildHennethAnnun(scene, water) {
   const hall = { x0: 0, x1: 10, z0: 11, z1: 14, ceil: floorY + 3 };   // in from the stair
   const turn = { x0: 7, x1: 10, z0: 9, z1: 11, ceil: floorY + 3 };    // and round into the cave
   const R = { x0: 0, x1: 36, z0: -22, z1: 22 };
+  // The hidden way up: the hall runs on east as a narrow stair in the rock,
+  // climbing to a hole in the forest floor above the cave (HA.hatch).
+  const ht = HA.hatch;
+  const pass = { x0: hall.x1, x1: ht.exitX - fx, z0: 11.4, z1: hall.z1, hole: ht.x0 - fx };
+  const passZ = fz + (pass.z0 + pass.z1) / 2;
+  const exitY = heightAt(ht.exitX + 0.5, passZ);
+  const passTop = (x) => floorY + (exitY - floorY) * Math.min(1, Math.max(0, (x - fx - pass.x0) / (pass.x1 - pass.x0)));
+  let groundHi = -Infinity, groundLo = Infinity; // the forest floor over the stair
+  for (let x = fx + pass.x0; x <= fx + pass.x1 + 4; x += 1) {
+    for (let z = fz + pass.z0 - 3; z <= fz + pass.z1 + 3; z += 1) { const g = heightAt(x, z); groundHi = Math.max(groundHi, g); groundLo = Math.min(groundLo, g); }
+  }
+  // the lip of stone round the hole stands a little proud of the ground beside it
+  const lip = (z0, z1) => { let h = -Infinity; for (let x = ht.x0; x <= ht.x1; x += 1) for (let z = z0; z <= z1; z += 0.5) h = Math.max(h, heightAt(x, z)); return h + 0.25; };
+  // A ledge beside the fall: out of the window's north corner, through a notch in
+  // the pier, onto a shelf hanging over the pool.
+  const ledge = { x0: -2.6, notch: 1.6, z0: -11, z1: win.z0 };
 
   const box = (x0, x1, z0, z1, bottom, top, extra) =>
     ({ minX: fx + x0, maxX: fx + x1, minZ: fz + z0, maxZ: fz + z1, bottom, top, ...extra });
   const rock = [
     box(R.x0, R.x1, R.z0, room.z0, base, topY),                 // north
-    box(room.x1, R.x1, room.z0, R.z1, base, topY),              // east
-    box(R.x0, room.x0, room.z0, win.z0, base, topY),            // piers either side of the window
+    box(room.x1, R.x1, room.z0, pass.z0, base, topY),           // east, either side of the stair
+    box(room.x1, R.x1, pass.z1, R.z1, base, topY),
+    box(pass.x1, R.x1, pass.z0, pass.z1, base, topY),
+    box(ledge.notch, room.x0, room.z0, win.z0, base, topY),     // piers either side of the window (the north one notched for the ledge)
     box(R.x0, room.x0, win.z1, room.z1, base, topY),
     box(R.x0, turn.x0, room.z1, hall.z0, base, topY),           // between the cave and the hall
-    box(turn.x1, room.x1, room.z1, hall.z1, base, topY),
+    box(turn.x1, room.x1, room.z1, pass.z0, base, topY),        // between the cave and the stair
     box(R.x0, room.x1, hall.z1, R.z1, base, topY),              // south
     // floors
     box(room.x0, room.x1, room.z0, room.z1, base, floorY),
@@ -49,30 +67,46 @@ export function buildHennethAnnun(scene, water) {
     box(win.x0, win.x1, win.z0, win.z1, win.ceil, topY),
     box(hall.x0, hall.x1, hall.z0, hall.z1, hall.ceil, topY),
     box(turn.x0, turn.x1, turn.z0, turn.z1, turn.ceil, topY),
+    // the stair's walls, carried up from the top of the rock to just under the
+    // forest floor, and as a lip of stone round the hole
+    box(pass.x0, pass.hole, pass.z0 - 2, pass.z0, topY, groundLo - 0.15),
+    box(pass.x0, pass.hole, pass.z1, pass.z1 + 2, topY, groundLo - 0.15),
+    box(pass.hole, pass.x1, ht.z0 - fz, pass.z0, topY, lip(ht.z0, fz + pass.z0)),
+    box(pass.hole, pass.x1, pass.z1, pass.z1 + 1.2, topY, lip(fz + pass.z1, fz + pass.z1 + 1.2)),
+    box(pass.hole - 1.2, pass.hole, ht.z0 - fz, pass.z1 + 1.2, passTop(fx + pass.hole) + 2.4, lip(ht.z0, fz + pass.z1 + 1.2)),
   ];
+  // its stepped roof, until it opens to the sky
+  for (let x = pass.x0; x < pass.hole - 1.2; x += 2) {
+    const x1 = Math.min(x + 2, pass.hole - 1.2);
+    rock.push(box(x, x1, pass.z0, pass.z1, passTop(fx + x1) + 2.5, groundLo - 0.15));
+  }
   // The stair: a ramp of worn steps along the south wall of the basin, from
   // the floor of the cut up to the hidden door.
-  const stairX0 = HA.basin.minX + 3 - fx, stairX1 = -2;
+  const stairX0 = HA.basin.minX + 3 - fx, stairX1 = -2, stairZ0 = 11.3, stairZ1 = 14.2;
   const stairTop = (x) => HA.floor + (floorY - HA.floor) * Math.min(1, Math.max(0, (x - fx - stairX0) / (stairX1 - stairX0)));
-  const stair = [box(stairX0, 0, 10.5, 14.2, base, stairTop, { topMax: floorY })];
-  // At the door the stair forks. The lower flight (above) goes down to the
-  // pool; the upper flight doubles back west above it, built into the south
-  // wall, and comes out on the rim among the trees.
-  const upZ0 = 14.2, upZ1 = HA.basin.halfZ + HA.basin.southSetBack + HA.basin.wall + 2.5;
-  const upLanding = -4, upHead = -27, upEnd = -32;
-  const rimY = heightAt(fx + upHead - 2, fz + upZ1 + 0.5) - 0.05;
-  const upTop = (x) => floorY + (rimY - floorY) * Math.min(1, Math.max(0, (fx + upLanding - x) / (upLanding - upHead)));
-  stair.push(box(upEnd, 0, upZ0, upZ1, base, upTop, { topMax: rimY }));
+  const stair = [
+    box(stairX0, 0, stairZ0, stairZ1, base, stairTop, { topMax: floorY }),
+    box(pass.x0, pass.x1, pass.z0, pass.z1, base, passTop, { topMax: exitY }),   // and the flight in the rock
+    // the ledge, with a low parapet
+    box(ledge.x0, ledge.notch, -9, ledge.z1, floorY - 1.4, floorY),
+    box(ledge.x0, 0, ledge.z0, -9, floorY - 1.4, floorY),
+    box(ledge.x0, ledge.x0 + 0.45, ledge.z0, ledge.z1, floorY - 1.4, floorY + 0.95),
+    box(ledge.x0, 0, ledge.z0 - 0.4, ledge.z0, floorY - 1.4, floorY + 0.95),
+    box(ledge.x0, -0.5, ledge.z1, ledge.z1 + 0.35, floorY - 1.4, floorY + 0.95),
+  ];
   for (const s of [...rock, ...stair]) addSolid(s);
-  // Inside the rock the terrain overhead is not the ground.
+  // Inside the rock the terrain overhead is not the ground; nor along the stair, all the way up.
   addHollow({ minX: fx + R.x0, maxX: fx + R.x1, minZ: fz + R.z0, maxZ: fz + R.z1, ceiling: topY - 0.3 });
+  addHollow({ minX: fx + pass.x0, maxX: fx + pass.x1, minZ: fz + pass.z0, maxZ: fz + pass.z1, ceiling: groundHi + 2 });
+  const inPassage = (p) => p.x > fx + pass.x0 - 0.5 && p.x < fx + pass.x1 && p.z > fz + pass.z0 - 0.9 && p.z < fz + pass.z1 + 0.9 && p.y < passTop(p.x) + 3;
 
   // --- Rock: every solid drawn as a box with its faces roughened. ---
   const rand = rng(77);
   const within = (p, v, pad) => p.x > fx + v.x0 - pad && p.x < fx + v.x1 + pad && p.z > fz + v.z0 - pad && p.z < fz + v.z1 + pad;
-  const inside = (p) => p.x > fx + 1.4 && p.y > floorY - 0.6 && p.y < ceilY + 1.2 &&
-    (within(p, room, 0.9) || within(p, win, 0.9) || within(p, hall, 0.9) || within(p, turn, 0.9));
+  const inside = (p) => inPassage(p) || (p.x > fx + 1.4 && p.y > floorY - 0.6 && p.y < ceilY + 1.2 &&
+    (within(p, room, 0.9) || within(p, win, 0.9) || within(p, hall, 0.9) || within(p, turn, 0.9)));
   const paintRock = (p, n) => {
+    if (p.y > topY - 0.2 && n.y > 0.6) return 0x8a8470; // the lip round the hole
     if (inside(p)) return n.y > 0.6 ? 0x6f6657 : n.y < -0.6 ? 0x4a443c : 0x5d554a;
     if (n.y > 0.6) return 0x7c8a5c;
     return p.y < HA.floor + 5 ? 0x6b675c : 0x8d8575; // darker where the spray wets it
@@ -97,7 +131,8 @@ export function buildHennethAnnun(scene, water) {
       const y = out.y;
       // The cliff face behind the fall is rougher than the walls within, but not
       // around the door and the stair, where what you see must match what stops you.
-      rockDisplace(out, out.x < fx + 0.01 && out.z < fz + 8 && amp > 0.3 ? amp * 2 : amp > 0.3 && out.x < fx + 0.01 ? 0.12 : amp);
+      const byLedge = out.x < fx + ledge.notch + 0.01 && out.z > fz + ledge.z0 - 1.5 && out.z < fz + ledge.z1 + 0.5 && out.y < floorY + 3;
+      rockDisplace(out, byLedge ? 0.1 : out.x < fx + 0.01 && out.z < fz + 8 && amp > 0.3 ? amp * 2 : amp > 0.3 && out.x < fx + 0.01 ? 0.12 : amp);
       if (isTop) out.y = y; // walkable tops stay true to the collision shape
       return out;
     };
@@ -117,8 +152,8 @@ export function buildHennethAnnun(scene, water) {
   for (const s of stair) addRock(s, paintStair, 0.08);
   // Treads, so the two flights read as stairs.
   const treads = new GeoBuilder(21, 0.05);
-  for (let x = stairX0 + 0.6; x < stairX1; x += 0.9) treads.box(0.5, 0.13, 3.5, fx + x, stairTop(fx + x) - 0.02, fz + 12.35, 0xb3aa95);
-  for (let x = upHead + 0.5; x < upLanding; x += 0.9) treads.box(0.5, 0.13, 3.3, fx + x, upTop(fx + x) - 0.02, fz + upZ0 + 1.75, 0xb3aa95);
+  for (let x = stairX0 + 0.6; x < stairX1; x += 0.9) treads.box(0.5, 0.13, stairZ1 - stairZ0 - 0.2, fx + x, stairTop(fx + x) - 0.02, fz + (stairZ0 + stairZ1) / 2, 0xb3aa95);
+  for (let x = pass.x0 + 0.5; x < pass.x1; x += 0.8) treads.box(0.45, 0.12, pass.z1 - pass.z0 - 0.2, fx + x, passTop(fx + x) - 0.02, passZ, 0xa39a86);
   scene.add(treads.mesh());
   scene.add(builder.mesh());
 
@@ -232,8 +267,7 @@ export function buildHennethAnnun(scene, water) {
   const b = HA.basin, edge = b.halfZ + b.wall + 2;
   for (let x = b.minX - 8; x < fx + 4; x += 5.5) {
     if (rand() < 0.75) rim(x + rand() * 2, fz - edge - rand() * 2, 1.6 + rand() * 1.6);
-    // on the south side, none where the stair comes out
-    if (rand() < 0.75 && (x < fx + upEnd - 5 || x > fx + upHead + 6)) rim(x + rand() * 2, fz + edge + 5 + rand() * 2, 1.6 + rand() * 1.6);
+    if (rand() < 0.75) rim(x + rand() * 2, fz + edge + 5 + rand() * 2, 1.6 + rand() * 1.6);
   }
   for (let z = fz - edge + 6; z < fz + edge - 5; z += 6) {
     if (Math.abs(z - fz) > HA.gorge.halfTop + 2) rim(b.minX - b.wall - 2.5, z, 1.8 + rand() * 1.4);
@@ -247,6 +281,21 @@ export function buildHennethAnnun(scene, water) {
   }
   scene.add(rocks.mesh());
 
+  // Bushes crowd the hole where the hidden stair comes up, so it is seen only close to.
+  const bush = new GeoBuilder(17, 0.12);
+  const shrub = (x, z, r) => {
+    const y = heightAt(x, z);
+    for (let i = 0; i < 4; i++) {
+      const a = rand() * 6.3, d = r * 0.45 * rand();
+      bush.blob(r * (0.6 + rand() * 0.35), x + Math.cos(a) * d, y + r * (0.35 + rand() * 0.3), z + Math.sin(a) * d, [0x3f5a2e, 0x4a6634, 0x557040][i % 3], 1.15, 0.85, 1.1, 1);
+    }
+  };
+  shrub(ht.x0 + 2.2, ht.z0 - 0.4, 2.1);
+  shrub(ht.x0 - 1.2, ht.z1 - 0.6, 1.8);
+  shrub(ht.x0 + 5.2, ht.z0 - 1.6, 1.4);
+  shrub(ht.x1 - 1.5, ht.z1 + 1.8, 1.3);
+  scene.add(bush.mesh());
+
   return {
     floorY,
     faramir: { x: fx + 15.2, z: fz - 4.4, heading: -2.2 },
@@ -254,8 +303,11 @@ export function buildHennethAnnun(scene, water) {
     mablung: { x: fx + 25.4, z: fz - 4.6, heading: -1.9 },
     /** True inside the cave or its passages. */
     /** The upper flight: from the landing by the cave door up to the forest. */
-    forestStair: { landingX: fx - 1.5, headX: fx + upHead - 2, z: fz + upZ0 + 2.2, exitZ: fz + upZ1, rimY },
-    isInside: (p) => p.x > fx && p.x < fx + R.x1 && Math.abs(p.z - fz) < 22 && p.y < topY - 0.3,
+    /** The hidden stair: from the hall, east and up through the rock to the hole in the forest floor. */
+    hiddenStair: { startX: fx + pass.x0 - 2, z: passZ, exitX: ht.exitX, exitY },
+    /** The ledge beside the fall, looking out over the pool. */
+    ledge: { x: fx + (ledge.x0 + 0.45) / 2, z: fz + (ledge.z0 + ledge.z1) / 2 },
+    isInside: (p) => inPassage(p) || (p.x > fx && p.x < fx + R.x1 && Math.abs(p.z - fz) < 22 && p.y < topY - 0.3),
     update(time) {
       fallTex[0].offset.y = time * 0.9;
       fallTex[1].offset.y = time * 1.3;

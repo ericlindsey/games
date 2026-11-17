@@ -117,12 +117,19 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(bought.bread === purse.bread + 1 && bought.silver < purse.silver, 'buying from Mablung costs silver and fills the pack');
   await page.click('#trade-sell button');
   check(await page.evaluate((s) => roi.state.silver > s, bought.silver), 'selling to him pays');
+  // At his bench: a dull blade mended for silver; field repair taught to a ranger of some renown.
+  await page.evaluate(() => { roi.state.wear.rangerSword = 0.3; roi.state.silver = 50; roi.trade.draw(); });
+  await page.locator('#trade-bench .row-item').first().locator('button:has-text("Mend")').click();
+  check(await page.evaluate(() => roi.state.wear.rangerSword === 1 && roi.state.silver < 50), 'Mablung mends a dull blade at his bench, for silver');
+  check((await page.textContent('#trade-bench')).includes('Learn to mend'), 'and will teach field repair');
+  await page.evaluate((s) => { roi.state.silver = s; roi.trade.draw(); }, bought.silver);
   await page.click('#trade-close');
 
   // The pack.
   await page.keyboard.press('KeyI');
   await page.waitForSelector('#pack:not([hidden])');
   check((await page.textContent('#pack-tasks')).includes('nearest fire') && (await page.textContent('#pack-gear')).includes('sword'), 'the pack lists tasks and gear');
+  check(/Renown 0 · \d+ of \d+ toward 1/.test(await page.textContent('#renown-label')), 'and renown, with the way to the next');
   await shot(page, 'pack');
   await page.keyboard.press('KeyI');
   check(await page.isHidden('#pack'), 'the pack closes');
@@ -139,21 +146,30 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate(() => roi.refuge.isInside(roi.player.pos)), 'and leads inside the rock');
   await shot(page, 'hall');
 
-  // At the door the stair forks: the upper flight doubles back and climbs to the forest.
-  await page.evaluate(() => { const st = roi.refuge.forestStair; roi.teleport(st.landingX, st.z, -Math.PI / 2, 40); roi.rig.yaw = -Math.PI / 2; });
-  check(Math.abs((await pos(page)).y - 40) < 0.3, 'the upper flight starts level with the cave door');
+  // From the hall a narrow stair climbs on through the rock to a hole in the forest floor.
+  await page.evaluate(() => { const st = roi.refuge.hiddenStair; roi.teleport(st.startX, st.z, Math.PI / 2, 40); roi.rig.yaw = Math.PI / 2; });
+  check(Math.abs((await pos(page)).y - 40) < 0.3, 'the hidden stair starts level with the hall');
   await page.keyboard.down('KeyW');
-  await page.waitForFunction(() => roi.player.pos.x < roi.refuge.forestStair.headX, null, { timeout: 90000 });
+  const climbed = await page.waitForFunction(() => roi.player.pos.x > roi.refuge.hiddenStair.exitX + 6, null, { timeout: 90000 }).then(() => true, () => false);
   await page.keyboard.up('KeyW');
-  const head = await pos(page);
-  check(await page.evaluate((y) => Math.abs(y - roi.refuge.forestStair.rimY) < 0.3, head.y), `it climbs to the top of the cliff (y ${head.y.toFixed(1)})`);
-  await page.evaluate(() => { roi.rig.yaw = 0; }); // turn south, away from the pool
+  const up = await pos(page);
+  check(climbed && Math.abs(up.y - (await page.evaluate((p) => roi.heightAt(p.x, p.z), up))) < 0.05 && up.y > 48,
+    `it climbs through the rock and out onto the forest floor (x ${up.x.toFixed(0)}, y ${up.y.toFixed(1)})`);
+  await page.evaluate(() => { const st = roi.refuge.hiddenStair; roi.teleport(st.exitX + 7, st.z + 4, -Math.PI / 2 - 0.4); roi.rig.pitch = -0.45; });
+  await page.waitForTimeout(600);
+  await shot(page, 'hidden-stair');
+
+  // A ledge beside the fall, out of the window's north corner.
+  await page.evaluate(() => { const yaw = Math.atan2(-2.2, -5.6); roi.teleport(roi.refuge.ledge.x + 2.1, roi.refuge.ledge.z + 3.4, yaw, 40); roi.rig.yaw = yaw; });
   await page.keyboard.down('KeyW');
-  const off = await page.waitForFunction(() => roi.player.pos.z > roi.refuge.forestStair.exitZ + 14, null, { timeout: 60000 }).then(() => true, () => false);
+  const onLedge = await page.waitForFunction(() => roi.player.pos.z < roi.refuge.ledge.z - 1.5, null, { timeout: 30000 }).then(() => true, () => false);
   await page.keyboard.up('KeyW');
-  const top = await pos(page);
-  check(off && Math.abs(top.y - (await page.evaluate((p) => roi.heightAt(p.x, p.z), top))) < 0.05 && top.y > head.y - 1.5,
-    `and from its head you walk off into the forest (z ${top.z.toFixed(0)}, y ${top.y.toFixed(1)})`);
+  await page.waitForTimeout(800);
+  const ledge = await pos(page);
+  check(onLedge && Math.abs(ledge.y - 40) < 0.2, `from the window you can step out onto a ledge beside the fall (y ${ledge.y.toFixed(1)})`);
+  await page.evaluate(() => { roi.rig.yaw = 0.35; roi.rig.pitch = -0.25; });
+  await page.waitForTimeout(600);
+  await shot(page, 'ledge');
 
   // The way out: from the pool, down the winding cut beside the stream, to open ground.
   // A little steering helper keeps the ranger beside the water, as a person would.
@@ -209,6 +225,9 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => { const h = roi.herbs.sites[0]; roi.teleport(h.x, h.z, 0); });
   await page.waitForFunction(() => (roi.state.items.athelas ?? 0) === 1, null, { timeout: 20000 });
   check(await page.evaluate(() => roi.state.picked.length === 1), 'kingsfoil is gathered underfoot');
+  await page.evaluate(() => { const h = roi.herbs.sites.find((x) => x.kind === 'thymeSeed'); roi.teleport(h.x, h.z, 0); });
+  await page.waitForFunction(() => (roi.state.items.thymeSeed ?? 0) === 1, null, { timeout: 20000 });
+  check(true, 'so is seed for the gardens');
 
   // The first task: the nearest camp. They come at the ranger; the sword answers.
   await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 13, c.z, -Math.PI / 2); roi.rig.yaw = -Math.PI / 2; });
@@ -354,7 +373,40 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.click('#dialogue-options button:first-child');
   check((await page.textContent('#dialogue-text')).includes('Received'), 'he gives the reward');
   await page.click('#dialogue-options button:first-child');
-  check(await page.evaluate(() => roi.state.quests.done.includes('f1') && roi.state.items.draught >= 2 && roi.state.renown === 1), 'the task is finished and the reward is in the pack');
+  check(await page.evaluate(() => roi.state.quests.done.includes('f1') && roi.state.items.draught >= 2 && roi.state.renown >= 1), 'the task is finished and the reward is in the pack');
+
+  // Faramir's map, errands, and a ranger who keeps asking.
+  const talkTo = async (who) => {
+    await page.evaluate((w) => { const n = roi.refuge[w]; roi.teleport(n.x + 1.4, n.z + 1.3, -2, 40); }, who);
+    await page.waitForFunction(() => !document.getElementById('prompt').hidden, null, { timeout: 20000 });
+    await page.keyboard.press('KeyE');
+    await page.waitForSelector('#dialogue:not([hidden])');
+  };
+  const choose = (text) => page.click(`#dialogue-options button:has-text("${text}")`);
+  const options = () => page.$$eval('#dialogue-options button', (b) => b.map((x) => x.textContent));
+  await talkTo('faramir');
+  check((await options()).some((o) => o.includes('other work')), 'Faramir offers an errand beside his next task');
+  await choose('May I see your map?');
+  await choose('Thank you.');
+  await page.waitForSelector('#map:not([hidden])');
+  check((await page.textContent('#map-title')).includes('Faramir') && await page.evaluate(() => roi.state.told.length >= 3), 'his map shows camps the ranger has not found, and they are copied');
+  await shot(page, 'faramir-map');
+  await page.click('#map-close');
+  await talkTo('faramir');
+  await choose('other work');
+  await choose('I will do it.');
+  check(await page.evaluate(() => roi.state.quests.errands.length === 1 && roi.state.quests.active.includes(roi.state.quests.errands[0].id)), 'an errand can be taken');
+  await talkTo('faramir');
+  await choose('Have you a task');
+  await choose('I will do it.');
+  for (let i = 0; i < 3; i++) {
+    await talkTo('faramir');
+    await choose('The home woods');
+    if (i < 2) { await choose('I will see to it.'); await choose('Farewell.'); }
+  }
+  check((await page.textContent('#dialogue-text')).includes('mark it on your map') && await page.evaluate(() => !!roi.state.quests.marks.f2), 'asked three times, he marks the way on the map');
+  await choose('I will see to it.');
+  await choose('Farewell.');
 
   await page.evaluate(() => { const s = roi.sites[0]; roi.teleport(s.x + 14, s.z + 3, 3); });
   await page.waitForFunction(() => roi.state.discovered.some((d) => d.startsWith('site:')), null, { timeout: 20000 });
@@ -368,6 +420,24 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await shot(page, 'map');
   await page.keyboard.press('KeyM');
   check(await page.isHidden('#map'), 'map closes');
+
+  // What the ranger wears shows on them.
+  const size = () => page.evaluate(() => { let n = 0; roi.player.figure.traverse((o) => { if (o.isMesh) n += o.geometry.attributes.position.count; }); return n; });
+  const plain = await size();
+  await page.evaluate(() => {
+    roi.teleport(900, 1300, 0); roi.rig.yaw = Math.PI; roi.rig.pitch = -0.05;
+    for (const id of ['southronScimitar', 'hornBow', 'blackMail', 'gondorHelm', 'ironGreaves']) { roi.inv.addItem(roi.state, id); roi.inv.equip(roi.state, id); }
+    roi.refreshHud();
+  });
+  check(await size() > plain && await page.evaluate(() => roi.player.figure.sword.visible || roi.player.figure.heldBow.visible), 'gear put on shows on the ranger');
+  await page.waitForTimeout(800);
+  await shot(page, 'dressed');
+  await page.evaluate(() => {
+    for (const slot of ['helm', 'legs', 'body']) roi.inv.unequip(roi.state, slot);
+    roi.inv.equip(roi.state, 'rangerSword'); roi.inv.equip(roi.state, 'rangerBow');
+    for (const id of ['southronScimitar', 'hornBow', 'blackMail', 'gondorHelm', 'ironGreaves']) delete roi.state.items[id];
+    roi.refreshHud();
+  });
 
   // Save, reload, resume.
   await page.evaluate(() => roi.teleport(700, 1000, 1));
@@ -487,7 +557,7 @@ await run('testing page', { viewport: { width: 1280, height: 720 } }, async (pag
   await page.waitForSelector('#dev');
   check(true, 'debug.html opens the game with the testing panel');
   await page.click('#dev [data-a="kit"]');
-  check(await page.evaluate(() => roi.state.equipped.sword === 'gondorBlade' && roi.state.equipped.armour === 'ithilienMail'), 'it can hand out and equip gear');
+  check(await page.evaluate(() => roi.state.equipped.sword === 'guardBlade' && roi.state.equipped.body === 'citadelMail'), 'it can hand out and equip gear');
   await page.click('#dev [data-a="ren+"]');
   check(await page.evaluate(() => roi.state.renown === 1), 'and set renown');
   await page.click('#dev [data-a="mapgo"]');

@@ -91,11 +91,11 @@ body.touch #prompt kbd { display: none; }
 }
 #dialogue-name { font-size: 22px; }
 #dialogue-title { font-size: 13px; font-style: italic; color: var(--ink-soft); margin-bottom: 6px; }
-#dialogue-text { font-size: 16px; line-height: 1.5; margin: 6px 0 12px; }
+#dialogue-text { font-size: 16px; line-height: 1.5; margin: 6px 0 12px; white-space: pre-line; }
 #dialogue-options { display: flex; flex-wrap: wrap; gap: 8px; }
 #dialogue-options button { font-size: 15px; text-align: left; }
 .map-panel { padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; max-height: 100%; }
-#map-canvas { max-height: calc(100vh - 100px); max-height: calc(100dvh - 100px); max-width: calc(100vw - 48px); border: 1px solid var(--ink-soft); background: var(--parchment-dark); }
+#map-canvas { max-height: calc(100vh - 130px); max-height: calc(100dvh - 130px); max-width: calc(100vw - 48px); border: 1px solid var(--ink-soft); background: var(--parchment-dark); }
 .menu-panel { padding: 18px 22px; width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; max-height: 100%; overflow-y: auto; }
 .menu-panel h2 { margin: 0 0 4px; font-weight: normal; text-align: center; letter-spacing: 0.05em; }
 .menu-panel .row { display: flex; align-items: center; gap: 6px; }
@@ -185,3 +185,12 @@ body.panel-open #btn-aim, body.panel-open #hitmark { display: none !important; }
   #toast { top: 34%; }
   #debug { top: 180px; }
 }
+
+/* ---- Renown ---- */
+#pack-renown { margin: 8px 0 2px; font-size: 14px; color: var(--ink-soft); }
+#pack-renown .bar { height: 7px; background: rgba(107, 90, 58, 0.25); border-radius: 4px; margin-top: 4px; overflow: hidden; }
+#renown-fill { height: 100%; width: 0; background: linear-gradient(90deg, #b8902a, #e0b84a); border-radius: 4px; }
+#map-title { font-size: 18px; letter-spacing: 0.04em; }
+.row-item .cond { display: inline-block; width: 60px; height: 5px; margin-left: 6px; vertical-align: middle; background: rgba(107, 90, 58, 0.25); border-radius: 3px; overflow: hidden; }
+.row-item .cond div { height: 100%; background: var(--leaf); }
+.row-item .cond.low div { background: #a8322a; }

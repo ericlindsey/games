@@ -68,7 +68,9 @@ export class Hud {
   setHealth(h) { this.healthFill.style.width = Math.max(0, Math.min(100, h)) + '%'; }
 
   setWeapon(state) {
-    const text = (state.weapon === 'bow' ? `Bow \u00b7 ${state.arrows} arrows` : `Sword \u00b7 ${state.arrows} arrows`) + ` \u00b7 ${state.silver} silver`;
+    const c = state.wear?.[state.equipped[state.weapon]] ?? 1; // a worn weapon is marked, so it is mended in time
+    const worn = c <= 0.2 ? ' (worn)' : c <= 0.5 ? (state.weapon === 'bow' ? ' (slack)' : ' (dull)') : '';
+    const text = (state.weapon === 'bow' ? `Bow${worn} \u00b7 ${state.arrows} arrows` : `Sword${worn} \u00b7 ${state.arrows} arrows`) + ` \u00b7 ${state.silver} silver`;
     if (this.weapon.textContent !== text) this.weapon.textContent = text;
   }
 

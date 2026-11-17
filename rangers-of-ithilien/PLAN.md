@@ -1,6 +1,6 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.1, working toward v0.2.** The land, the enemy, fighting, gear, tasks and trade are built and
+Status: **v0.2 in progress.** The land, the enemy, fighting, gear, tasks and trade are built and
 have had three rounds of playtest. Next: Milestone 5 (sound, day and night) and the
 gaps listed at the end of section 10.
 
@@ -207,12 +207,16 @@ Touch devices are detected by capability, not user agent; a device with both get
 - The cave is a set of boxes under the terrain east of the basin: room, window
   behind the fall, and an L-shaped passage to a door in the cliff. A "hollow"
   in `collision.js` tells the game to ignore the ground overhead when inside.
-- The terrain mesh leaves a slot where the cliff face is built by hand.
-- A stair of worn stone runs along the south wall of the basin. Its lower flight
-  climbs from the floor beside the pool to the cave door. At the door it forks:
-  an upper flight doubles back west above the lower one and comes out on the rim,
-  in the forest. The south wall of the basin stands back 2 m to make room.
-- So there are two ways home: down the upper flight from the rim, or up the cut
+- The terrain mesh leaves a slot where the cliff face is built by hand, and a
+  hole (`HA.hatch`, on the mesh's 4 m grid) where the hidden stair comes up.
+- A narrow stair of worn stone runs along the south wall of the basin, from the
+  floor beside the pool up to the cave door. Inside, the hall runs on east as a
+  second, narrower stair in the rock (2.6 m wide, roofed), which climbs 12 m to
+  a stone-lipped hole in the forest floor above the cave, crowded by bushes. No
+  old path leads there. The south wall of the basin stands back 2 m for the stair.
+- From the window behind the fall a ledge steps out through a notch in the pier,
+  on to a shelf with a low parapet beside the fall, over the pool.
+- So there are two ways home: down the hole in the forest floor, or up the cut
   from where the stream runs out of it, about 350 m downstream.
 - Inside the cave the sun and sky light are dimmed, so torchlight carries it.
 
@@ -332,7 +336,8 @@ more animation, tuning.
 ### The land (M1, with playtest changes)
 
 - Terrain, the Anduin, five streams, the Ephel Dúath, both roads, soft boundaries.
-- Henneth Annûn: hidden pool, the cut, the forked stair, the cave.
+- Henneth Annûn: hidden pool, the cut, the stair to the door, the hidden stair
+  in the rock up to the forest, the ledge beside the fall, the cave.
 - Forest of great trees with understory, herbs and litter; fens; Cormallen;
   heather slopes where the camera rides above the bushes.
 - 52 old farms and hamlets; seven named ruins; 44 lesser ruins of ten kinds; the
@@ -378,22 +383,60 @@ more animation, tuning.
 - **Quick travel**: away from home the menu offers "Return to Henneth Annûn"
   (not while any enemy has seen you). "Begin anew" is offered only in the cave.
 
-### Things, tasks and trade (M2, M4)
+### Things, tasks and trade (M2, M4, rebuilt for v0.2)
 
-- Items in `data/items.js`: four swords, four bows, three armours, food,
-  draughts, kingsfoil, and loot to sell.
-- Loot drops from the fallen in bags you walk over; more from each camp's stores.
-- The pack panel (I) shows tasks, gear and goods; wield, wear and use from there.
-- Mablung, in the cave, buys and sells. Better goods need renown, which comes
-  from finishing tasks.
-- Twelve tasks in `data/quests.js`: eight from Faramir (clearing camps, the long
-  roads south, ending with every camp), four from Éowyn (kingsfoil, the old
-  places, a village). Offered and handed in through dialogue; the first active
-  task shows on the HUD, as a marker on the compass and a ring on the map.
-- Kingsfoil grows at glade edges (about 220 plants) and is gathered by walking
-  over it. Each plant has a pale glimmer above it, and Éowyn shows a drawing
-  of it when she asks for it. After her first task Éowyn steeps two plants into a draught.
-- Saves are version 3 and carry all of this.
+- **Gear** (`data/items.js`): 17 swords (damage 14 to 34), 11 bows (16 to 32),
+  and armour in three slots that add up (body to 27%, helm to 8%, greaves to 7%;
+  50% at most). Several pieces share each damage level, with different looks:
+  curved, broad, long or short blades; horn bows with pale tips; black mail,
+  bronze scale, blue brigandine; caps, nasal helms, a winged helm; greaves. What
+  is worn shows on the ranger (`rangerLook` in `entities/figure.js`).
+- **Where gear comes from**: Mablung sells most of it, gated on renown from 0
+  to 48 (`SHOP`). Some only falls from the enemy, rarely (orc, Uruk, Southron
+  and captains' gear). The best pieces are gifts for the told tasks, and the
+  last of them (the King's gift, the King's mail, the Galadhrim bow) come only
+  at the end. A few gifts come every fifth errand.
+- **Wear**: a sword dulls by each blow that lands, a bowstring by each shot,
+  over about 300 uses; a worn weapon does about 60%. The HUD says "dull",
+  "slack" or "worn". Mablung mends at his bench for silver; at renown 6 he
+  teaches field repair (45 silver), after which he sells whetstones and spare
+  strings to use from the pack.
+- **Honing**: Mablung hones a sword or restrings a bow, +1 damage a step, up to
+  +3, at renown 4, 14 and 28 (30, 90 and 220 silver).
+- **Renown** (`systems/renown.js`): deeds earn points, and points make a level
+  from 0 to 50 (`25n + 1.2n²` points for level n). Kills 1 to 6, camps 3 to 30,
+  road bands 6 (a host 40), old places 2, farms and villages 1, told tasks 15 to
+  300, errands 14 rising to 60. Every camp and told task together come to about
+  3,500 of the 4,250 for fifty: the rest is errands and the road. The pack shows
+  renown with a bar toward the next level.
+- **The enemy grows with renown**: health +1.2% and damage +0.9% a level; from
+  renown 15 each camp of size 2 or more holds one more for each 15, small camps
+  one more from 25, and road bands one more for each 20.
+- **Told tasks** (`QUESTS`): Faramir's chain runs to 13 (the nearest fire, the
+  home woods, the heather, the stockade, the road bands, the Cross-roads,
+  Osgiliath, thirty fires, five captains, sixty fires, the war-camps, a hundred
+  fires, every camp). Éowyn's runs to 8 (kingsfoil, the old places, a village,
+  seed for the gardens, fifteen places, every village, thirty places, every
+  place).
+- **Errands** (`ERRANDS`, built in `systems/quests.js`): lesser work that never
+  runs out, one in hand from each giver at a time, each a little bigger than the
+  last. Faramir: trophies for the count (orc blades, trinkets, Red Eye badges,
+  blackened arrowheads that only road archers carry, coins, captains' tokens,
+  gold), camps broken in a named region, bands on the road, a scout's report of
+  one camp, another captain. Éowyn: seed of a kind, more kingsfoil, a ruin of a
+  named kind, old places in a region, another village or farm. A kind that
+  cannot be done is skipped.
+- **Hints**: ask about a task in hand and they remind you; ask again and they
+  give a direction from the falls ("to the south-east of here, a long walk");
+  a third time and they mark it on your map, and the tracker follows the mark.
+- **Faramir's map**: after the first task he will show his map, which always
+  has camps you have not found (three, rising to seven late on), the nearest
+  to home first. They are copied onto yours as dashed red rings. Toward the end
+  this is how the last camps are found.
+- **Plants**: kingsfoil (about 370) and four seeds for Éowyn: wild thyme in the
+  northern glades, bay in the woods, poppies about the old farms, wild olive in
+  the south (60 to 80 of each). Walk over them; seed has a gold glimmer.
+- Saves are version 4. Older saves start a new ranger and keep their settings.
 
 ### Streams
 
@@ -455,6 +498,15 @@ up a band or a host on the road.
   game has a web manifest and home-screen tags: added to the home screen, it
   opens with no bars, and the menu says how. (A home-screen copy keeps its own
   save, apart from Safari's.)
+
+### v0.2: second round
+
+- The home stream no longer has another stream join it: others are kept 75 m
+  off. Where a stream entered a pool, its water dropped into the pool's bowl
+  and ran on underground below the bed; now the water ignores pool bowls, and
+  no stream sample has water below the ground (it was 10%).
+- The hidden stair, the ledge, the gear, renown, errands, hints and Faramir's
+  map, as above.
 
 ### Known gaps to pick up
 

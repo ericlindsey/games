@@ -19,6 +19,10 @@ export const HA = {
   gorge: { endX: 760, halfFloor: 3.6, halfTop: 6.5, fall: 0.022, channelOffset: -1.4, wind: 3.2 },
   pool: { x: 985, z: 1187, r: 12 },
   rock: { minX: 1000, maxX: 1036, minZ: 1168, maxZ: 1212 }, // the mass that holds the cave
+  // The hidden way up: a narrow stair in the rock from the cave's hall, coming
+  // out through a hole in the forest floor above the cave. The hole is cut on
+  // the terrain mesh's 4 m grid; `exitX` is where the stair meets the ground.
+  hatch: { x0: 1024, x1: 1032, z0: 1200, z1: 1204, exitX: 1032 },
   spawn: { x: 1022, z: 1192, heading: -Math.PI / 2 },
 };
 
@@ -102,6 +106,8 @@ export function inClearing(x, z) {
   // the basin and the cut at Henneth Annûn (the woods crowd right up to the rim)
   const dz = Math.abs(z - HA.z);
   if (dz < 25 && x > HA.basin.minX - 6 && x < HA.x + 3) return true;
+  const ht = HA.hatch; // and round the hole where the hidden stair comes out
+  if (x > ht.x0 - 2 && x < ht.x1 + 3 && z > ht.z0 - 2 && z < ht.z1 + 2) return true;
   if (x > HA.gorge.endX - 40 && x < HA.basin.minX && Math.abs(z - gorgeZ(x)) < HA.gorge.halfTop + 1.5) return true;
   for (const l of LANDMARKS) {
     if (l.clear && Math.abs(x - l.x) < l.clear && Math.abs(z - l.z) < l.clear &&

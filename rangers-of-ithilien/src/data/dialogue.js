@@ -77,12 +77,13 @@ export const DIALOGUE = {
         text: 'Ranger. If it is arrows you want, I have them. If it is anything better than arrows, you will have to earn the Captain\u2019s good word first; I do not hand out mail to every lad who can find the door.',
         options: [
           { label: 'Show me what you have.', trade: true },
+          { label: 'Will you see to my gear?', trade: true },
           { label: 'How do I fight them?', to: 'fight' },
           { label: 'Farewell.' },
         ],
       },
       fight: {
-        text: 'Bow first, while they are still wondering what the noise was. Bend it full before you loose; a half-drawn bow is a thrown stick. When they close, the sword, and keep moving: an orc lifts his blade a moment before he swings, and that moment is yours to step away in. Walk soft and they see you late. And if it goes ill, run for the falls. They will not follow you here.',
+        text: 'Bow first, while they are still wondering what the noise was. Bend it full before you loose; a half-drawn bow is a thrown stick. When they close, the sword, and keep moving: an orc lifts his blade a moment before he swings, and that moment is yours to step away in. Walk soft and they see you late. And if it goes ill, run for the falls. They will not follow you here. One more thing: an edge dulls and a string wears. Bring them to me before they fail you.',
         options: [{ label: 'Show me what you have.', trade: true }, { label: 'My thanks.' }],
       },
     },

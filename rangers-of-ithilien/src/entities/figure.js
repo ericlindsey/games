@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { GeoBuilder } from '../world/build.js';
+import { ITEMS } from '../data/items.js';
 
 function part(build, pivotY, parent, x = 0, z = 0) {
   const b = new GeoBuilder(11, 0.04);
@@ -16,7 +17,10 @@ function part(build, pivotY, parent, x = 0, z = 0) {
 
 /**
  * @param {object} o colours and options:
- *   tunic, legs, skin, hair, cloak (or null), hood (bool), skirt (bool), bow (bool), longHair (bool)
+ *   tunic, legs, skin, hair, cloak (or null), hood (bool), skirt (bool), bow (bool), longHair (bool);
+ *   for gear: mail (a hauberk over the tunic), greaves, helm with helmCrest / helmNasal / helmWings,
+ *   blade with bladeShape ('straight' | 'curved' | 'broad' | 'long' | 'knife') and hilt,
+ *   heldBow with bowTips and bowLong
  * @returns {THREE.Group} with .limbs for animation; origin at the feet, facing +Z.
  */
 export function makeFigure(o) {
@@ -29,19 +33,26 @@ export function makeFigure(o) {
       b.box(0.17, 0.5, 0.19, 0, -0.5, 0, o.legs);
       b.box(0.16, 0.42, 0.18, 0, -0.9, 0, o.boots ?? 0x4a3828);
       b.box(0.17, 0.08, 0.27, 0, -0.92, 0.04, o.boots ?? 0x4a3828);
+      if (o.greaves) {
+        b.box(0.19, 0.34, 0.21, 0, -0.84, 0.012, o.greaves);   // shin
+        b.box(0.19, 0.1, 0.21, 0, -0.54, 0.018, o.greaves);    // knee
+      }
     }, 0.92, g, side * 0.11);
     limbs[side < 0 ? 'armL' : 'armR'] = part((b) => {
-      b.box(0.13, 0.34, 0.15, 0, -0.34, 0, o.tunic);
+      b.box(0.13, 0.34, 0.15, 0, -0.34, 0, o.mail ?? o.tunic);
       b.box(0.11, 0.28, 0.12, 0, -0.62, 0, o.sleeve ?? o.tunic);
       b.box(0.1, 0.1, 0.1, 0, -0.72, 0, o.skin);
     }, 1.5, g, side * 0.33);
   }
 
   limbs.body = part((b) => {
-    b.box(0.5, 0.62, 0.27, 0, 0, 0, o.tunic);                 // torso
+    b.box(0.5, 0.62, 0.27, 0, 0, 0, o.mail ?? o.tunic);       // torso
     b.box(0.52, 0.07, 0.29, 0, 0.02, 0, o.belt ?? 0x3d2f22);  // belt
     if (o.skirt) {
       b.cyl(0.27, 0.46, 0.92, 0, -0.9, 0, o.tunic, 8);
+    } else if (o.mail) {
+      b.box(0.52, 0.36, 0.29, 0, -0.34, 0, o.mail);           // the hauberk's skirt, to mid-thigh
+      b.box(0.53, 0.05, 0.3, 0, -0.34, 0, o.tunic);           // and the cloth beneath it
     } else {
       b.box(0.5, 0.22, 0.27, 0, -0.2, 0, o.tunic);            // tunic hem
     }
@@ -62,10 +73,13 @@ export function makeFigure(o) {
       }
       b.box(0.56, 0.16, 0.34, 0, 0.5, -0.06, o.tunic);                  // hunched shoulders
     }
-    if (o.helm) {                                                        // an iron cap, with or without horns
+    if (o.helm) {                                                        // a cap, with or without a ridge, horns, wings
       b.box(0.3, 0.14, 0.3, 0, 0.9, 0, o.helm);
-      b.box(0.06, 0.22, 0.2, 0, 0.98, -0.02, o.helm);
+      b.box(0.31, 0.1, 0.31, 0, 0.82, 0, o.helm);                      // the brim, over the ears
+      if (o.orc || o.helmCrest) b.box(0.06, 0.22, 0.2, 0, 0.98, -0.02, o.helmCrest ?? o.helm);
+      if (o.helmNasal) b.box(0.04, 0.18, 0.03, 0, 0.66, 0.14, o.helm);
       if (o.horns) for (const sx of [-1, 1]) b.box(0.06, 0.26, 0.06, sx * 0.19, 0.98, 0, 0xd8d2c0, 0, 0, -sx * 0.5);
+      if (o.helmWings) for (const sx of [-1, 1]) b.box(0.03, 0.3, 0.16, sx * 0.17, 0.9, -0.03, o.helmWings, 0, -0.25, -sx * 0.35);
     }
     if (o.badge) b.box(0.16, 0.16, 0.02, 0, 0.3, 0.145, o.badge);        // the Red Eye, daubed on the breast
     if (o.quiver) b.box(0.13, 0.55, 0.13, 0.16, 0.1, -0.2, o.quiver, 0, 0, 0.25);
@@ -80,7 +94,7 @@ export function makeFigure(o) {
       b.box(0.56, 1.05, 0.05, 0, -0.45, -0.19, o.cloak, 0, 0.07);
     }
     if (o.bow) {
-      b.box(0.04, 1.2, 0.04, 0.1, -0.1, -0.26, 0x6b4a2a, 0, 0, 0.45);
+      b.box(0.04, 1.2, 0.04, 0.1, -0.1, -0.26, o.heldBow ?? 0x6b4a2a, 0, 0, 0.45);
       b.box(0.1, 0.5, 0.1, -0.14, 0.15, -0.27, 0x5a4030, 0, 0, -0.3);
     }
   }, 0.92, g);
@@ -88,17 +102,33 @@ export function makeFigure(o) {
   // Weapons are separate meshes so they can be shown and hidden.
   if (o.blade) {
     const b = new GeoBuilder(3, 0.03);
-    b.box(0.05, 0.02, 0.9, 0, -0.75, 0.52, o.blade);
-    b.box(0.2, 0.04, 0.05, 0, -0.76, 0.08, 0x3a3028);
-    b.box(0.05, 0.05, 0.16, 0, -0.77, -0.02, 0x4a3828);
+    const shape = o.bladeShape ?? 'straight', hilt = o.hilt ?? 0x3a3028;
+    if (shape === 'curved') { // a curved blade: segments that sweep up toward the point
+      for (let k = 0; k < 5; k++) b.box(0.05 - k * 0.004, 0.022, 0.2, 0, -0.75 + 0.012 * k * k, 0.17 + 0.18 * k, o.blade, 0, -0.06 * k);
+    } else if (shape === 'broad') {
+      b.box(0.08, 0.025, 0.62, 0, -0.75, 0.38, o.blade);
+      b.box(0.1, 0.025, 0.28, 0, -0.75, 0.82, o.blade);        // widening toward the point
+    } else {
+      const len = shape === 'long' ? 1.15 : shape === 'knife' ? 0.55 : 0.9;
+      b.box(0.05, 0.02, len, 0, -0.75, 0.07 + len / 2, o.blade);
+    }
+    b.box(shape === 'knife' ? 0.14 : 0.2, 0.04, 0.05, 0, -0.76, 0.08, hilt);
+    b.box(0.05, 0.05, shape === 'long' ? 0.24 : 0.16, 0, -0.77, shape === 'long' ? -0.06 : -0.02, 0x4a3828);
+    b.box(0.07, 0.07, 0.06, 0, -0.78, shape === 'long' ? -0.2 : -0.12, hilt);  // pommel
     g.sword = b.mesh();
     limbs.armR.add(g.sword);
   }
   if (o.heldBow) {
     const b = new GeoBuilder(4, 0.03);
-    b.box(0.035, 0.62, 0.035, 0, -0.72, 0.1, o.heldBow, 0, 0.32);
-    b.box(0.035, 0.62, 0.035, 0, -1.3, 0.1, o.heldBow, 0, -0.32);
-    b.box(0.008, 1.1, 0.008, 0, -1.27, -0.07, 0xd8d2c0);
+    const limb = o.bowLong ? 0.76 : 0.62;
+    b.box(0.035, limb, 0.035, 0, -0.72 - (limb - 0.62) * 0.15, 0.1, o.heldBow, 0, 0.32);
+    b.box(0.035, limb, 0.035, 0, -1.3 - (limb - 0.62) * 0.85, 0.1, o.heldBow, 0, -0.32);
+    if (o.bowTips) {
+      b.box(0.045, 0.14, 0.045, 0, -0.72 + limb * 0.86, 0.1 - limb * 0.3, o.bowTips, 0, 0.32);
+      b.box(0.045, 0.14, 0.045, 0, -1.3 - (limb - 0.62) * 0.85 - 0.02, 0.1 - limb * 0.3, o.bowTips, 0, -0.32);
+      b.box(0.05, 0.12, 0.05, 0, -1.0, 0.11, o.bowTips);      // and the grip
+    }
+    b.box(0.008, 1.1 + (limb - 0.62) * 1.7, 0.008, 0, -1.27 - (limb - 0.62) * 0.85, -0.07, 0xd8d2c0);
     g.heldBow = b.mesh();
     g.heldBow.position.y = 0.55;
     limbs.armL.add(g.heldBow);
@@ -142,6 +172,23 @@ export function animateFigure(fig, speed, dt, time, pose) {
     if (pose.armR !== undefined) l.armR.rotation.x = pose.armR;
     if (pose.armL !== undefined) l.armL.rotation.x = pose.armL;
   }
+}
+
+/** The ranger as their gear makes them look. */
+export function rangerLook(equipped) {
+  const o = { ...LOOKS.ranger };
+  const sword = ITEMS[equipped.sword]?.look, bow = ITEMS[equipped.bow]?.look;
+  const body = ITEMS[equipped.body]?.look, helm = ITEMS[equipped.helm]?.look, legs = ITEMS[equipped.legs]?.look;
+  if (sword) Object.assign(o, { blade: sword.blade, hilt: sword.hilt, bladeShape: sword.shape });
+  if (bow) Object.assign(o, { heldBow: bow.wood, bowTips: bow.tips, bowLong: bow.long });
+  if (body) {
+    o.tunic = body.tunic; o.sleeve = body.sleeve;
+    if (body.mail) o.mail = body.mail;
+    if (body.badge) o.badge = body.badge;
+  }
+  if (helm) Object.assign(o, { hood: false, helm: helm.color, helmCrest: helm.crest, helmNasal: helm.nasal, helmWings: helm.wings });
+  if (legs) o.greaves = legs.color;
+  return o;
 }
 
 export const LOOKS = {

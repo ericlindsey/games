@@ -63,7 +63,7 @@ src/
     relicSites.js     44 lesser ruins (pure)
     paths.js          the old paths joining everything (pure)
     campSites.js      the enemy camps, blight (pure)
-    herbSites.js      where kingsfoil grows (pure)
+    herbSites.js      where kingsfoil and the seed plants grow (pure)
     forest.js         forest density, heather thicket density (pure)
     groundColor.js    ground colour by place, height, slope (pure)
     collision.js      solids (boxes: wall + floor), circles (trunks), hollows (cave) (pure)
@@ -77,15 +77,16 @@ src/
     farms.js          builds the old farms and hamlets from oldworks.js
     camps.js          builds the camps from campSites.js
     relics.js         builds the lesser ruins and the waymarks on paths
-    herbs.js          draws kingsfoil; gathering
+    herbs.js          draws kingsfoil and the seed plants; gathering
     build.js          GeoBuilder and other geometry helpers
   entities/           player.js (ranger + camera rig), enemies.js (spawning and AI), figure.js
   input/input.js      keyboard, mouse and touch -> one input state
   ui/                 hud.js (compass, vitals, tracker, notices), panels.js (dialogue, map, pack, trade, menu)
   systems/
     save.js           the only code that touches localStorage
-    inventory.js      pack, gear, healing, buying, selling, loot tables (pure)
-    quests.js         reads data/quests.js against the saved state (pure)
+    inventory.js      pack, gear, wear and honing, healing, buying, selling, loot tables (pure)
+    quests.js         reads data/quests.js against the saved state; builds errands, hints (pure)
+    renown.js         renown points and levels; what deeds are worth; how the enemy grows (pure)
     combat.js         the ranger's sword and bow, arrows in flight, health, loot bags
   util/noise.js       hashing, value noise, seeded RNG
 tests/
@@ -125,9 +126,10 @@ Rules of thumb:
   mountains. The fall faces **west** (it is the Window of the Sunset). The pool is
   walled in by cliffs and cannot be seen until you stand over it. The stream leaves
   by a deep narrow cut running west, which runs out to ground level about 350 m
-  downstream. One stair runs along the south wall: up from the pool to the cave door,
-  where it forks and a second flight climbs on to the rim and the forest. There must always be a walkable way out of the basin;
-  tests/smoke.mjs walks both.
+  downstream. One stair runs along the south wall: up from the pool to the cave door.
+  From the cave a hidden stair climbs through the rock to a hole in the forest floor
+  above, half behind bushes; no path leads to it. There must always be a walkable way
+  out of the basin; tests/smoke.mjs walks both.
 - Ithilien was the garden of Gondor: farmland and villages, now long abandoned and
   half taken back by forest. Great trees "planted long ago" stand 25-38 m tall over
   a riot of younger growth; old field walls, roofless houses and rows of planted
@@ -159,7 +161,12 @@ Rules of thumb:
   health, which calls `onCampCleared` in main.js. Do not add other routes.
 - Tasks are data (`data/quests.js`). Progress is computed from the saved state
   each time it is asked for, so there are no counters to keep in step. A new
-  kind of objective needs a case in `systems/quests.js` `progress()`.
+  kind of objective needs a case in `systems/quests.js` `progress()` (and in
+  `hintTarget()` if it has a place). Errands are built from templates when
+  offered and saved whole while in hand, with any starting count (`base`).
+- Renown is a level worked out from points (`state.honour`); only
+  `addHonour()` changes them. Gear, prices and renown gates are balanced to
+  stretch over the whole game: the best gear should come near renown 50.
 - The economy is deliberately lean (loot tables in `systems/inventory.js`, prices
   in `data/items.js`, quest rewards in `data/quests.js`). After playtest, 23 camps
   gave 126 arrows and 767 silver, which was too much; keep that in mind when adding loot.

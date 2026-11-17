@@ -8,7 +8,8 @@ import { CAMPS } from '../world/campSites.js';
 import { SITES } from '../world/oldworks.js';
 import { PATHS } from '../world/paths.js';
 import { RELICS } from '../world/relicSites.js';
-import { ITEMS, SHOP } from '../data/items.js';
+import { ITEMS, SHOP, SLOTS, SLOT_NAMES, REPAIR } from '../data/items.js';
+import { progressOf, MAX_RENOWN } from '../systems/renown.js';
 import * as inv from '../systems/inventory.js';
 import * as quests from '../systems/quests.js';
 
@@ -22,6 +23,16 @@ const PICTURES = {
       ${[[60, 30, 58], [44, 40, 52], [77, 38, 54], [52, 22, 46], [70, 20, 44]].map(([x, y, top]) => `<path d="M${x} ${y + 8} Q${(x + 60) / 2} ${(top + 92) / 2 + 10} 60 88" stroke="#5f7a48"/>
         <g transform="translate(${x} ${y})" fill="#fffdf4">${[0, 72, 144, 216, 288].map((a) => `<path transform="rotate(${a})" d="M0 0 L-2.6 -5 L0 -10 L2.6 -5 Z"/>`).join('')}<circle r="1.8" fill="#e8c95a"/></g>`).join('')}
     </g></svg><figcaption>Kingsfoil. Look for the glimmer.</figcaption></figure>`,
+  seeds: `<figure style="margin:0"><svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#4a3d28" stroke-width="1.4" stroke-linecap="round">
+      <g transform="translate(30 34)"><path d="M0 18 L0 -4" stroke="#6a7a48"/>${[-8, -2, 4].map((y, i) => `<ellipse cx="${i % 2 ? 5 : -5}" cy="${y}" rx="5" ry="3.4" fill="#a784c4"/>`).join('')}</g>
+      <g transform="translate(88 34)"><path d="M0 18 L0 0" stroke="#5a4030"/><ellipse cx="0" cy="-4" rx="13" ry="9" fill="#2f5a2a"/>${[[-6, 0], [4, -6], [7, 2], [-2, -9]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.6" fill="#2a1a30"/>`).join('')}</g>
+      <g transform="translate(30 90)">${[-8, 0, 8].map((x, i) => `<path d="M${x} 16 Q${x + 2} 2 ${x} -${6 + i * 3}" fill="none" stroke="#5f8a42"/><ellipse cx="${x}" cy="-${8 + i * 3}" rx="4.6" ry="3.6" fill="#d8302a"/>`).join('')}</g>
+      <g transform="translate(88 90)"><path d="M0 18 L0 2" stroke="#6a6050"/><ellipse cx="0" cy="-3" rx="15" ry="8" fill="#7a8a62"/>${[[-7, 1], [5, -4], [8, 3]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="2.4" ry="3.2" fill="#3a3428"/>`).join('')}</g>
+    </g>
+    <g font-family="Georgia, serif" font-style="italic" font-size="9" fill="#4a3d28" text-anchor="middle">
+      <text x="30" y="60">thyme</text><text x="88" y="60">bay</text><text x="30" y="116">poppy</text><text x="88" y="116">olive</text>
+    </g></svg><figcaption>Seed for the gardens. Look for a gold glimmer.</figcaption></figure>`,
 };
 
 export class DialoguePanel {
@@ -121,10 +132,13 @@ export class MapPanel {
    * @param places old places the ranger may travel to: [{ id, name, x, z }]
    * @param inFight true if the enemy has seen the ranger (no travelling then)
    */
-  show(state, player, places = [], inFight = false) {
+  show(state, player, places = [], inFight = false, opts = {}) {
     this.places = places;
-    const hint = $('map-hint');
-    hint.textContent = !places.length ? 'The old places you find are marked here. You can travel to them by the old ways.'
+    const hint = $('map-hint'), title = $('map-title');
+    title.hidden = !opts.title;
+    title.textContent = opts.title ?? '';
+    hint.textContent = opts.scouted ? 'The red rings are camps his scouts have seen. They are copied onto your map.'
+      : !places.length ? 'The old places you find are marked here. You can travel to them by the old ways.'
       : inFight ? 'Not while the enemy has seen you.' : 'Click an old place to travel there, or Henneth Ann\u00fbn to go home.';
     if (!this.base) this.drawBase();
     const scale = 0.3; // canvas pixels per metre
@@ -179,6 +193,16 @@ export class MapPanel {
       if (!t.target) continue;
       ctx.strokeStyle = t.done ? '#b8902a' : '#2f6b2a'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(t.target.x * scale, t.target.z * scale, 9, 0, 7); ctx.stroke();
+    }
+    // camps Faramir has told of and the ranger has not yet found: a red ring, a broken one if only told
+    for (const c of CAMPS) {
+      if (state.discovered.includes('camp:' + c.id) || state.cleared.includes(c.id)) continue;
+      const fresh = opts.scouted?.includes(c);
+      if (!fresh && !state.told.includes(c.id)) continue;
+      ctx.strokeStyle = '#8a2a22'; ctx.lineWidth = fresh ? 2.5 : 1.5;
+      ctx.setLineDash(fresh ? [] : [3, 2]);
+      ctx.beginPath(); ctx.arc(c.x * scale, c.z * scale, fresh ? 8 : 6, 0, 7); ctx.stroke();
+      ctx.setLineDash([]);
     }
     for (const c of CAMPS) {
       if (!state.discovered.includes('camp:' + c.id)) continue;
@@ -279,7 +303,16 @@ function empty(parent, text) {
   el.textContent = text;
   parent.append(el);
 }
-const itemNote = (it) => (it.damage ? `Damage ${it.damage}. ` : it.defence ? `Turns ${Math.round(it.defence * 100)}% of each blow. ` : it.heal ? `Restores ${it.heal}. ` : '') + it.text;
+const itemNote = (it) => (it.damage ? `${SLOT_NAMES[it.slot]}, damage ${it.damage}. ` : it.defence ? `${SLOT_NAMES[it.slot]}: turns ${Math.round(it.defence * 100)}% of each blow. ` : it.heal ? `Restores ${it.heal}. ` : '') + it.text;
+/** A little bar showing how sound a weapon is. */
+function condBar(el, c) {
+  const bar = document.createElement('span');
+  bar.className = 'cond' + (c <= 0.5 ? ' low' : '');
+  bar.title = `${Math.round(c * 100)}% sound`;
+  const fill = document.createElement('div'); fill.style.width = Math.round(c * 100) + '%';
+  bar.append(fill);
+  el.querySelector('.what b').after(bar);
+}
 
 /** The ranger's pack: tasks, gear and goods. */
 export class PackPanel {
@@ -299,22 +332,34 @@ export class PackPanel {
   }
   draw() {
     const st = this.state;
-    $('pack-purse').textContent = `${st.silver} silver \u00b7 ${st.arrows} arrows \u00b7 health ${Math.round(st.health)} of 100 \u00b7 renown ${st.renown}`;
+    $('pack-purse').textContent = `${st.silver} silver \u00b7 ${st.arrows} arrows \u00b7 health ${Math.round(st.health)} of 100`;
+    const r = progressOf(st.honour ?? 0);
+    $('renown-label').textContent = r.level >= MAX_RENOWN ? `Renown ${r.level}: there is no one in Ithilien whose name is better known.`
+      : `Renown ${r.level} \u00b7 ${r.have} of ${r.need} toward ${r.level + 1}`;
+    $('renown-fill').style.width = Math.round(r.frac * 100) + '%';
     const tasks = $('pack-tasks'); tasks.replaceChildren();
     for (const id of st.quests.active) {
-      const q = quests.byId[id], p = quests.progress(q.objective, st), done = p.have >= p.need;
+      const q = quests.questOf(st, id);
+      if (!q) continue;
+      const p = quests.progress(q.objective, st), done = p.have >= p.need;
       const el = row(tasks, q.title, done ? `Done. Return to ${q.giver === 'faramir' ? 'Faramir' : '\u00c9owyn'}.` : q.remind, [], 'task' + (done ? ' done' : ''));
       const bar = document.createElement('div'); bar.className = 'bar';
-      const fill = document.createElement('div'); fill.style.width = Math.min(100, (p.have / p.need) * 100) + '%';
+      const fill = document.createElement('div'); fill.style.width = Math.max(0, Math.min(100, (p.have / p.need) * 100)) + '%';
       bar.append(fill); el.firstChild.append(bar);
     }
     if (!st.quests.active.length) empty(tasks, st.quests.done.length ? 'No task in hand. Faramir and \u00c9owyn may have more.' : 'No task yet. Speak with Faramir or \u00c9owyn.');
-    if (st.quests.done.length) empty(tasks, `Done: ${st.quests.done.map((id) => quests.byId[id].title).join(', ')}.`);
+    if (st.quests.done.length) empty(tasks, `Done: ${st.quests.done.map((id) => quests.byId[id]?.title).filter(Boolean).join(', ')}.`);
+    const errands = Object.values(st.quests.count ?? {}).reduce((a, b) => a + b, 0);
+    if (errands) empty(tasks, `Errands run: ${errands}.`);
 
     const gear = $('pack-gear'); gear.replaceChildren();
-    for (const [slot, label] of [['sword', 'Sword'], ['bow', 'Bow'], ['armour', 'Armour']]) {
-      const id = st.equipped[slot];
-      row(gear, id ? ITEMS[id].name : `No ${label.toLowerCase()}`, id ? itemNote(ITEMS[id]) : 'Nothing worn.');
+    for (const slot of SLOTS) {
+      const id = st.equipped[slot], it = ITEMS[id];
+      if (!it) { row(gear, `No ${SLOT_NAMES[slot].toLowerCase()}`, 'Nothing worn.'); continue; }
+      const up = inv.honed(st, id);
+      const buttons = slot === 'sword' || slot === 'bow' ? [] : [['Take off', () => { inv.unequip(st, slot); this.h.onChange(); this.draw(); }]];
+      const el = row(gear, it.name + (up ? ` +${up}` : ''), itemNote(it), buttons);
+      if (it.damage) condBar(el, inv.condition(st, id));
     }
     const items = $('pack-items'); items.replaceChildren();
     const ids = Object.keys(st.items);
@@ -322,6 +367,10 @@ export class PackPanel {
       const it = ITEMS[id], n = st.items[id], buttons = [];
       if (it.slot) buttons.push([it.slot === 'armour' ? 'Wear' : 'Wield', () => { inv.equip(st, id); this.h.onChange(); this.draw(); }]);
       if (it.kind === 'heal') buttons.push(['Use', () => { inv.useItem(st, id); this.h.onChange(); this.draw(); }, st.health >= 100]);
+      if (it.kind === 'kit') {
+        const target = st.equipped[it.mends];
+        buttons.push([st.skills?.repair ? 'Use' : 'Not learnt', () => { inv.useKit(st, id); this.h.onChange(); this.draw(); }, !st.skills?.repair || !target || inv.condition(st, target) > 0.98]);
+      }
       row(items, n > 1 ? `${it.name} \u00d7${n}` : it.name, itemNote(it), buttons);
     }
     if (!ids.length) empty(items, 'Empty.');
@@ -351,7 +400,23 @@ export class TradePanel {
   }
   draw() {
     const st = this.state;
-    $('trade-purse').textContent = `You have ${st.silver} silver. Renown ${st.renown}: finish tasks and he will bring out better things.`;
+    $('trade-purse').textContent = `You have ${st.silver} silver. Renown ${st.renown}: as your name grows he will bring out better things.`;
+    const bench = $('trade-bench'); bench.replaceChildren();
+    const redraw = () => { this.h.onChange(); this.draw(); };
+    for (const slot of ['sword', 'bow']) {
+      const id = st.equipped[slot], it = ITEMS[id];
+      if (!it) continue;
+      const price = inv.repairPrice(st, id), step = inv.honeStep(st, id), up = inv.honed(st, id);
+      const buttons = [[price ? `Mend \u00b7 ${price}` : 'Sound', () => { inv.repair(st, id); redraw(); }, !price || st.silver < price]];
+      if (step) buttons.push([`${slot === 'sword' ? 'Hone' : 'Restring'} +${up + 1} \u00b7 ${step.price}`, () => { inv.hone(st, id); redraw(); }, st.renown < step.renown || st.silver < step.price]);
+      const note = `${Math.round(inv.condition(st, id) * 100)}% sound. ` + (step ? (st.renown < step.renown ? `He will ${slot === 'sword' ? 'hone it' : 'fit a better string'} when your renown reaches ${step.renown}.` : `${slot === 'sword' ? 'A finer edge' : 'A better string'}: +1 damage.`) : 'It is as good as he can make it.');
+      const el = row(bench, it.name + (up ? ` +${up}` : ''), note, buttons);
+      condBar(el, inv.condition(st, id));
+    }
+    if (!st.skills?.repair) {
+      row(bench, 'Learn to mend your own gear', st.renown >= REPAIR.teachRenown ? 'He will show you how to use a whetstone and fit a string in the field. Then he will sell you the kits.' : `He will teach you when your renown reaches ${REPAIR.teachRenown}.`,
+        [[`Learn \u00b7 ${REPAIR.teachPrice}`, () => { inv.learnRepair(st); redraw(); }, !inv.canLearnRepair(st) || st.silver < REPAIR.teachPrice]]);
+    }
     const buy = $('trade-buy'); buy.replaceChildren();
     for (const e of inv.shopFor(st)) {
       const price = inv.buyPrice(e), it = ITEMS[e.item], owned = it?.slot && inv.owns(st, e.item);

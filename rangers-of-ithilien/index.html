@@ -57,6 +57,7 @@
     <div class="panel pack-panel">
       <div class="pack-head"><h2>Pack and tasks</h2><button id="pack-close">Close</button></div>
       <div id="pack-purse"></div>
+      <div id="pack-renown"><div id="renown-label"></div><div class="bar"><div id="renown-fill"></div></div></div>
       <h3>Tasks</h3>
       <div id="pack-tasks"></div>
       <h3>Worn and wielded</h3>
@@ -70,6 +71,8 @@
     <div class="panel pack-panel">
       <div class="pack-head"><h2>Mablung&rsquo;s stores</h2><button id="trade-close">Close</button></div>
       <div id="trade-purse"></div>
+      <h3>At the bench</h3>
+      <div id="trade-bench"></div>
       <h3>He will sell</h3>
       <div id="trade-buy"></div>
       <h3>He will buy</h3>
@@ -81,6 +84,7 @@
 
   <div id="map" class="overlay" hidden>
     <div class="panel map-panel">
+      <div id="map-title" hidden></div>
       <canvas id="map-canvas"></canvas>
       <div id="map-hint"></div>
       <button id="map-close">Close</button>

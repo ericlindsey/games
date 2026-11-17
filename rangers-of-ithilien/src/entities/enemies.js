@@ -11,6 +11,7 @@ import { heightAt } from '../world/terrain.js';
 import { groundAt, blockedBySolid, resolveCircles } from '../world/collision.js';
 import { makeFigure, animateFigure, LOOKS } from './figure.js';
 import { ENEMY_TYPES, rosterFor, patrolRoster } from '../data/enemies.js';
+import { enemyStrength } from '../systems/renown.js';
 import { haradRoadX } from '../world/layout.js';
 import { dangerTier } from '../world/regions.js';
 
@@ -44,14 +45,14 @@ export class Enemies {
    */
   spawnPatrol(z, dir, forced) {
     const x = haradRoadX(z);
-    const { list, host } = forced ?? patrolRoster(dangerTier(x - 60, z), this.rand);
+    const { list, host } = forced ?? patrolRoster(dangerTier(x - 60, z), this.rand, this.api.renown?.() ?? 0);
     const camp = { id: 'patrol' + ++this.patrolCount, x, z, tier: Math.max(2, dangerTier(x - 60, z)), size: 2, patrol: { dir, host } };
     this.spawnCamp(camp, list);
     if (host) this.api.onHost?.(camp);
     return camp;
   }
 
-  spawnCamp(camp, roster = rosterFor(camp)) {
+  spawnCamp(camp, roster = rosterFor(camp, this.api.renown?.() ?? 0)) {
     const rand = rng(Math.round(camp.x + camp.z * 7));
     this.camps.set(camp.id, { alive: roster.length, camp });
     roster.forEach((type, i) => {
@@ -68,11 +69,12 @@ export class Enemies {
       bar.center.set(0, 0.5);
       bar.visible = false;
       this.scene.add(fig, bar);
-      const tough = 1 + 0.18 * (camp.tier - 1);
+      const str = enemyStrength(this.api.renown?.() ?? 0); // they grow harder as the ranger's name grows
+      const tough = (1 + 0.18 * (camp.tier - 1)) * str.hp;
       this.list.push({
         type, def, camp, fig, material, bar,
         x, z, y: heightAt(x, z), yaw: a + Math.PI, home: { x, z },
-        hp: def.hp * tough, maxHp: def.hp * tough, damage: def.damage * (1 + 0.14 * (camp.tier - 1)),
+        hp: def.hp * tough, maxHp: def.hp * tough, damage: def.damage * (1 + 0.14 * (camp.tier - 1)) * str.damage,
         state: 'idle', timer: rand() * 3, cooldown: 0, speed: 0, alerted: false, flash: 0, dead: false, deathT: 0,
         side: rand() < 0.5 ? -1 : 1, stuck: 0,
         vy: 0, air: false, check: { t: 0, x, z }, stuckFor: 0,

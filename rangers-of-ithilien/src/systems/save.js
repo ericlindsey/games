@@ -3,7 +3,8 @@
 
 import { SAVE, WORLD } from '../config.js';
 import { HA } from '../world/layout.js';
-import { ITEMS } from '../data/items.js';
+import { ITEMS, SLOTS } from '../data/items.js';
+import { levelFor } from './renown.js';
 
 export function newState() {
   return {
@@ -13,17 +14,25 @@ export function newState() {
     discovered: ['henneth'],
     cleared: [],
     settings: { quality: null },
-    stats: { playSeconds: 0, kills: 0, deaths: 0 },
+    stats: { playSeconds: 0, kills: 0, deaths: 0, bands: 0 },
     // the ranger
     health: 100,
     weapon: 'sword',
     arrows: 24,
     silver: 0,
+    honour: 0,  // renown points; `renown` is the level they make (systems/renown.js)
     renown: 0,
     items: { waybread: 2 },
-    equipped: { sword: 'rangerSword', bow: 'rangerBow', armour: null },
-    quests: { active: [], done: [] },
-    picked: [], // kingsfoil plants already gathered
+    equipped: { sword: 'rangerSword', bow: 'rangerBow', body: null, helm: null, legs: null },
+    wear: {},   // item id -> condition, 1 new to 0 worn out (swords and bows)
+    honed: {},  // item id -> times honed or restrung, 0 to 3
+    skills: {}, // { repair: true } once Mablung has taught it
+    // tasks: told tasks by id; errands kept whole while in hand; how many errands
+    // each giver has had done; how often each task has been asked after; marks
+    // a giver has put on the map
+    quests: { active: [], done: [], errands: [], count: {}, asked: {}, marks: {} },
+    told: [],   // camps Faramir has marked from his own map
+    picked: [], // plants already gathered
   };
 }
 
@@ -36,7 +45,10 @@ export function migrate(raw) {
   const s = newState();
   // v1 -> v2: the world was reshaped (2 km by 4 km, new camps), so places and
   // progress from v1 no longer mean anything. Only the settings carry over.
-  if (raw.version === 1) raw = { version: 2, settings: raw.settings };
+  // v3 -> v4 rebuilt the gear, renown and tasks (more of everything, spread
+  // across the whole game), so a v3 ranger's progress no longer fits either:
+  // again only the settings carry over (the player agreed to begin again).
+  if (raw.version < 4) raw = { version: 4, settings: raw.settings };
   const p = raw.player;
   if (p && num(p.x) && num(p.z) && p.x >= 0 && p.x <= WORLD.width && p.z >= 0 && p.z <= WORLD.length) {
     s.player = { x: p.x, z: p.z, heading: num(p.heading) ? p.heading : 0 };
@@ -46,22 +58,35 @@ export function migrate(raw) {
   s.cleared = [...new Set(strings(raw.cleared))];
   if (raw.settings && ['low', 'medium', 'high'].includes(raw.settings.quality)) s.settings.quality = raw.settings.quality;
   if (raw.stats) for (const k of ['playSeconds', 'kills', 'deaths']) if (num(raw.stats[k])) s.stats[k] = raw.stats[k];
-  // v2 -> v3 added the ranger's health, gear, pack and tasks. A v2 save has none
-  // of these, so it simply keeps the defaults above.
   if (num(raw.health)) s.health = Math.max(1, Math.min(100, raw.health));
   if (raw.weapon === 'bow') s.weapon = 'bow';
-  for (const k of ['arrows', 'silver', 'renown']) if (num(raw[k]) && raw[k] >= 0) s[k] = Math.floor(raw[k]);
+  for (const k of ['arrows', 'silver', 'honour']) if (num(raw[k]) && raw[k] >= 0) s[k] = Math.floor(raw[k]);
+  s.renown = levelFor(s.honour);
+  if (num(raw.stats?.bands)) s.stats.bands = raw.stats.bands;
   if (raw.items && typeof raw.items === 'object') {
     s.items = {};
     for (const [id, n] of Object.entries(raw.items)) if (ITEMS[id] && num(n) && n > 0) s.items[id] = Math.floor(n);
   }
   if (raw.equipped && typeof raw.equipped === 'object') {
-    for (const slot of ['sword', 'bow', 'armour']) {
+    for (const slot of SLOTS) {
       const id = raw.equipped[slot];
-      if (id === null || ITEMS[id]?.slot === slot) s.equipped[slot] = id;
+      if ((id === null && slot !== 'sword' && slot !== 'bow') || ITEMS[id]?.slot === slot) s.equipped[slot] = id;
     }
   }
-  if (raw.quests) { s.quests.active = strings(raw.quests.active); s.quests.done = strings(raw.quests.done); }
+  for (const k of ['wear', 'honed']) {
+    if (raw[k] && typeof raw[k] === 'object') for (const [id, v] of Object.entries(raw[k])) if (ITEMS[id] && num(v)) s[k][id] = k === 'wear' ? Math.max(0, Math.min(1, v)) : Math.max(0, Math.min(3, Math.floor(v)));
+  }
+  if (raw.skills?.repair === true) s.skills.repair = true;
+  const q = raw.quests;
+  if (q) {
+    s.quests.done = strings(q.done);
+    if (Array.isArray(q.errands)) s.quests.errands = q.errands.filter((e) => e && typeof e.id === 'string' && typeof e.giver === 'string' && e.objective?.type && e.reward);
+    const ids = new Set(s.quests.errands.map((e) => e.id));
+    s.quests.active = strings(q.active).filter((id) => !id.startsWith('x') || ids.has(id));
+    for (const k of ['count', 'asked']) if (q[k] && typeof q[k] === 'object') for (const [id, v] of Object.entries(q[k])) if (num(v)) s.quests[k][id] = Math.floor(v);
+    if (q.marks && typeof q.marks === 'object') for (const [id, m] of Object.entries(q.marks)) if (num(m?.x) && num(m?.z)) s.quests.marks[id] = { x: m.x, z: m.z };
+  }
+  s.told = strings(raw.told);
   s.picked = strings(raw.picked);
   s.savedAt = num(raw.savedAt) ? raw.savedAt : 0;
   return s;
