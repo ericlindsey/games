@@ -154,7 +154,11 @@ async function boot() {
     isCleared: (id) => state.cleared.includes(id),
     hurtPlayer: (amount) => combat.hurt(amount),
     shoot: (from, to, damage) => combat.shoot(from, to, damage, 27, false),
-    onKill: (e) => { state.stats.kills++; combat.dropLoot(e); honour(HONOUR.kill[e.type] ?? 1); },
+    onKill: (e) => { state.stats.kills++; combat.dropLoot(e); honour(HONOUR.kill[e.type] ?? 1); hud.callout(`${e.def.name} felled`, 'felled'); },
+    onSpotted: (camp, how) => hud.callout(
+      camp.patrol ? (camp.patrol.host ? 'The host has seen you!' : 'The band on the road has seen you!')
+        : how === 'struck' ? (camp.size >= 3 ? 'The stockade is roused!' : 'The camp is roused!')
+        : camp.size >= 3 ? 'The stockade has seen you!' : 'They have seen you!', 'seen'),
     renown: () => state.renown,
     onHost: () => hud.toast('A host on the road', 'Too many for one bow. Get off the road and let them pass.'),
     onPatrolBeaten: (camp) => {

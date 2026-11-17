@@ -507,6 +507,10 @@ up a band or a host on the road.
   no stream sample has water below the ground (it was 10%).
 - The hidden stair, the ledge, the gear, renown, errands, hints and Faramir's
   map, as above.
+- Fight call-outs: a short line below the middle of the screen says when a camp
+  or road band first sees the ranger (or is roused by a blow), and names each
+  enemy felled ("Orc archer felled"). Up to three lines; each fades in about
+  three seconds.
 
 ### Known gaps to pick up
 

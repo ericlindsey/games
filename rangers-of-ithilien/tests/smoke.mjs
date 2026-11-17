@@ -235,6 +235,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(true, 'enemies stand at an uncleared camp');
   await page.waitForFunction(() => roi.enemies.list.some((e) => e.alerted), null, { timeout: 30000 });
   check(true, 'they notice the ranger');
+  check(/seen you|roused/.test(await page.textContent('#callout')), 'and the HUD says so');
   await page.keyboard.down('KeyF');
   const drewBlood = await page.waitForFunction(() => roi.enemies.list.some((e) => e.hp < e.maxHp), null, { timeout: 60000 }).then(() => true, () => false);
   check(drewBlood, 'the sword wounds them');
@@ -243,6 +244,8 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.waitForFunction(() => roi.state.stats.kills >= 1 || roi.state.health < 30, null, { timeout: 90000 });
   await page.keyboard.up('KeyF');
   check(await page.evaluate(() => roi.state.stats.kills >= 1), 'an enemy can be killed with the sword');
+  check(/(Orc|archer|Uruk|Southron|Captain) felled/.test(await page.textContent('#callout')), 'and the HUD names the fallen');
+  await shot(page, 'felled');
   await shot(page, 'fight');
   // finish the rest by decree, to keep the test short
   await page.evaluate(() => { for (const e of [...roi.enemies.list]) roi.enemies.damage(e, 9999); });

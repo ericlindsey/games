@@ -101,6 +101,21 @@ export class Hud {
     this.hurtTimer = setTimeout(() => this.hurt.classList.remove('on'), 90);
   }
 
+  /**
+   * A short line of what happens in a fight ("Orc archer felled", "They have
+   * seen you!"). The newest is at the bottom; each fades after a few seconds.
+   */
+  callout(text, kind = '') {
+    this.calloutEl ??= document.getElementById('callout');
+    const line = document.createElement('div');
+    line.textContent = text;
+    if (kind) line.className = kind;
+    this.calloutEl.append(line);
+    while (this.calloutEl.children.length > 3) this.calloutEl.firstChild.remove();
+    this.callouts ??= [];
+    this.callouts.push({ line, t: 2.8 });
+  }
+
   /** A word by the aiming mark when a chosen shot tells. */
   hitMark(text) {
     // Faded by hand in update() rather than by a CSS animation: restarting a
@@ -138,6 +153,11 @@ export class Hud {
       const t = 1 - Math.max(0, this.hitT) / 1.1;
       this.hitEl.style.opacity = String(1 - t);
       this.hitEl.style.transform = `translate(-50%, ${6 - 24 * t}px)`;
+    }
+
+    if (this.callouts?.length) { // fight call-outs fade on their own
+      for (const c of this.callouts) { c.t -= dt; c.line.style.opacity = String(Math.min(1, c.t / 0.8)); if (c.t <= 0) c.line.remove(); }
+      this.callouts = this.callouts.filter((c) => c.t > 0);
     }
 
     this.toastTimer -= dt;

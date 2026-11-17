@@ -109,6 +109,21 @@ export class Enemies {
     return best;
   }
 
+  /**
+   * The whole company of a camp turns on the ranger. Says so (api.onSpotted)
+   * when a company that was at ease is roused: `how` is 'seen' or 'struck'.
+   */
+  rouse(camp, how) {
+    let woke = false;
+    for (const o of this.list) {
+      if (o.camp !== camp || o.dead) continue;
+      if (!o.alerted) woke = true;
+      o.alerted = true;
+      if (o.state === 'idle' || o.state === 'return') o.state = 'chase';
+    }
+    if (woke) this.api.onSpotted?.(camp, how);
+  }
+
   /** True if any enemy has noticed the ranger. */
   inCombat() { return this.list.some((e) => !e.dead && e.alerted); }
 
@@ -116,10 +131,8 @@ export class Enemies {
     if (e.dead) return;
     e.hp -= amount;
     e.flash = 0.12;
-    e.alerted = true;
-    if (e.state === 'idle' || e.state === 'return') e.state = 'chase';
     this.step(e, e.x + dirX * 0.6, e.z + dirZ * 0.6); // a little knock-back
-    for (const o of this.list) if (o.camp === e.camp && !o.dead) o.alerted = true; // the camp is roused
+    this.rouse(e.camp, 'struck'); // the camp is roused
     if (e.hp > 0) return;
     e.dead = true;
     e.deathT = 0;
@@ -260,7 +273,7 @@ export class Enemies {
       }
 
       if (!e.alerted && alive && dy < 6 && dist < (quiet ? SIGHT_QUIET : SIGHT)) {
-        for (const o of this.list) if (o.camp === e.camp && !o.dead) { o.alerted = true; if (o.state === 'idle') o.state = 'chase'; }
+        this.rouse(e.camp, 'seen');
       }
       if (e.alerted && (fromCamp > LEASH || !alive || (atHome && fromCamp > 40) || dist > 70)) { e.alerted = false; e.state = 'return'; }
       if (e.alerted && e.state === 'idle') e.state = 'chase';
