@@ -4,6 +4,7 @@
 // is loaded in the ordinary game.
 
 import { ITEMS } from './data/items.js';
+import { pointsFor, levelFor, addHonour, MAX_RENOWN } from './systems/renown.js';
 import { QUESTS } from './data/quests.js';
 import { CAMPS } from './world/campSites.js';
 import { LANDMARKS } from './world/layout.js';
@@ -86,24 +87,25 @@ export function attach(g) {
         if (!state.discovered.includes(id)) state.discovered.push(id);
       }
     },
-    'ren-'() { state.renown = Math.max(0, state.renown - 1); },
-    'ren+'() { state.renown++; },
+    // renown moves a whole level at a time, by its points
+    'ren-'() { state.honour = state.renown > 0 ? pointsFor(state.renown - 1) : 0; state.renown = levelFor(state.honour); },
+    'ren+'() { state.honour = pointsFor(Math.min(MAX_RENOWN, state.renown + 1)); state.renown = levelFor(state.honour); },
     silver() { state.silver += 200; },
     arrows() { state.arrows += 50; },
     mend() { state.health = 100; },
     give() { g.inv.addItem(state, $('dev-item').value); },
     kit() {
-      for (const id of ['gondorBlade', 'greatBow', 'ithilienMail']) { g.inv.addItem(state, id); g.inv.equip(state, id); }
+      for (const id of ['guardBlade', 'greatBow', 'citadelMail', 'gondorHelm', 'ironGreaves']) { g.inv.addItem(state, id); g.inv.equip(state, id); }
       g.inv.addItem(state, 'draught', 5);
       state.arrows += 60;
     },
     qtake() { g.quests.accept(state, $('dev-quest').value); },
     qdone() { // finished and rewarded, whatever its objective
-      const id = $('dev-quest').value, q = g.quests.byId[id];
+      const id = $('dev-quest').value, q = g.quests.questOf(state, id);
       state.quests.active = state.quests.active.filter((a) => a !== id);
       if (!state.quests.done.includes(id)) {
         state.quests.done.push(id);
-        state.silver += q.reward.silver ?? 0; state.arrows += q.reward.arrows ?? 0; state.renown += q.reward.renown ?? 0;
+        state.silver += q.reward.silver ?? 0; state.arrows += q.reward.arrows ?? 0; addHonour(state, q.reward.honour ?? 0);
         for (const [item, n] of Object.entries(q.reward.items ?? {})) g.inv.addItem(state, item, n);
       }
     },

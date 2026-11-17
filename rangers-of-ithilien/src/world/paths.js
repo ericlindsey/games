@@ -14,7 +14,7 @@ const S = WORLD.seed;
 // ---- places the paths join ----
 const nodes = [];
 const node = (x, z, road = false) => nodes.push({ x, z, road });
-node(HA.x - 29, HA.z + 26);      // the head of the stair at Henneth Annûn
+// (No path leads to the hidden stair: the old ways start where the stream leaves the cut.)
 const outOfCut = STREAMS.find((s) => s.home === 'lower').points[3];
 node(outOfCut.x, outOfCut.z + 5); // where the stream runs out of the cut
 for (const s of SITES) node(s.x, s.z + (s.kind === 'hamlet' ? 0 : 9));

@@ -60,7 +60,10 @@ function paintGround(x, z, h, slope, out) { groundColor(x, z, h, slope, out); }
 
 // The cliff behind the fall at Henneth Annûn is built by hand, so the terrain
 // leaves a slot for it.
+// So is the stair's hole in the forest floor above the cave.
 function inRockSlot(x, z) {
+  const h = HA.hatch;
+  if (x > h.x0 && x < h.x1 && z > h.z0 && z < h.z1) return true;
   return x > HA.x && x < HA.x + 4 && z > HA.rock.minZ && z < HA.rock.maxZ;
 }
 

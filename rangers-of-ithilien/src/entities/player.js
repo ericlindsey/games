@@ -7,7 +7,7 @@ import { heightAt, WATER_LEVEL } from '../world/terrain.js';
 import { groundAt, terrainAt, blockedBySolid, resolveCircles, pointBlocked } from '../world/collision.js';
 import { southRoadZ } from '../world/layout.js';
 import { regionWeights } from '../world/regions.js';
-import { makeFigure, animateFigure, LOOKS } from './figure.js';
+import { makeFigure, animateFigure, rangerLook } from './figure.js';
 
 /** Edges of the ranger's charge. Returns a line of text if (x, z) is out of bounds. */
 function boundary(x, z) {
@@ -20,9 +20,8 @@ function boundary(x, z) {
 
 export class Player {
   constructor(scene) {
-    this.figure = makeFigure(LOOKS.ranger);
-    this.figure.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-    scene.add(this.figure);
+    this.scene = scene;
+    this.dress({});
     this.pos = new THREE.Vector3();
     this.yaw = 0;
     this.vy = 0;
@@ -30,6 +29,22 @@ export class Player {
     this.onGround = true;
     this.onNotice = () => {};
     this.noticeCooldown = 0;
+  }
+
+  /** Dress the ranger in their gear (state.equipped): what they wear and wield shows. */
+  dress(equipped) {
+    const old = this.figure, f = makeFigure(rangerLook(equipped));
+    f.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    if (old) {
+      f.position.copy(old.position);
+      f.rotation.copy(old.rotation);
+      f.visible = old.visible;
+      f.userData.phase = old.userData.phase;
+      this.scene.remove(old);
+      old.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
+    }
+    this.scene.add(f);
+    this.figure = f;
   }
 
   /** Put the ranger at (x, z). `y` picks the floor at that height; omit it for the topmost surface. */

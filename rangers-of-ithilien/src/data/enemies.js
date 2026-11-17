@@ -15,7 +15,7 @@ export const ENEMY_TYPES = {
  * Archers are the dangerous ones to leave alone; the smallest camps near home
  * have none, but most others do.
  */
-export function rosterFor(camp) {
+export function rosterFor(camp, renown = 0) {
   const rand = rng(Math.round(camp.x * 31 + camp.z * 17));
   const strong = () => (camp.tier >= 3 && rand() < 0.5 ? 'haradrim' : 'uruk');
   const list = ['snaga', 'snaga'];
@@ -34,11 +34,14 @@ export function rosterFor(camp) {
     list.push('snaga', 'snaga', 'archer', 'archer', strong(), strong(), strong(), strong(), 'chief');
     if (rand() < 0.5) list.push('archer');
   }
+  // As word of the ranger spreads, the camps take in stragglers and stand to arms.
+  const more = camp.size === 1 ? (renown >= 25 ? 1 : 0) : Math.floor(renown / 15) + (camp.size >= 3 && renown >= 40 ? 1 : 0);
+  for (let i = 0; i < more; i++) list.push(i % 3 === 0 ? 'archer' : i % 3 === 1 ? 'snaga' : strong());
   return list;
 }
 
 /** A band on the road: `host` is the rare great company that a lone ranger should not meet. Pure. */
-export function patrolRoster(tier, rand) {
+export function patrolRoster(tier, rand, renown = 0) {
   if (rand() < 0.12) {
     const list = ['chief'];
     const n = 9 + Math.floor(rand() * 4);
@@ -46,7 +49,7 @@ export function patrolRoster(tier, rand) {
     return { list, host: true };
   }
   const list = ['snaga'];
-  const n = 1 + Math.floor(rand() * 3);
+  const n = 1 + Math.floor(rand() * 3) + Math.floor(renown / 20);
   for (let i = 0; i < n; i++) list.push(rand() < 0.2 ? 'archer' : tier >= 3 && rand() < 0.4 ? 'uruk' : 'snaga');
   return { list, host: false };
 }

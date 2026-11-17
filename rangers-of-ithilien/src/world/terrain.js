@@ -157,9 +157,10 @@ function trace(x, z, dirX, dirZ, firm = 0, home = false) {
     // Streams that may not be joined (the home stream above its fall) push others away.
     for (const st of STREAMS) {
       if (!st.noJoin || home) continue;
+      const R = st.home === 'lower' ? 75 : 40; // keep well clear of the home stream below the cut
       for (const p of st.points) {
         const ax = x - p.x, az = z - p.z, d2 = ax * ax + az * az;
-        if (d2 < 1600 && d2 > 1) { const k = (40 - Math.sqrt(d2)) / 40 * 1.5 / Math.sqrt(d2); dirX += ax * k; dirZ += az * k; }
+        if (d2 < R * R && d2 > 1) { const k = (R - Math.sqrt(d2)) / R * 1.5 / Math.sqrt(d2); dirX += ax * k; dirZ += az * k; }
       }
     }
     const d = Math.hypot(dirX, dirZ) || 1;
@@ -234,7 +235,7 @@ function buildStreams() {
   // Below the cut it finds its own way to the river.
   const lower = trace(cutEnd, cut[cut.length - 1].z, -1, 0, 6, true);
   lower.points[0].bed = cut[cut.length - 1].bed;
-  STREAMS.push({ ...lower, home: 'lower' });
+  STREAMS.push({ ...lower, home: 'lower', noJoin: true }); // the home stream runs to the river on its own
 
   // The others: springs along the foot of the mountains, and a few in the lowlands.
   const springs = [];

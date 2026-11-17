@@ -6,6 +6,7 @@ import { makeNoiseTexture } from './build.js';
 import { WATER_LEVEL, STREAMS, POOLS, inPool, heightAt } from './terrain.js';
 
 export const STREAM_DEPTH = 0.45;
+const nearPool = (x, z) => POOLS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 4);
 const HALF_WIDTH = 2.6;
 
 export class Water {
@@ -38,7 +39,8 @@ export class Water {
       for (const p of st.points) {
         // Lie on the bed; where another stream's deeper valley has taken the
         // ground lower still (near a meeting), follow the ground. Never rise.
-        level = Math.min(level, p.bed, st.home === 'cut' ? Infinity : heightAt(p.x, p.z));
+        // A pool's bowl is deeper than its bed on purpose: do not sink into it.
+        level = Math.min(level, p.bed, st.home === 'cut' || nearPool(p.x, p.z) ? Infinity : heightAt(p.x, p.z));
         if (level + STREAM_DEPTH < WATER_LEVEL + 0.08) break; // it has reached the Great River
         const isIn = inPool(p.x, p.z);
         if (prev && isIn !== prevIn) {

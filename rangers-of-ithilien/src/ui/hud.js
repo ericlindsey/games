@@ -68,7 +68,9 @@ export class Hud {
   setHealth(h) { this.healthFill.style.width = Math.max(0, Math.min(100, h)) + '%'; }
 
   setWeapon(state) {
-    const text = (state.weapon === 'bow' ? `Bow \u00b7 ${state.arrows} arrows` : `Sword \u00b7 ${state.arrows} arrows`) + ` \u00b7 ${state.silver} silver`;
+    const c = state.wear?.[state.equipped[state.weapon]] ?? 1; // a worn weapon is marked, so it is mended in time
+    const worn = c <= 0.2 ? ' (worn)' : c <= 0.5 ? (state.weapon === 'bow' ? ' (slack)' : ' (dull)') : '';
+    const text = (state.weapon === 'bow' ? `Bow${worn} \u00b7 ${state.arrows} arrows` : `Sword${worn} \u00b7 ${state.arrows} arrows`) + ` \u00b7 ${state.silver} silver`;
     if (this.weapon.textContent !== text) this.weapon.textContent = text;
   }
 
@@ -97,6 +99,21 @@ export class Hud {
     this.hurt.classList.add('on');
     clearTimeout(this.hurtTimer);
     this.hurtTimer = setTimeout(() => this.hurt.classList.remove('on'), 90);
+  }
+
+  /**
+   * A short line of what happens in a fight ("Orc archer felled", "They have
+   * seen you!"). The newest is at the bottom; each fades after a few seconds.
+   */
+  callout(text, kind = '') {
+    this.calloutEl ??= document.getElementById('callout');
+    const line = document.createElement('div');
+    line.textContent = text;
+    if (kind) line.className = kind;
+    this.calloutEl.append(line);
+    while (this.calloutEl.children.length > 3) this.calloutEl.firstChild.remove();
+    this.callouts ??= [];
+    this.callouts.push({ line, t: 2.8 });
   }
 
   /** A word by the aiming mark when a chosen shot tells. */
@@ -136,6 +153,11 @@ export class Hud {
       const t = 1 - Math.max(0, this.hitT) / 1.1;
       this.hitEl.style.opacity = String(1 - t);
       this.hitEl.style.transform = `translate(-50%, ${6 - 24 * t}px)`;
+    }
+
+    if (this.callouts?.length) { // fight call-outs fade on their own
+      for (const c of this.callouts) { c.t -= dt; c.line.style.opacity = String(Math.min(1, c.t / 0.8)); if (c.t <= 0) c.line.remove(); }
+      this.callouts = this.callouts.filter((c) => c.t > 0);
     }
 
     this.toastTimer -= dt;
