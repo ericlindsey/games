@@ -23,15 +23,18 @@ export const PLAYER = {
 };
 
 // trees: share of canopy trees kept; under: understory; cover: herbs and flowers.
-// lodNear: plants in chunks nearer than this are drawn in full. grass: radius of
-// the field of blades (0 = none), grassSpacing: metres between clumps.
+// Plants have three forms, chosen tree by tree by distance: in full nearer than
+// treeNear (great trees) or shrubNear (the rest), a lighter form out to treeMid /
+// shrubMid, and a far form beyond. Herbs and flowers show within coverFar.
+// grass: radius of the field of blades (0 = none); grassNear: within this the
+// blades are thick, beyond it sparser and broader; grassSpacing: metres between clumps near.
 // Phones start on medium: a recent phone has the power for shadows and grass.
 export const QUALITY = {
-  low:    { loadRadius: 200, fogFar: 2000, shadows: false, shadowMap: 0,    pixelRatio: 1.25, trees: 0.8, under: 0.5, cover: 0.4, motes: 60,  terrainSegments: 40, lodNear: 40, grass: 22, grassSpacing: 0.95, liteSurfaces: true },
-  medium: { loadRadius: 280, fogFar: 2600, shadows: true,  shadowMap: 1024, pixelRatio: 2,    trees: 0.9, under: 0.8, cover: 0.7, motes: 120, terrainSegments: 80, lodNear: 60, grass: 38, grassSpacing: 0.72 },
-  high:   { loadRadius: 360, fogFar: 3200, shadows: true,  shadowMap: 2048, pixelRatio: 2,    trees: 1,   under: 1,   cover: 1,   motes: 200, terrainSegments: 80, lodNear: 80, grass: 50, grassSpacing: 0.6 },
+  low:    { loadRadius: 200, fogFar: 2000, shadows: false, shadowMap: 0,    pixelRatio: 1.25, trees: 0.8, under: 0.5, cover: 0.4, motes: 60,  terrainSegments: 40, treeNear: 45, treeMid: 160, shrubNear: 30, shrubMid: 110, coverFar: 32, grass: 34, grassNear: 16, grassSpacing: 0.95, liteSurfaces: true },
+  medium: { loadRadius: 280, fogFar: 2600, shadows: true,  shadowMap: 1024, pixelRatio: 2,    trees: 0.9, under: 0.8, cover: 0.7, motes: 120, terrainSegments: 80, treeNear: 80, treeMid: 240, shrubNear: 50, shrubMid: 160, coverFar: 46, grass: 60, grassNear: 26, grassSpacing: 0.72 },
+  high:   { loadRadius: 360, fogFar: 3200, shadows: true,  shadowMap: 2048, pixelRatio: 2,    trees: 1,   under: 1,   cover: 1,   motes: 200, terrainSegments: 80, treeNear: 115, treeMid: 330, shrubNear: 70, shrubMid: 220, coverFar: 56, grass: 80, grassNear: 34, grassSpacing: 0.62 },
 };
 
-export const VERSION = '0.1';
+export const VERSION = '0.3';
 
-export const SAVE = { key: 'rangers-of-ithilien.save', version: 4, autosaveSeconds: 30 };
+export const SAVE = { key: 'rangers-of-ithilien.save', version: 5, autosaveSeconds: 30 };

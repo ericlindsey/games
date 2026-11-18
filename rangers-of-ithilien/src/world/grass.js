@@ -21,13 +21,13 @@ const TILE = 24;
 const S = WORLD.seed + 900;
 
 /** One clump: a few curved blades, dark at the root and pale at the tip. */
-function clumpGeometry(blades, segs) {
+function clumpGeometry(blades, segs, width = 0.05) {
   const p = [], n = [], c = [], s = [];
   for (let k = 0; k < blades; k++) {
     const a = (k / blades) * Math.PI * 2 + k * 0.7;
     const ox = Math.cos(a * 1.7) * 0.16, oz = Math.sin(a * 2.3) * 0.16;
     const fx = Math.cos(a), fz = Math.sin(a);       // the way it bends
-    const wx = -fz * 0.05, wz = fx * 0.05;         // half its width at the root
+    const wx = -fz * width, wz = fx * width;         // half its width at the root
     const hgt = 0.75 + 0.25 * ((k * 7) % 3) / 2, bend = 0.22 + 0.1 * (k % 2);
     const pts = [];
     for (let i = 0; i <= segs; i++) {
@@ -79,28 +79,40 @@ export class Grass {
   constructor(scene, quality) {
     this.scene = scene;
     this.tiles = new Map();
-    this.material = surfaceMaterial({ kind: SURF.leaf, wind: 0.12, fade: [10, 20] });
-    this.geometry = clumpGeometry(7, 3);
+    // Near: thick clumps of fine blades. Beyond: fewer, broader clumps that fade
+    // in as the fine ones fade out, so the field thins with distance, never pops.
+    this.near = { material: surfaceMaterial({ kind: SURF.leaf, wind: 0.12, fade: [10, 20] }), geometry: clumpGeometry(5, 3, 0.05) };
+    this.far = { material: surfaceMaterial({ kind: SURF.leaf, wind: 0.08, fade: [10, 20] }), geometry: clumpGeometry(4, 2, 0.09) };
     this.setQuality(quality);
   }
 
   setQuality(q) {
     this.radius = q.grass ?? 0;
+    this.nearR = q.grassNear ?? this.radius;
     this.spacing = q.grassSpacing ?? 0.7;
     this.shadows = q.shadows;
-    this.material.userData.surf.uFade.value.set(Math.max(4, this.radius - 16), this.radius - 2);
+    const fn = this.near.material.userData.surf, ff = this.far.material.userData.surf;
+    fn.uFade.value.set(this.nearR - 8, this.nearR);
+    ff.uFadeIn.value.set(this.nearR - 10, this.nearR - 2);
+    ff.uFade.value.set(Math.max(4, this.radius - 18), this.radius - 2);
     for (const key of [...this.tiles.keys()]) this.drop(key);
   }
 
-  drop(key) {
+  drop(key, which = null) {
     const t = this.tiles.get(key);
-    if (t?.mesh) { this.scene.remove(t.mesh); t.mesh.dispose(); }
-    this.tiles.delete(key);
+    if (!t) return;
+    for (const w of which ? [which] : ['dense', 'sparse']) {
+      if (t[w]) { this.scene.remove(t[w]); t[w].dispose(); t[w] = null; }
+      t['has' + w] = false;
+    }
+    if (!which) this.tiles.delete(key);
   }
 
-  build(tx, tz) {
+  /** Build one tile's clumps: all of them (dense), or the broad few that stand for them at a distance. */
+  build(tx, tz, dense) {
     const sp = this.spacing, n = Math.round(TILE / sp);
     const x0 = tx * TILE, z0 = tz * TILE;
+    const keep = dense ? 1 : 0.28; // a far clump stands for about four near ones
     // ground colour on a coarse lattice, looked up by the nearest point
     const CS = 3, cn = TILE / CS + 1, cols = new Float32Array(cn * cn * 3);
     for (let j = 0; j < cn; j++) {
@@ -115,8 +127,10 @@ export class Grass {
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
         const gx = tx * n + i, gz = tz * n + j;
-        const r = hash2(gx, gz, S);
+        const r = hash2(gx, gz, S) / keep;
+        if (r > 1) continue;
         const x = x0 + (i + hash2(gx, gz, S + 1)) * sp, z = z0 + (j + hash2(gx, gz, S + 2)) * sp;
+        if (noGrass(x, z)) continue;
         const h = heightAt(x, z);
         const dens = grassAt(x, z, h);
         if (r > dens) continue;
@@ -128,50 +142,58 @@ export class Grass {
       }
     }
     const count = items.length / 8;
-    const tile = { mesh: null };
-    if (count) {
-      const mesh = new THREE.InstancedMesh(this.geometry, this.material, count);
-      const vary = (t) => 0.9 + 0.25 * t;
-      for (let i = 0; i < count; i++) {
-        const o = i * 8, sc = items[o + 4];
-        _p.set(items[o], items[o + 1], items[o + 2]);
-        _q.setFromAxisAngle(_up, items[o + 3]);
-        _s.set(0.8 + sc * 0.5, sc, 0.8 + sc * 0.5);
-        mesh.setMatrixAt(i, _m.compose(_p, _q, _s));
-        const v = vary((i * 0.618) % 1);
-        mesh.setColorAt(i, _c.setRGB(items[o + 5] * v * 1.15, items[o + 6] * v * 1.2, items[o + 7] * v));
-      }
-      mesh.receiveShadow = this.shadows;
-      mesh.computeBoundingSphere();
-      this.scene.add(mesh);
-      tile.mesh = mesh;
+    if (!count) return null;
+    const set = dense ? this.near : this.far, wide = dense ? 1 : 1.7;
+    const mesh = new THREE.InstancedMesh(set.geometry, set.material, count);
+    const vary = (t) => 0.9 + 0.25 * t;
+    for (let i = 0; i < count; i++) {
+      const o = i * 8, sc = items[o + 4];
+      _p.set(items[o], items[o + 1], items[o + 2]);
+      _q.setFromAxisAngle(_up, items[o + 3]);
+      _s.set((0.8 + sc * 0.5) * wide, sc, (0.8 + sc * 0.5) * wide);
+      mesh.setMatrixAt(i, _m.compose(_p, _q, _s));
+      const v = vary((i * 0.618) % 1);
+      mesh.setColorAt(i, _c.setRGB(items[o + 5] * v * 1.15, items[o + 6] * v * 1.2, items[o + 7] * v));
     }
-    this.tiles.set(tx + ',' + tz, tile);
+    mesh.receiveShadow = this.shadows;
+    mesh.computeBoundingSphere();
+    this.scene.add(mesh);
+    return mesh;
   }
 
   /** Keep tiles within the radius; build at most `budget` a call. */
   update(px, pz, budget = 2) {
     if (!this.radius) return;
-    const R = this.radius;
+    const R = this.radius, N = this.nearR;
+    const rect = (tx, tz) => Math.hypot(Math.max(tx * TILE - px, 0, px - (tx + 1) * TILE), Math.max(tz * TILE - pz, 0, pz - (tz + 1) * TILE));
     const want = [];
     for (let tz = Math.floor((pz - R) / TILE); tz <= Math.floor((pz + R) / TILE); tz++) {
       for (let tx = Math.floor((px - R) / TILE); tx <= Math.floor((px + R) / TILE); tx++) {
-        const dx = Math.max(tx * TILE - px, 0, px - (tx + 1) * TILE), dz = Math.max(tz * TILE - pz, 0, pz - (tz + 1) * TILE);
-        const d = Math.hypot(dx, dz);
+        const d = rect(tx, tz);
         if (d < R) want.push([d, tx, tz]);
       }
     }
     want.sort((a, b) => a[0] - b[0]);
-    for (const [, tx, tz] of want) {
+    for (const [d, tx, tz] of want) {
       if (budget <= 0) break;
-      if (this.tiles.has(tx + ',' + tz)) continue;
-      this.build(tx, tz);
-      budget--;
+      const key = tx + ',' + tz;
+      let t = this.tiles.get(key);
+      if (!t) this.tiles.set(key, (t = { dense: null, sparse: null }));
+      if (d < N && !t.hasdense) { t.dense = this.build(tx, tz, true); t.hasdense = true; budget--; }
+      if (!t.hassparse && budget > 0) { t.sparse = this.build(tx, tz, false); t.hassparse = true; budget--; }
     }
-    for (const [key] of this.tiles) {
+    for (const [key, t] of this.tiles) {
       const [tx, tz] = key.split(',').map(Number);
-      const dx = Math.max(tx * TILE - px, 0, px - (tx + 1) * TILE), dz = Math.max(tz * TILE - pz, 0, pz - (tz + 1) * TILE);
-      if (Math.hypot(dx, dz) > R + TILE) this.drop(key);
+      const d = rect(tx, tz);
+      if (d > R + TILE) this.drop(key);
+      else if (t.hasdense && d > N + TILE * 0.75) this.drop(key, 'dense');
     }
   }
+}
+
+/** The mouth of the hidden stair and the slot where the cliff at Henneth Annûn is built: no turf over them. */
+function noGrass(x, z) {
+  const h = HA.hatch;
+  if (x > h.x0 - 1.5 && x < h.x1 + 1.5 && z > h.z0 - 1.5 && z < h.z1 + 1.5) return true;
+  return x > HA.x - 1 && x < HA.x + 5 && z > HA.rock.minZ - 1 && z < HA.rock.maxZ + 1;
 }

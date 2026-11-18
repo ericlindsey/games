@@ -1,6 +1,6 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.3: visual polish.** The land, the enemy, fighting, gear, tasks and trade are built and
+Status: **v0.3: visual polish (second round).** The land, the enemy, fighting, gear, tasks and trade are built and
 have had three rounds of playtest; v0.3 reworks how all of it looks (section 4, and
 "v0.3" in section 10). Next: playtest the new look on a phone, then Milestone 5
 (sound, day and night) and the gaps listed at the end of section 10.
@@ -586,6 +586,46 @@ up a band or a host on the road.
   or the nearest open spot. Enemies are set down clear of walls, rocks and
   trunks when a camp's company appears.
 
+### v0.3, second round (after playing it on a phone)
+
+- **Frame rate**: the menu has "Show frame rate", off at first and remembered
+  (saves are version 5; v4 saves carry over whole). The counter sits bottom left.
+- **Plants change form tree by tree**, not a chunk at a time: in full near the
+  ranger, then a middle form (the same tree with fewer, larger leaf cards and no
+  twigs) out to 330 m on high (240 medium, 160 low), then the far form. Great
+  trees are in full to 115 m on high. Herbs show within 56 m and shrink away.
+- **Grass reaches 80 m on high** (60 medium, 34 low): thick fine blades near
+  the ranger, fading into fewer, broader clumps beyond about 34 m, which fade
+  out at the edge. No grass over the hidden stair's mouth or the cliff's slot.
+- **Conifers** are whorls of drooping boughs, each at its own angle and length,
+  with sprays of needles (fir, larch, young fir); cedars spread great level
+  plates; cypresses are a flame of many small masses; junipers ragged clumps.
+- **People**: elbows that bend, fuller knees and shoulders; one smooth head with
+  a brow, nose, cheekbones and real eyes (white and iris) under brows, and a
+  soft mouth; the cloak streams behind when running.
+- **Weapons**: the bow is in the hand only while drawing (and a moment after
+  loosing), otherwise slung across the back; it is a curved bow facing the mark
+  with its string to the archer, drawn back to the cheek with an arrow on it.
+  The sword is drawn in a fight and sheathed at the left hip otherwise (back in
+  the scabbard four seconds after the fight). Blades are shaped and bevelled
+  (the scimitar one smooth curve), with guards, bound grips and pommels. The
+  quiver shows every arrow when there are fewer than ten, and looks full
+  otherwise. Enemy blades come out when they are roused; their archers take the
+  bow off the back to shoot.
+- **Helmets** have straight sides down over the ears and the back of the neck,
+  open at the face, a crown (conical for a nasal helm), a brow band, and crests,
+  horns or wings as before.
+- **Henneth Annûn**: the top of the rock follows the forest floor, so there is
+  no see-through gap beside the fall; the rock grain is laid at two scales so
+  its repeat does not show, with less banding, damp moss patches on the walls,
+  ferns on the ledges and ivy down the faces; boulders round the pool and blocks
+  fallen into the cut; the stream's channel runs out of the pool with no lip;
+  rings spread across the pool from the fall, with foam at its foot; the stair,
+  treads and ledge are bare cut rock; the cave is lit from its torches (their
+  glow laid into the rock, and one real light at the torch nearest the ranger);
+  the hall and the hidden stair are taller, with a finer-stepped roof, so the
+  camera does not jump about.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -599,11 +639,11 @@ up a band or a host on the road.
 - No blocking or dodging move. No stealth beyond walking. No sound.
 - Loot bags and a camp's dead are forgotten if you leave and return.
 - The blight changes sky, fog and light but not the colour of ground and plants.
-- Trees appear at the edge of the loaded radius without a fade. The near/far
-  swap of plants happens a chunk (160 m) at a time and may show as a change of
-  detail at about 80 m; worth watching on a phone.
-- The v0.3 look has not yet been tried on a real phone: frame rate on medium is
-  a guess. If it is slow, lower `grass`, `lodNear` and `terrainSegments` for
-  medium in config.js first.
+- Trees appear at the edge of the loaded radius without a fade.
+- Medium plays well on an iPhone 17; high was a little slow there (before the
+  second round, which made far plants cheaper but grass and near trees reach
+  farther). If it is slow, lower `grass`, `treeNear` and `treeMid` in config.js.
+- Arms bend only forward (no twist), so the drawing arm reaches forward rather
+  than out to the side as a real archer's does.
 - Field walls and houses are axis-aligned. Osgiliath is plain blocks.
 - Nothing yet happens when every camp is cleared beyond Faramir's last words.

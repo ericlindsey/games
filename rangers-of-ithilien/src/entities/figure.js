@@ -41,14 +41,197 @@ function part(build, pivotY, parent, x = 0, z = 0) {
   parent.add(pivot);
   return pivot;
 }
+const meshOf = (b) => b.mesh(SHARED.material);
+
+// ---- Heads ----------------------------------------------------------------
+
+/**
+ * A head from one deformed sphere: a narrower chin, cheekbones, a brow, a nose,
+ * (for orcs a heavy jaw thrust forward), so there is no seam where parts meet.
+ * Returns the shape function, to place eyes and the like on its surface.
+ */
+function headShape(orc) {
+  const rx = orc ? 0.112 : 0.098, ry = orc ? 0.112 : 0.122, rz = orc ? 0.118 : 0.108;
+  // the point of the head's surface in direction (dx, dy, dz) (unit), relative to its centre
+  return (dx, dy, dz) => {
+    let x = dx * rx, y = dy * ry, z = dz * rz;
+    const low = Math.max(0, -dy);
+    if (orc) { x *= 1 + 0.25 * low; z *= 1 + 0.25 * low * Math.max(0, dz); y *= 1 - 0.1 * low; }
+    else { x *= 1 - 0.32 * Math.pow(low, 1.4); z *= 1 - 0.1 * low * (1 - Math.max(0, dz)); }
+    const front = Math.max(0, dz);
+    // the brow: a ridge across the front just above the eyes
+    z += Math.exp(-Math.pow((dy - 0.28) / 0.1, 2)) * front * (orc ? 0.028 : 0.008) * Math.exp(-dx * dx * 4);
+    // the nose
+    z += Math.exp(-(dx * dx) / 0.012 - Math.pow((dy + 0.05) / 0.2, 2)) * front * (orc ? 0.05 : 0.03);
+    // cheekbones, and the hollow of the eyes
+    z += Math.exp(-Math.pow((Math.abs(dx) - 0.45) / 0.18, 2) - Math.pow((dy + 0.08) / 0.15, 2)) * front * 0.006;
+    z -= Math.exp(-Math.pow((Math.abs(dx) - 0.33) / 0.13, 2) - Math.pow((dy - 0.13) / 0.1, 2)) * front * 0.009;
+    return [x, y, z];
+  };
+}
+function addHead(b, o, hy) {
+  const shape = headShape(o.orc);
+  const g = new THREE.SphereGeometry(1, 24, 18);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const [x, y, z] = shape(pos.getX(i), pos.getY(i), pos.getZ(i));
+    pos.setXYZ(i, x, y, z);
+  }
+  g.computeVertexNormals();
+  const k = b.kind;
+  b.kind = SURF.skin;
+  b.add(g, o.skin, M(0, hy, o.orc ? 0.03 : 0), true);
+  const at = (dx, dy, out = 0) => { const n = Math.hypot(dx, dy); const dz = Math.sqrt(Math.max(0, 1 - n * n)); const [x, y, z] = shape(dx, dy, dz); return [x, y + hy, z + out + (o.orc ? 0.03 : 0)]; };
+  // eyes: a white with a dark iris, under a brow
+  for (const sx of [-1, 1]) {
+    const [ex, ey, ez] = at(sx * 0.36, 0.13, -0.006);
+    b.add(new THREE.SphereGeometry(1, 10, 8), o.orc ? 0xd8c860 : 0xf2eee4, M(ex, ey, ez, 0, 0, 0, 0.019, 0.013, 0.012), true);
+    b.add(new THREE.SphereGeometry(1, 8, 6), o.orc ? 0x2a1a08 : (o.eyes ?? 0x3a4a5a), M(ex, ey, ez + 0.009, 0, 0, 0, 0.0095, 0.0095, 0.006), true);
+    const [bx, by, bz] = at(sx * 0.36, 0.27, 0.004);
+    b.kind = SURF.cloth;
+    b.box(0.036, 0.009, 0.012, bx, by, bz, o.hair ?? 0x2a2018, 0, 0, sx * -0.12);
+    b.kind = SURF.skin;
+    // ears
+    if (o.orc) b.add(new THREE.ConeGeometry(0.035, 0.17, 6), o.skin, M(sx * 0.13, hy + 0.03, 0.01, 0, 0, -sx * 1.15, 1, 1, 0.45), true);
+    else b.add(new THREE.SphereGeometry(1, 8, 6), o.skin, M(sx * 0.098, hy + 0.0, -0.008, 0, 0, 0, 0.014, 0.03, 0.02), true);
+  }
+  // lips: a soft line, a little darker than the skin
+  const [mx, my, mz] = at(0, -0.43, -0.004);
+  const lip = new THREE.Color(o.skin).multiply(new THREE.Color(o.orc ? 0x806060 : 0xd8a8a0));
+  b.add(new THREE.SphereGeometry(1, 10, 6), lip, M(mx, my, mz, 0, 0, 0, o.orc ? 0.045 : 0.028, 0.008, 0.01), true);
+  if (o.orc) for (const sx of [-1, 1]) { const [tx, ty, tz] = at(sx * 0.3, -0.5, 0); b.add(new THREE.ConeGeometry(0.012, 0.06, 5), 0xe8e2cc, M(tx, ty + 0.03, tz, 0, 0, sx * 0.2), true); }
+  b.kind = k;
+  return at;
+}
+
+// ---- Weapons ------------------------------------------------------------
+
+const BLADE_LEN = { straight: 0.86, long: 1.08, knife: 0.5, broad: 0.72, curved: 0.82 };
+/** A sword along +Y from its guard at the origin; the grip runs down -Y. Returns { full, hilt }. */
+function swordGeometries(o) {
+  const shape = o.bladeShape ?? 'straight', len = BLADE_LEN[shape] ?? 0.86, hilt = o.hilt ?? 0x3a3028;
+  const pts = [];
+  if (shape === 'curved') { // a scimitar: one smooth curve, widening toward the point, then a clipped tip
+    const N = 18, w0 = 0.036;
+    const c = (t) => [0.17 * t * t, len * t];
+    const w = (t) => w0 * (1 + 0.45 * Math.sin(t * Math.PI * 0.85)) * (t > 0.9 ? (1 - t) / 0.1 : 1);
+    for (let i = 0; i <= N; i++) { const t = i / N, [x, y] = c(t); pts.push([x + w(t), y - 0.04 * t]); }
+    for (let i = N; i >= 0; i--) { const t = i / N, [x, y] = c(t); pts.push([x - w(t) * 0.7, y]); }
+  } else if (shape === 'broad') { // a cleaver: broad, square-ended, with a clipped corner
+    pts.push([-0.04, 0], [0.04, 0], [0.055, len * 0.8], [0.06, len], [-0.02, len], [-0.055, len * 0.85]);
+  } else {
+    const w = shape === 'knife' ? 0.03 : shape === 'long' ? 0.034 : 0.036;
+    pts.push([-w, 0], [w, 0], [w * 0.92, len * 0.82], [0, len], [-w * 0.92, len * 0.82]);
+  }
+  const blade = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))), { depth: 0.008, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 1, curveSegments: 4 });
+  blade.translate(0, 0, -0.004);
+  const make = (withBlade) => {
+    const b = new GeoBuilder(3, 0.02);
+    b.kind = SURF.metal;
+    if (withBlade) {
+      b.add(blade, o.blade, null, false);
+      if (shape !== 'curved' && shape !== 'broad') b.box(0.01, len * 0.7, 0.016, 0, 0.02, 0, new THREE.Color(o.blade).multiplyScalar(0.8)); // the fuller
+    }
+    const gw = shape === 'knife' ? 0.13 : 0.22;
+    b.box(gw, 0.03, 0.045, 0, -0.015, 0, hilt);                                                   // the cross-guard
+    for (const sx of [-1, 1]) b.add(new THREE.SphereGeometry(0.02, 8, 6), hilt, M(sx * gw / 2, 0, 0), true);
+    b.kind = SURF.wood;
+    const gl = shape === 'long' ? 0.26 : shape === 'knife' ? 0.11 : 0.16;
+    b.add(new THREE.LatheGeometry([...Array(9)].map((_, i) => new THREE.Vector2(0.019 + 0.003 * (i % 2), -0.03 - (gl * i) / 8)), 8), 0x3a2a1e, null, true); // the grip, bound
+    b.kind = SURF.metal;
+    b.add(new THREE.SphereGeometry(0.03, 10, 8), hilt, M(0, -0.04 - gl, 0, 0, 0, 0, 1, 0.8, 1), true); // pommel
+    return b.geometry();
+  };
+  return { full: make(true), hilt: make(false), len };
+}
+
+/** A bow in the left hand: grip at the hand, limbs up and down, the string on the archer's side. */
+const BOW_HAND = -0.34; // the hand, in the forearm's frame
+function bowParts(o) {
+  const L = o.bowLong ? 0.8 : 0.66, c = 0.17, wood = o.heldBow ?? 0x6b4a2a;
+  const b = new GeoBuilder(4, 0.02);
+  b.kind = SURF.wood;
+  const tips = [];
+  for (const s of [-1, 1]) {
+    const curve = new THREE.CubicBezierCurve3(
+      new THREE.Vector3(0, BOW_HAND, 0), new THREE.Vector3(0, BOW_HAND - 0.07, s * L * 0.45),
+      new THREE.Vector3(0, BOW_HAND - 0.02 + c * 0.4, s * L * 0.85), new THREE.Vector3(0, BOW_HAND + c, s * L));
+    b.add(new THREE.TubeGeometry(curve, 12, 0.016, 6), wood, null, true);
+    if (o.bowTips) { // horn tips that curve away
+      const tip = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, BOW_HAND + c, s * L), new THREE.Vector3(0, BOW_HAND + c + 0.02, s * (L + 0.06)), new THREE.Vector3(0, BOW_HAND + c - 0.04, s * (L + 0.1)));
+      b.add(new THREE.TubeGeometry(tip, 4, 0.013, 5), o.bowTips, null, true);
+    }
+    tips.push(new THREE.Vector3(0, BOW_HAND + c, s * (o.bowTips ? L + 0.04 : L)));
+  }
+  b.add(new THREE.CylinderGeometry(0.024, 0.024, 0.13, 8), o.bowTips ?? 0x4a3020, M(0, BOW_HAND, 0, Math.PI / 2, 0, 0), true); // the grip
+  const group = new THREE.Group();
+  group.add(meshOf(b));
+  // the string, in two halves meeting at the nock, and the arrow on it
+  const strMat = new THREE.MeshBasicMaterial({ color: 0xd8d2c0 });
+  const halves = tips.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 1, 4), strMat); group.add(m); return m; });
+  const arrow = new THREE.Mesh(arrowGeometry(), SHARED.material);
+  group.add(arrow);
+  const rest = new THREE.Vector3(0, BOW_HAND + c, 0.055), nock = new THREE.Vector3(), mid = new THREE.Vector3(), dir = new THREE.Vector3(), UPV = new THREE.Vector3(0, 1, 0);
+  group.userData.arrow = arrow;
+  group.userData.setDraw = (draw, nocked) => {
+    nock.copy(rest).y += draw * 0.52;
+    tips.forEach((t, i) => {
+      const h = halves[i];
+      mid.copy(t).add(nock).multiplyScalar(0.5);
+      dir.copy(nock).sub(t);
+      h.position.copy(mid);
+      h.scale.set(1, dir.length(), 1);
+      h.quaternion.setFromUnitVectors(UPV, dir.normalize());
+    });
+    arrow.visible = nocked;
+    arrow.position.copy(nock); // the arrow points from the nock past the grip, toward the mark (-y here)
+  };
+  group.userData.setDraw(0, false);
+  return { group, tips, c, L };
+}
+/** One arrow from its nock at the origin, pointing down -Y: shaft, head, and three vanes. */
+let ARROW_GEO = null;
+function arrowGeometry() {
+  if (ARROW_GEO) return ARROW_GEO;
+  const b = new GeoBuilder(5, 0);
+  b.kind = SURF.wood;
+  b.add(new THREE.CylinderGeometry(0.005, 0.005, 0.72, 5), 0x8a6a42, M(0, -0.36, 0), true);
+  b.kind = SURF.metal;
+  b.add(new THREE.ConeGeometry(0.013, 0.06, 6), 0x9a9aa2, M(0, -0.75, 0, Math.PI, 0, 0), true);
+  b.kind = SURF.cloth;
+  for (let i = 0; i < 3; i++) b.box(0.002, 0.11, 0.022, Math.cos(i * 2.09) * 0.011, -0.13, Math.sin(i * 2.09) * 0.011, i ? 0xe8e2d0 : 0xa83a2a, i * 2.09);
+  ARROW_GEO = b.geometry();
+  return ARROW_GEO;
+}
+
+// The quiver on the back, and the arrows showing at its mouth (all of them, up to ten).
+const QUIVER = { x: 0.12, y: 0.05, z: -0.2, rz: 0.32, len: 0.56 };
+const quiverArrows = [];
+function quiverGeometry(n) {
+  if (quiverArrows[n]) return quiverArrows[n];
+  const b = new GeoBuilder(6, 0);
+  const ax = -Math.sin(QUIVER.rz), ay = Math.cos(QUIVER.rz);
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.4, r = 0.018 + (i % 3) * 0.008;
+    const ox = Math.cos(a) * r, oz = Math.sin(a) * r * 0.8, rise = 0.1 + (i % 4) * 0.015;
+    const x = QUIVER.x + ax * (QUIVER.len + rise) + ox, y = QUIVER.y + ay * (QUIVER.len + rise), z = QUIVER.z + oz;
+    b.kind = SURF.wood;
+    b.add(new THREE.CylinderGeometry(0.005, 0.005, 0.3, 4), 0x8a6a42, M(x - ax * 0.15, y - ay * 0.15, z, 0, 0, QUIVER.rz), true);
+    b.kind = SURF.cloth;
+    for (let k = 0; k < 3; k++) b.box(0.002, 0.1, 0.022, x + Math.cos(k * 2.09 + a) * 0.01 - ax * 0.06, y - ay * 0.06, z + Math.sin(k * 2.09 + a) * 0.01, k ? 0xe8e2d0 : 0xa83a2a, k * 2.09 + a, 0, QUIVER.rz);
+  }
+  quiverArrows[n] = b.geometry();
+  return quiverArrows[n];
+}
 
 /**
  * @param {object} o colours and options:
  *   tunic, legs, skin, hair, cloak (or null), hood (bool), skirt (bool), bow (bool), longHair (bool);
  *   for gear: mail (a hauberk over the tunic), greaves, helm with helmCrest / helmNasal / helmWings,
  *   blade with bladeShape ('straight' | 'curved' | 'broad' | 'long' | 'knife') and hilt,
- *   heldBow with bowTips and bowLong
- * @returns {THREE.Group} with .limbs for animation; origin at the feet, facing +Z.
+ *   heldBow with bowTips and bowLong; quiver (colour) to carry arrows on the back
+ * @returns {THREE.Group} with .limbs for animation and setWeapons / setDraw / setArrows;
+ *   origin at the feet, facing +Z.
  */
 export function makeFigure(o) {
   SHARED.material ||= figureMaterial();
@@ -57,43 +240,51 @@ export function makeFigure(o) {
   const boots = o.boots ?? 0x4a3828;
   const SKIN = SURF.skin, CLOTH = SURF.cloth, METAL = SURF.metal, LEATHER = SURF.wood;
 
-  // Legs pivot at the hip, shins at the knee; arms at the shoulder. Geometry hangs below the pivot.
+  // Legs pivot at the hip, shins at the knee; arms at the shoulder, forearms at the elbow.
   for (const side of [-1, 1]) {
     const leg = part((b) => {
-      taper(b, 0.088, 0.066, 0.47, 0, 0.02, 0, o.legs, 1, 0.95);
-      if (o.mail && !o.skirt) { b.kind = METAL; taper(b, 0.096, 0.08, 0.2, 0, 0.02, 0, o.mail); b.kind = CLOTH; }
+      taper(b, 0.092, 0.074, 0.48, 0, 0.02, 0, o.legs, 1, 0.95);
+      if (o.mail && !o.skirt) { b.kind = METAL; taper(b, 0.1, 0.086, 0.2, 0, 0.02, 0, o.mail); b.kind = CLOTH; }
     }, 0.92, g, side * 0.105);
     const shin = part((b) => {
-      taper(b, 0.064, 0.05, 0.36, 0, 0.0, 0, o.legs);
+      ball(b, 0.066, 0.068, 0.068, 0, -0.01, 0.004, o.legs, 10, 8);  // the knee
+      taper(b, 0.07, 0.054, 0.36, 0, 0.0, 0, o.legs);
       b.kind = LEATHER;
-      taper(b, 0.064, 0.058, 0.3, 0, -0.17, 0, boots);                // boot shaft
-      ball(b, 0.058, 0.05, 0.125, 0, -0.43, 0.045, boots, 10, 6);    // foot
+      taper(b, 0.068, 0.062, 0.3, 0, -0.17, 0, boots);                // boot shaft
+      ball(b, 0.06, 0.052, 0.128, 0, -0.43, 0.045, boots, 10, 6);    // foot
       b.kind = METAL;
       if (o.greaves) {
-        taper(b, 0.074, 0.064, 0.3, 0, -0.05, 0.004, o.greaves, 1, 1.05);
-        ball(b, 0.07, 0.06, 0.065, 0, 0.0, 0.03, o.greaves, 10, 6);   // knee cop
+        taper(b, 0.078, 0.068, 0.3, 0, -0.05, 0.004, o.greaves, 1, 1.05);
+        ball(b, 0.074, 0.065, 0.068, 0, 0.0, 0.03, o.greaves, 10, 6);   // knee cop
       }
       b.kind = CLOTH;
     }, -0.46, leg);
     limbs[side < 0 ? 'legL' : 'legR'] = leg;
     limbs[side < 0 ? 'shinL' : 'shinR'] = shin;
-    limbs[side < 0 ? 'armL' : 'armR'] = part((b) => {
-      if (o.mail) { b.kind = METAL; taper(b, 0.074, 0.062, 0.3, 0, 0.03, 0, o.mail); ball(b, 0.082, 0.07, 0.08, -side * 0.012, -0.02, 0, o.mail); b.kind = CLOTH; }
-      else { taper(b, 0.07, 0.058, 0.32, 0, 0.03, 0, o.tunic); ball(b, 0.078, 0.068, 0.076, -side * 0.012, -0.02, 0, o.tunic); } // upper arm, rounded at the shoulder
-      taper(b, 0.058, 0.044, 0.33, 0, -0.27, 0.01, o.sleeve ?? o.tunic); // forearm
-      b.kind = SKIN;
-      ball(b, 0.045, 0.06, 0.035, 0, -0.67, 0.012, o.skin, 8, 6);    // hand
+    const sleeveTop = o.mail ?? o.tunic;
+    const arm = part((b) => {
+      if (o.mail) b.kind = METAL;
+      ball(b, 0.084, 0.074, 0.082, -side * 0.012, -0.02, 0, sleeveTop);   // the shoulder
+      taper(b, 0.074, 0.064, 0.31, 0, 0.03, 0, sleeveTop);               // upper arm
       b.kind = CLOTH;
     }, 1.5, g, side * 0.29);
+    const fore = part((b) => {
+      ball(b, 0.062, 0.062, 0.062, 0, 0, 0, o.sleeve ?? o.tunic, 10, 8);  // the elbow
+      taper(b, 0.06, 0.047, 0.31, 0, 0.01, 0.004, o.sleeve ?? o.tunic);   // forearm
+      b.kind = SKIN;
+      ball(b, 0.042, 0.05, 0.032, 0, BOW_HAND, 0.008, o.skin, 10, 8);    // the hand, closed
+      ball(b, 0.013, 0.026, 0.013, side * -0.032, BOW_HAND + 0.012, 0.03, o.skin, 6, 5); // thumb
+      b.kind = CLOTH;
+    }, -0.29, arm);
+    limbs[side < 0 ? 'armL' : 'armR'] = arm;
+    limbs[side < 0 ? 'elbowL' : 'elbowR'] = fore;
   }
 
   limbs.body = part((b) => {
-    const T = (r) => r; // a profile helper, for readability
     // torso: hips, a waist, a chest, and sloping shoulders
     const torso = [[0, -0.07], [0.185, -0.05], [0.19, 0.04], [0.172, 0.17], [0.192, 0.31], [0.212, 0.43], [0.215, 0.51], [0.185, 0.58], [0.1, 0.635], [0, 0.65]];
     lathe(b, torso, o.tunic, M(0, 0, 0, 0, 0, 0, 1.02, 1, 0.66), 14);
     if (o.mail) { b.kind = METAL; lathe(b, torso.map(([r, y]) => [r * 1.045 + 0.004, y]), o.mail, M(0, 0, 0, 0, 0, 0, 1.02, 1, 0.68), 14); b.kind = CLOTH; }
-    // the hem of the tunic (or a gown, or the hauberk's skirt)
     if (o.skirt) {
       lathe(b, [[0.42, -0.9], [0.36, -0.6], [0.26, -0.25], [0.19, 0.06], [0.17, 0.14]], o.tunic, M(0, 0, 0, 0, 0, 0, 1, 1, 0.8), 16);
     } else {
@@ -102,78 +293,45 @@ export function makeFigure(o) {
     }
     b.kind = LEATHER; // the belt and its buckle
     b.add(new THREE.TorusGeometry(0.19, 0.022, 5, 16), o.belt ?? 0x3d2f22, M(0, 0.05, 0, Math.PI / 2, 0, 0, 1.1, 0.7, 1), true);
+    b.kind = METAL;
     b.box(0.05, 0.045, 0.02, 0, 0.03, 0.125, o.belt === undefined ? 0x8a7a5a : o.belt);
     b.kind = SKIN;
-    taper(b, 0.052, 0.058, 0.13, 0, 0.74, -0.005, o.skin, 1, 1, 8);   // neck
+    taper(b, 0.054, 0.06, 0.13, 0, 0.74, -0.005, o.skin, 1, 1, 8);   // neck
     const hy = 0.84; // centre of the head
-    if (o.orc) {
-      // a heavy, low-browed head thrust forward: jaw, tusks, long ears, and pale eyes
-      ball(b, 0.115, 0.115, 0.12, 0, hy - 0.01, 0.03, o.skin);
-      ball(b, 0.1, 0.075, 0.1, 0, hy - 0.08, 0.075, o.skin);               // jaw
-      ball(b, 0.11, 0.035, 0.06, 0, hy + 0.035, 0.1, o.hair ?? o.skin, 10, 6); // brow
-      for (const sx of [-1, 1]) {
-        b.add(new THREE.ConeGeometry(0.014, 0.07, 5), 0xe8e2cc, M(sx * 0.045, hy - 0.05, 0.16, 0, 0, sx * 0.25), true); // tusks
-        b.dot(0.018, sx * 0.042, hy + 0.012, 0.142, 0xffe04a);                                                        // eyes
-        b.add(new THREE.ConeGeometry(0.035, 0.16, 6), o.skin, M(sx * 0.12, hy + 0.02, -0.0, 0, 0, -sx * 1.2, 1, 1, 0.45), true); // ears
-      }
-      b.add(new THREE.ConeGeometry(0.026, 0.05, 5), o.skin, M(0, hy - 0.01, 0.15, Math.PI / 2.4, 0, 0), true); // snout
-      b.kind = CLOTH;
-      ball(b, 0.27, 0.11, 0.17, 0, 0.52, -0.06, o.tunic);                   // hunched shoulders
-    } else {
-      ball(b, 0.102, 0.122, 0.112, 0, hy, 0, o.skin);                       // skull
-      ball(b, 0.082, 0.07, 0.085, 0, hy - 0.06, 0.02, o.skin);              // jaw and cheeks
-      b.add(new THREE.ConeGeometry(0.018, 0.05, 6), o.skin, M(0, hy - 0.005, 0.115, Math.PI / 2.3, 0, 0), true); // nose
-      for (const sx of [-1, 1]) {
-        ball(b, 0.016, 0.03, 0.012, sx * 0.1, hy - 0.005, -0.005, o.skin, 6, 4); // ears
-        b.dot(0.012, sx * 0.038, hy + 0.012, 0.103, 0x2a2420);                   // eyes
-      }
-      b.kind = CLOTH;
+    addHead(b, o, hy);
+    b.kind = CLOTH;
+    if (o.orc) ball(b, 0.27, 0.11, 0.17, 0, 0.52, -0.06, o.tunic);    // hunched shoulders
+    else {
       // hair: a cap over the crown and the back of the head
-      b.add(new THREE.SphereGeometry(0.118, 14, 8, 0, Math.PI * 2, 0, 1.45), o.hair, M(0, hy + 0.005, -0.012, -0.35, 0, 0, 1.02, 1.08, 1.04), true);
+      b.add(new THREE.SphereGeometry(0.114, 18, 10, 0, Math.PI * 2, 0, 1.45), o.hair, M(0, hy + 0.012, -0.012, -0.42, 0, 0, 1.0, 1.08, 1.05), true);
       if (o.longHair) lathe(b, [[0.07, -0.42], [0.1, -0.2], [0.115, 0.0], [0.1, 0.06]], o.hair, M(0, hy - 0.03, -0.05, 0, 0, 0, 1, 1, 0.55), 10);
       if (o.beard) ball(b, 0.07, 0.06, 0.05, 0, hy - 0.09, 0.05, o.hair);
     }
-    if (o.circlet) { b.kind = METAL; b.add(new THREE.TorusGeometry(0.112, 0.01, 4, 18), o.circlet, M(0, hy + 0.045, 0, Math.PI / 2 - 0.12, 0, 0), true); b.kind = CLOTH; }
-    if (o.helm) { // a cap, with or without a ridge, horns, wings
-      b.kind = METAL;
-      const hz = o.orc ? 0.03 : 0;
-      b.add(new THREE.SphereGeometry(0.128, 14, 8, 0, Math.PI * 2, 0, 1.6), o.helm, M(0, hy + 0.02, hz, 0, 0, 0, 1.04, 1.05, 1.06), true);
-      b.add(new THREE.TorusGeometry(0.128, 0.014, 4, 18), o.helm, M(0, hy + 0.0, hz, Math.PI / 2, 0, 0, 1.05, 1.07, 1), true); // the rim
-      if (o.orc || o.helmCrest) b.box(0.03, 0.12, 0.24, 0, hy + 0.08, hz - 0.01, o.helmCrest ?? o.helm);
-      if (o.helmNasal) b.box(0.025, 0.12, 0.02, 0, hy - 0.04, hz + 0.13, o.helm);
-      if (o.horns) for (const sx of [-1, 1]) b.add(new THREE.ConeGeometry(0.03, 0.24, 7), 0xd8d2c0, M(sx * 0.15, hy + 0.13, hz, 0, 0, -sx * 0.6), true);
-      if (o.helmWings) for (const sx of [-1, 1]) b.box(0.02, 0.22, 0.13, sx * 0.13, hy + 0.04, hz - 0.03, o.helmWings, -0.25, 0, -sx * 0.35);
-      b.kind = CLOTH;
-    }
-    if (o.badge) b.add(new THREE.CircleGeometry(0.065, 12), o.badge, M(0, 0.33, 0.145), true); // the Red Eye, daubed on the breast
-    if (o.quiver) {
-      b.kind = LEATHER;
-      b.add(new THREE.CylinderGeometry(0.06, 0.05, 0.55, 8), o.quiver, M(0.12, 0.33, -0.17, 0, 0, 0.3), true);
-      for (let i = 0; i < 4; i++) b.box(0.012, 0.09, 0.03, 0.2 + (i % 2) * 0.03, 0.64 + (i >> 1) * 0.02, -0.17 + (i - 1.5) * 0.02, 0xd8d2c0, 0, 0, 0.3);
-      b.kind = CLOTH;
-    }
+    if (o.circlet) { b.kind = METAL; b.add(new THREE.TorusGeometry(0.11, 0.009, 4, 20), o.circlet, M(0, hy + 0.05, 0.002, Math.PI / 2 - 0.12, 0, 0), true); b.kind = CLOTH; }
+    if (o.helm) helm(b, o, hy);
+    if (o.badge) b.add(new THREE.CircleGeometry(0.065, 12), o.badge, M(0, 0.33, 0.145), true); // a device on the breast
     if (o.hood) {
       // a deep hood, open at the face, coming to a soft point behind
       const open = 0.95;
-      b.add(new THREE.SphereGeometry(0.15, 16, 10, Math.PI / 2 + open, Math.PI * 2 - open * 2, 0, 2.2), o.cloak, M(0, hy + 0.01, -0.01, 0, 0, 0, 1, 1.08, 1.06), true);
+      b.add(new THREE.SphereGeometry(0.15, 18, 10, Math.PI / 2 + open, Math.PI * 2 - open * 2, 0, 2.2), o.cloak, M(0, hy + 0.01, -0.01, 0, 0, 0, 1, 1.08, 1.06), true);
       b.add(new THREE.ConeGeometry(0.09, 0.2, 8), o.cloak, M(0, hy + 0.06, -0.15, -2.1, 0, 0), true);
-      // and the cowl over the shoulders
-      lathe(b, [[0.29, 0.46], [0.24, 0.55], [0.15, 0.66], [0.11, 0.72]], o.cloak, M(0, 0, -0.01, 0, 0, 0, 1.06, 1, 0.8), 14);
+      lathe(b, [[0.25, 0.47], [0.225, 0.55], [0.15, 0.65], [0.11, 0.72]], o.cloak, M(0, 0, -0.01, 0, 0, 0, 1.0, 1, 0.78), 14); // the cowl
     } else if (o.cloak) {
       lathe(b, [[0.27, 0.5], [0.22, 0.58], [0.12, 0.66], [0.08, 0.68]], o.cloak, M(0, 0, -0.01, 0, 0, 0, 1.08, 1, 0.76), 14); // a mantle
     }
-    if (o.bow) { // a bow slung across the back
+    const quiver = o.quiver ?? (o.bow ? 0x5a4030 : null);
+    if (quiver) {
       b.kind = LEATHER;
-      { // its middle on the back, the limbs running diagonally from shoulder to hip
-        const R = 0.95, arc = 0.95, dir = 2.36;
-        b.add(new THREE.TorusGeometry(R, 0.014, 4, 14, arc), o.heldBow ?? 0x6b4a2a, M(-0.05 - R * Math.cos(dir), 0.3 - R * Math.sin(dir), -0.19, 0, 0, dir - arc / 2), true);
-      }
-      b.add(new THREE.CylinderGeometry(0.055, 0.045, 0.5, 8), 0x5a4030, M(-0.13, 0.33, -0.17, 0, 0, -0.3), true); // quiver
-      for (let i = 0; i < 4; i++) b.box(0.012, 0.09, 0.03, -0.2 - (i % 2) * 0.03, 0.62 + (i >> 1) * 0.02, -0.17 + (i - 1.5) * 0.02, 0xd8d2c0, 0, 0, -0.3);
+      b.add(new THREE.CylinderGeometry(0.058, 0.046, QUIVER.len, 10), quiver, M(QUIVER.x - Math.sin(QUIVER.rz) * QUIVER.len / 2, QUIVER.y + Math.cos(QUIVER.rz) * QUIVER.len / 2, QUIVER.z, 0, 0, QUIVER.rz), true);
+      b.add(new THREE.TorusGeometry(0.058, 0.008, 4, 12), 0x3a2a1e, M(QUIVER.x - Math.sin(QUIVER.rz) * QUIVER.len, QUIVER.y + Math.cos(QUIVER.rz) * QUIVER.len, QUIVER.z, Math.PI / 2, 0, -QUIVER.rz), true);
       b.kind = CLOTH;
     }
-    void T;
   }, 0.92, g);
+
+  if (o.quiver ?? o.bow) { // the arrows in it, as many as there are (up to ten)
+    g.quiverArrows = new THREE.Mesh(quiverGeometry(10), SHARED.material);
+    limbs.body.add(g.quiverArrows);
+  }
 
   if (o.cloak) { // the cloak hangs from the shoulders and swings as they move
     limbs.cloak = part((b) => {
@@ -189,41 +347,50 @@ export function makeFigure(o) {
       b.add(geo, o.cloak, M(0, -len / 2, 0.02, 0, 0, 0, 1.05, 1, 0.78), true);
     }, 0.92 + 0.6, g, 0, -0.03);
   }
-  // Weapons are separate meshes so they can be shown and hidden.
+
+  // Weapons: in the hand when fighting, sheathed or slung otherwise.
   if (o.blade) {
-    const b = new GeoBuilder(3, 0.03);
-    b.kind = SURF.metal;
-    const shape = o.bladeShape ?? 'straight', hilt = o.hilt ?? 0x3a3028;
-    if (shape === 'curved') { // a curved blade: segments that sweep up toward the point
-      for (let k = 0; k < 5; k++) b.box(0.05 - k * 0.004, 0.022, 0.2, 0, -0.75 + 0.012 * k * k, 0.17 + 0.18 * k, o.blade, 0, -0.06 * k);
-    } else if (shape === 'broad') {
-      b.box(0.08, 0.025, 0.62, 0, -0.75, 0.38, o.blade);
-      b.box(0.1, 0.025, 0.28, 0, -0.75, 0.82, o.blade);        // widening toward the point
-    } else {
-      const len = shape === 'long' ? 1.15 : shape === 'knife' ? 0.55 : 0.9;
-      b.box(0.05, 0.02, len, 0, -0.75, 0.07 + len / 2, o.blade);
-    }
-    b.box(shape === 'knife' ? 0.14 : 0.2, 0.04, 0.05, 0, -0.76, 0.08, hilt);
-    b.box(0.05, 0.05, shape === 'long' ? 0.24 : 0.16, 0, -0.77, shape === 'long' ? -0.06 : -0.02, 0x4a3828);
-    b.box(0.07, 0.07, 0.06, 0, -0.78, shape === 'long' ? -0.2 : -0.12, hilt);  // pommel
-    g.sword = b.mesh(SHARED.material);
-    limbs.armR.add(g.sword);
+    const sw = swordGeometries(o);
+    // held: the grip in the right hand, the blade forward
+    g.sword = new THREE.Mesh(sw.full, SHARED.material);
+    g.sword.rotation.x = Math.PI / 2;
+    g.sword.position.set(0, BOW_HAND, 0.02 + 0.09);
+    limbs.elbowR.add(g.sword);
+    // sheathed: a scabbard at the left hip, the hilt up and forward
+    const sb = new GeoBuilder(7, 0.02);
+    sb.kind = LEATHER;
+    const a = 0.32, sl = sw.len + 0.04;
+    sb.add(new THREE.CylinderGeometry(1, 0.8, sl, 10), 0x3a2a1e, M(0, -sl / 2, 0, 0, 0, 0, 0.045, 1, 0.022), true);
+    sb.kind = METAL;
+    sb.add(new THREE.CylinderGeometry(1, 1, 0.05, 10), o.hilt ?? 0x8a7a5a, M(0, -sl + 0.03, 0, 0, 0, 0, 0.04, 1, 0.02), true); // the chape
+    const sheath = new THREE.Group();
+    sheath.add(meshOf(sb));
+    const hiltMesh = new THREE.Mesh(sw.hilt, SHARED.material);
+    hiltMesh.rotation.z = Math.PI; // grip up
+    sheath.add(hiltMesh);
+    sheath.position.set(-0.21, 0.06, 0.04);
+    sheath.rotation.set(a, 0, 0.12);
+    limbs.body.add(sheath);
+    g.sheath = sheath;
   }
   if (o.heldBow) {
-    const b = new GeoBuilder(4, 0.03);
-    b.kind = SURF.wood;
-    const limb = o.bowLong ? 0.76 : 0.62;
-    b.box(0.035, limb, 0.035, 0, -0.72 - (limb - 0.62) * 0.15, 0.1, o.heldBow, 0, 0.32);
-    b.box(0.035, limb, 0.035, 0, -1.3 - (limb - 0.62) * 0.85, 0.1, o.heldBow, 0, -0.32);
-    if (o.bowTips) {
-      b.box(0.045, 0.14, 0.045, 0, -0.72 + limb * 0.86, 0.1 - limb * 0.3, o.bowTips, 0, 0.32);
-      b.box(0.045, 0.14, 0.045, 0, -1.3 - (limb - 0.62) * 0.85 - 0.02, 0.1 - limb * 0.3, o.bowTips, 0, -0.32);
-      b.box(0.05, 0.12, 0.05, 0, -1.0, 0.11, o.bowTips);      // and the grip
+    const bow = bowParts(o);
+    g.heldBow = bow.group;
+    limbs.elbowL.add(g.heldBow);
+    // slung across the back, from the left shoulder to the right hip
+    const sb = new GeoBuilder(8, 0.02);
+    sb.kind = LEATHER;
+    const L = bow.L, c = bow.c;
+    for (const s of [-1, 1]) {
+      const curve = new THREE.CubicBezierCurve3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.07, s * L * 0.45, 0), new THREE.Vector3(0.02 - c * 0.4, s * L * 0.85, 0), new THREE.Vector3(-c, s * L, 0));
+      sb.add(new THREE.TubeGeometry(curve, 10, 0.016, 5), o.heldBow, null, true);
     }
-    b.box(0.008, 1.1 + (limb - 0.62) * 1.7, 0.008, 0, -1.27 - (limb - 0.62) * 0.85, -0.07, 0xd8d2c0);
-    g.heldBow = b.mesh(SHARED.material);
-    g.heldBow.position.y = 0.55;
-    limbs.armL.add(g.heldBow);
+    sb.add(new THREE.CylinderGeometry(0.004, 0.004, 2 * L, 4), 0xd8d2c0, M(-c, 0, 0), true);
+    const slung = meshOf(sb);
+    slung.position.set(-0.02, 0.24, -0.26);
+    slung.rotation.set(0, Math.PI, 0.38);
+    limbs.body.add(slung);
+    g.slungBow = slung;
   }
 
   g.limbs = limbs;
@@ -234,17 +401,58 @@ export function makeFigure(o) {
     // Long arms, short bowed legs, and a stoop.
     const drop = 0.92 * 0.16;
     for (const leg of [limbs.legL, limbs.legR]) { leg.scale.y = 0.84; leg.position.y -= drop; leg.rotation.z = leg.position.x > 0 ? 0.1 : -0.1; }
-    for (const arm of [limbs.armL, limbs.armR]) { arm.scale.y = 1.24; arm.position.y -= drop; arm.position.z += 0.1; }
+    for (const arm of [limbs.armL, limbs.armR]) { arm.scale.y = 1.2; arm.position.y -= drop; arm.position.z += 0.1; }
     g.userData.bodyY = 0.92 - drop;
     g.userData.hunch = 0.3;
   }
+
+  /** Which weapons are in hand (the rest are sheathed or slung). */
+  g.setWeapons = (sword, bow) => {
+    if (g.sword) { g.sword.visible = !!sword; g.sheath.visible = !sword; }
+    if (g.heldBow) { g.heldBow.visible = !!bow; g.slungBow.visible = !bow; }
+  };
+  /** How far the bow is drawn (0..1), and whether an arrow is on the string. */
+  g.setDraw = (draw, nocked) => g.heldBow?.userData.setDraw(draw, nocked);
+  let shown = 10;
+  /** Arrows showing in the quiver: all of them up to ten. */
+  g.setArrows = (n) => {
+    if (!g.quiverArrows) return;
+    n = Math.max(0, Math.min(10, Math.floor(n)));
+    if (n !== shown) { shown = n; g.quiverArrows.geometry = quiverGeometry(n); }
+  };
+  g.setWeapons(false, false);
   return g;
+}
+
+/** A helmet: straight sides down over the ears and the back of the neck, open at the face, and a crown. */
+function helm(b, o, hy) {
+  const k = b.kind;
+  b.kind = SURF.metal;
+  const hz = o.orc ? 0.03 : 0, R = o.orc ? 0.138 : 0.124, peak = o.helmNasal ? 0.2 : o.orc ? 0.15 : 0.165;
+  // the crown: a full shell from the brow up, conical for a nasal helm, rounder otherwise
+  const crown = [[R + 0.004, 0.0], [R, 0.04], [R * 0.93, 0.085], [R * 0.75, 0.13], [R * 0.42, peak - 0.015], [0.0001, peak]];
+  b.add(new THREE.LatheGeometry(crown.map(([r, y]) => new THREE.Vector2(r, y)), 18), o.helm, M(0, hy + 0.035, hz), true);
+  // the sides and back: flat-faced plates down to the jaw, leaving the face open
+  const sides = [[R + 0.012, -0.12], [R + 0.006, -0.06], [R + 0.004, 0.0], [R + 0.004, 0.04]];
+  b.add(new THREE.LatheGeometry(sides.map(([r, y]) => new THREE.Vector2(r, y)), 8, 0.85, Math.PI * 2 - 1.7), o.helm, M(0, hy + 0.035, hz), false);
+  // a band round the brow, rivets, and the nasal
+  b.add(new THREE.TorusGeometry(R + 0.006, 0.01, 4, 20), new THREE.Color(o.helm).multiplyScalar(0.8), M(0, hy + 0.04, hz, Math.PI / 2, 0, 0), true);
+  if (o.helmNasal || o.orc) b.box(0.024, 0.11, 0.014, 0, hy - 0.025, hz + R + 0.004, o.helm);
+  if (o.orc || o.helmCrest) { // a crest from brow to nape
+    b.add(new THREE.CylinderGeometry(0.11, 0.11, 0.022, 14, 1, false, 0, Math.PI), o.helmCrest ?? o.helm, M(0, hy + peak - 0.07, hz, 0, 0, Math.PI / 2, 1, 1, 1.3), false);
+  }
+  if (o.horns) for (const sx of [-1, 1]) b.add(new THREE.ConeGeometry(0.032, 0.26, 7), 0xd8d2c0, M(sx * 0.17, hy + 0.13, hz, 0.2, 0, -sx * 0.75), true);
+  if (o.helmWings) for (const sx of [-1, 1]) {
+    for (let f = 0; f < 3; f++) b.box(0.012, 0.2 - f * 0.04, 0.05, sx * (R + 0.02), hy + 0.1 + f * 0.015, hz - 0.05 - f * 0.045, o.helmWings, -0.2 - f * 0.25, 0, -sx * (0.45 + f * 0.12));
+  }
+  b.kind = k;
 }
 
 /** Swing the limbs. `speed` in m/s; 0 stands still with a slight sway. */
 /**
  * @param pose optional overrides, in radians: { armR, armL } set an arm's swing
- *   directly (negative is forward and up), for attacks and drawing a bow.
+ *   directly (negative is forward and up), { elbowR, elbowL } its bend (negative
+ *   bends the forearm forward), for attacks and drawing a bow.
  */
 export function animateFigure(fig, speed, dt, time, pose) {
   const l = fig.limbs;
@@ -262,17 +470,24 @@ export function animateFigure(fig, speed, dt, time, pose) {
   const kneeL = moving ? 0.08 + amp * 1.1 * Math.max(0, -c) : 0.04, kneeR = moving ? 0.08 + amp * 1.1 * Math.max(0, c) : 0.04;
   l.shinL.rotation.x += (kneeL - l.shinL.rotation.x) * ease;
   l.shinR.rotation.x += (kneeR - l.shinR.rotation.x) * ease;
-  if (l.cloak) {
-    const want = -(moving ? Math.min(0.55, 0.08 + speed * 0.06) : 0.02) - (moving ? Math.abs(s) * 0.06 : Math.sin(time * 1.3) * 0.015);
-    l.cloak.rotation.x += (want - l.cloak.rotation.x) * Math.min(1, dt * 5);
-  }
+  // elbows: a little bent at rest, more as the arm swings forward, most when running
+  const run = moving ? Math.min(1, speed / 7) : 0;
+  const elbowL = -0.15 - run * 0.55 - Math.max(0, s) * 0.45, elbowR = -0.15 - run * 0.55 - Math.max(0, -s) * 0.45;
+  l.elbowL.rotation.x += (elbowL - l.elbowL.rotation.x) * ease;
+  l.elbowR.rotation.x += (elbowR - l.elbowR.rotation.x) * ease;
   const bob = moving ? Math.abs(Math.cos(fig.userData.phase)) * 0.05 : Math.sin(time * 1.6) * 0.006;
   l.body.position.y = fig.userData.bodyY + bob;
   l.body.rotation.x = fig.userData.hunch + (moving ? Math.min(0.14, speed * 0.016) : 0);
-  if (l.cloak) { l.cloak.position.y = l.body.position.y + 0.6; l.cloak.position.z = -0.03 + Math.sin(l.body.rotation.x) * 0.6; }
+  if (l.cloak) {
+    // the cloak streams out behind (a positive turn carries its hem backward)
+    const want = l.body.rotation.x + (moving ? Math.min(0.42, 0.06 + speed * 0.05) + Math.abs(s) * 0.05 : 0.02 + Math.sin(time * 1.3) * 0.015);
+    l.cloak.rotation.x += (want - l.cloak.rotation.x) * Math.min(1, dt * 5);
+    l.cloak.position.y = l.body.position.y + 0.6 * Math.cos(l.body.rotation.x);
+    l.cloak.position.z = -0.03 + Math.sin(l.body.rotation.x) * 0.6;
+  }
   if (pose) {
-    if (pose.armR !== undefined) l.armR.rotation.x = pose.armR;
-    if (pose.armL !== undefined) l.armL.rotation.x = pose.armL;
+    if (pose.armR !== undefined) { l.armR.rotation.x = pose.armR; l.elbowR.rotation.x = pose.elbowR ?? -0.1; }
+    if (pose.armL !== undefined) { l.armL.rotation.x = pose.armL; l.elbowL.rotation.x = pose.elbowL ?? 0; }
   }
 }
 

@@ -152,7 +152,9 @@ async function boot() {
     onQuality: (name) => { state.settings.quality = name; save(); location.search = ''; },
     onNew: () => { store.clear(); saveOnExit = false; location.reload(); },
     onTravel: () => { if (!enemies.inCombat()) { menu.close(); goHome('You slip away by the ways the rangers know, and are home before the light changes.'); } },
+    onFps: () => { state.settings.fps = !state.settings.fps; $('fps').hidden = !state.settings.fps; save(); return state.settings.fps; },
   });
+  $('fps').hidden = !state.settings.fps;
 
   player.onNotice = (text) => hud.toast('', text);
 
@@ -369,7 +371,7 @@ async function boot() {
     if (action === 'menu') {
       const open = [dialogue, map, pack, trade, menu].find((p) => p.open);
       if (open) open.close();
-      else { openPanel(); menu.show(qualityName, storage ? '' : 'Saving is not available in this browser.', { atHome: refuge.isInside(player.pos), inFight: enemies.inCombat() }); }
+      else { openPanel(); menu.show(qualityName, storage ? '' : 'Saving is not available in this browser.', { atHome: refuge.isInside(player.pos), inFight: enemies.inCombat() }, state.settings.fps); }
       return;
     }
     if (action === 'map') {
@@ -447,7 +449,7 @@ async function boot() {
   if (params.has('debug')) hud.debug.hidden = false;
 
   // ---- loop ----
-  let last = performance.now(), time = 0, slow = 0, autosave = 0, fps = 60, shade = 0;
+  let last = performance.now(), time = 0, slow = 0, autosave = 0, fps = 60, shade = 0, fpsCount = 0, fpsTime = 0;
   const loop = (now) => {
     requestAnimationFrame(loop);
     const elapsed = (now - last) / 1000;
@@ -465,6 +467,12 @@ async function boot() {
     rig.aiming = state.weapon === 'bow' && (!input.touch || combat.aim) && rig.wantDist > 0.5;
     rig.zoomed = aiming;
     player.update(dt, time, input, rig.yaw, { pose: fight.pose, slow: fight.slow, still: fight.still, holdYaw: fight.slow || combat.swing > 0, down });
+    { // what the ranger holds: the bow drawn with an arrow on the string, or the sword; else slung and sheathed
+      const hw = combat.handWeapons(player.speed > 4);
+      player.figure.setWeapons(hw.sword, hw.bow);
+      player.figure.setDraw(hw.draw, hw.nocked);
+      player.figure.setArrows(state.arrows);
+    }
     rig.update(dt, input, player);
     hud.setCrosshair(started && state.weapon === 'bow' && (!input.touch || combat.aim) && !anyPanel(), combat.draw >= 0.8);
     if (input.enabled && (input.move.x || input.move.y)) hud.hideHint();
@@ -482,7 +490,7 @@ async function boot() {
     atmosphere.update(camera, player.pos, blight, dt, shade, inside);
     motes.update(time, camera, player.pos.y, inside ? 0 : shade * (1 - blight));
     water.update(time);
-    refuge.update(time);
+    refuge.update(time, player.pos);
 
     for (const n of npcs) {
       // turn to face the ranger when they come close
@@ -494,6 +502,9 @@ async function boot() {
       animateFigure(n.figure, 0, dt, time + n.x);
     }
 
+    // the frame-rate counter: frames counted over each half second
+    fpsCount++; fpsTime += elapsed;
+    if (fpsTime >= 0.5) { if (state.settings.fps) $('fps').textContent = `${Math.round(fpsCount / fpsTime)} fps`; fpsCount = 0; fpsTime = 0; }
     slow -= dt;
     if (slow <= 0 && started) {
       slow = 0.25;

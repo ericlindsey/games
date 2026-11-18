@@ -8,9 +8,10 @@ import { groundColor, canopyColor } from './groundColor.js';
 import { forestDensity } from './forest.js';
 import { HA } from './layout.js';
 import { noise2 } from '../util/noise.js';
-import { buildVegetation, setVegetationLod } from './vegetation.js';
+import { buildVegetation, assignVegetation } from './vegetation.js';
 import { setChunkCircles, removeChunkCircles } from './collision.js';
 import { surfaceMaterial, SURF, surfaceSettings } from './surface.js';
+import { materials } from './build.js';
 
 const rgb = [0, 0, 0], rgb2 = [0, 0, 0];
 const _c = new THREE.Color();
@@ -94,6 +95,8 @@ export class Ground {
     this.chunks = new Map();
     this.hole = new THREE.Vector3(0, 0, 0); // x, z, radius
     this.material = surfaceMaterial({ kind: SURF.ground });
+    // herbs and small stones shrink away toward the edge of where they are shown
+    for (const m of [materials.herb, materials.rockCover]) m.userData.surf.uFade.value.set(quality.coverFar - 16, quality.coverFar - 1);
 
     // Backdrop: the whole land, coarse, with the roof of the far forest above it.
     const b = WORLD.backdrop, step = 32;
@@ -130,28 +133,19 @@ export class Ground {
     for (const key of [...this.chunks.keys()]) this.dropChunk(key);
   }
 
-  /** Near chunks draw their plants in full; farther ones in a lighter form. */
-  lodFor(cx, cz, px, pz, current) {
-    const size = CHUNK.size;
-    const dx = Math.max(cx * size - px, 0, px - (cx + 1) * size);
-    const dz = Math.max(cz * size - pz, 0, pz - (cz + 1) * size);
-    const d = Math.hypot(dx, dz), near = this.quality.lodNear ?? 70;
-    if (current === 'hi') return d > near + 20 ? 'lo' : 'hi';
-    return d < near ? 'hi' : 'lo';
-  }
-
-  buildChunk(cx, cz, lod = 'hi') {
+  buildChunk(cx, cz, px, pz) {
     const key = cx + ',' + cz;
     const size = CHUNK.size, n = this.quality.terrainSegments ?? CHUNK.segments;
     const group = new THREE.Group();
     const mesh = new THREE.Mesh(gridGeometry(cx * size, cz * size, n, n, size / n, heightAt, paintGround, inRockSlot), this.material);
     mesh.receiveShadow = true;
     group.add(mesh);
-    const veg = buildVegetation(cx, cz, this.quality, lod);
+    const veg = buildVegetation(cx, cz, this.quality);
     for (const m of veg.meshes) group.add(m);
+    assignVegetation(veg.groups, px, pz, this.quality);
     setChunkCircles(key, veg.circles);
     this.scene.add(group);
-    this.chunks.set(key, { group, cx, cz, lod, veg: veg.meshes });
+    this.chunks.set(key, { group, cx, cz, veg: veg.groups });
   }
 
   dropChunk(key) {
@@ -193,14 +187,17 @@ export class Ground {
     for (const wnt of want) {
       const key = wnt.cx + ',' + wnt.cz;
       if (this.chunks.has(key)) continue;
-      if (budget > 0) { this.buildChunk(wnt.cx, wnt.cz, this.lodFor(wnt.cx, wnt.cz, px, pz)); budget--; continue; }
+      if (budget > 0) { this.buildChunk(wnt.cx, wnt.cz, px, pz); budget--; continue; }
       missing++;
       holeR = Math.min(holeR, wnt.d);
     }
+    // every few metres walked, each plant takes the form its distance calls for
+    if (!this.lodAt || Math.hypot(px - this.lodAt.x, pz - this.lodAt.z) > 4) {
+      this.lodAt = { x: px, z: pz };
+      for (const ch of this.chunks.values()) assignVegetation(ch.veg, px, pz, this.quality);
+    }
     const dropR = this.quality.loadRadius + CHUNK.size * 1.5;
     for (const [key, ch] of this.chunks) {
-      const lod = this.lodFor(ch.cx, ch.cz, px, pz, ch.lod);
-      if (lod !== ch.lod) { ch.lod = lod; setVegetationLod(ch.veg, lod, this.quality.shadows); }
       const dx = (ch.cx + 0.5) * CHUNK.size - px, dz = (ch.cz + 0.5) * CHUNK.size - pz;
       if (Math.hypot(dx, dz) > dropR + CHUNK.size) this.dropChunk(key);
     }

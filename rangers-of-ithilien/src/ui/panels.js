@@ -238,7 +238,7 @@ export class MapPanel {
 }
 
 export class MenuPanel {
-  /** @param handlers { onClose, onQuality(name), onSave(), onNew() } */
+  /** @param handlers { onClose, onQuality(name), onSave(), onNew(), onTravel(), onFps() -> now on } */
   constructor(handlers) {
     this.root = $('menu');
     this.open = false;
@@ -249,6 +249,7 @@ export class MenuPanel {
       if (confirm('Begin anew? Your discoveries and cleared camps will be forgotten.')) handlers.onNew();
     };
     $('menu-travel').onclick = () => handlers.onTravel();
+    $('menu-fps').onclick = () => { const on = handlers.onFps(); $('menu-fps').textContent = on ? 'Hide frame rate' : 'Show frame rate'; };
     for (const b of this.root.querySelectorAll('[data-quality]')) b.onclick = () => handlers.onQuality(b.dataset.quality);
     this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
   }
@@ -256,7 +257,8 @@ export class MenuPanel {
    * @param where { atHome, inFight }: at home the game can be begun anew; abroad
    *   the ranger can instead go straight home, unless the enemy has seen them.
    */
-  show(quality, status, where = { atHome: true, inFight: false }) {
+  show(quality, status, where = { atHome: true, inFight: false }, fps = false) {
+    $('menu-fps').textContent = fps ? 'Hide frame rate' : 'Show frame rate';
     $('menu-new').hidden = !where.atHome;
     const travel = $('menu-travel');
     travel.hidden = where.atHome;

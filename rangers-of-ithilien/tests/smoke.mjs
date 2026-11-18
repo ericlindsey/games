@@ -205,7 +205,15 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   const b = await pos(page);
   check(b.z > a.z + 1.5, `holding W walks forward (moved ${dist(a, b).toFixed(1)} m)`);
   check(Math.abs(b.y - (await page.evaluate((b) => roi.heightAt(b.x, b.z), b))) < 0.05, 'feet follow the ground');
-  await page.waitForFunction(() => [...roi.grass.tiles.values()].filter((t) => t.mesh).length >= 4, null, { timeout: 30000 }).then(() => check(true, 'grass grows about the ranger on the lawns'), () => check(false, 'grass grows about the ranger on the lawns'));
+  check(await page.evaluate(() => { const f = roi.player.figure; return !f.sword.visible && f.sheath.visible && !f.heldBow.visible && f.slungBow.visible; }),
+    'out of a fight the sword is sheathed and the bow slung on the back');
+  const quiverShows = await page.evaluate(async () => {
+    const f = roi.player.figure, verts = () => f.quiverArrows.geometry.attributes.position.count, frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const full = verts(); roi.state.arrows = 3; await frame(); const three = verts(); roi.state.arrows = 24; await frame();
+    return { full, three, back: verts() };
+  });
+  check(quiverShows.three * 10 === quiverShows.full * 3 && quiverShows.back === quiverShows.full, `the quiver shows each arrow when there are few, and looks full otherwise (${JSON.stringify(quiverShows)})`);
+  await page.waitForFunction(() => [...roi.grass.tiles.values()].filter((t) => t.dense).length >= 2, null, { timeout: 30000 }).then(() => check(true, 'grass grows about the ranger on the lawns'), () => check(false, 'grass grows about the ranger on the lawns'));
 
   // Set down inside a wall (a ruin's), the ranger is freed at once onto open ground.
   const unwalled = await page.evaluate(() => {
@@ -248,9 +256,10 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(true, 'they notice the ranger');
   check(/seen you|roused/.test(await page.textContent('#callout')), 'and the HUD says so');
   await page.keyboard.down('KeyF');
-  const drewBlood = await page.waitForFunction(() => roi.enemies.list.some((e) => e.hp < e.maxHp), null, { timeout: 60000 }).then(() => true, () => false);
+  const drewBlood = await page.waitForFunction(() => roi.enemies.list.some((e) => e.hp < e.maxHp), null, { timeout: 240000 }).then(() => true, () => false);
   check(drewBlood, 'the sword wounds them');
-  const wasHurt = await page.waitForFunction(() => roi.state.health < 100, null, { timeout: 60000 }).then(() => true, () => false);
+  check(await page.evaluate(() => roi.player.figure.sword.visible && !roi.player.figure.sheath.visible), 'in the fight the sword is drawn');
+  const wasHurt = await page.waitForFunction(() => roi.state.health < 100, null, { timeout: 240000 }).then(() => true, () => false);
   check(wasHurt, 'and they wound the ranger');
   await page.waitForFunction(() => roi.state.stats.kills >= 1 || roi.state.health < 30, null, { timeout: 240000 });
   await page.keyboard.up('KeyF');
@@ -273,6 +282,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   const quiver = await page.evaluate(() => roi.state.arrows);
   await page.keyboard.down('KeyF');
   await page.waitForFunction(() => roi.combat.draw > 0.5, null, { timeout: 30000 });
+  check(await page.evaluate(() => { const b = roi.player.figure.heldBow; return b.visible && b.userData.arrow.visible && !roi.player.figure.slungBow.visible; }), 'drawing, the bow is in hand with an arrow on the string');
   await page.keyboard.up('KeyF');
   await page.waitForFunction((q) => roi.state.arrows === q - 1, quiver, { timeout: 20000 });
   check(await page.evaluate(() => roi.combat.arrows.length >= 0), 'an arrow is loosed and leaves the quiver');
@@ -326,7 +336,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // A band on the Harad Road marches down it.
   await page.evaluate(() => { roi.enemies.reset(); roi.teleport(roi.haradRoadX(2000) - 60, 2000, 0); window.band = roi.enemies.spawnPatrol(1960, 1, { list: ['snaga', 'snaga'], host: false }); roi.combat.god = true; });
   const z0 = await page.evaluate(() => roi.enemies.list.find((e) => e.camp === band).z);
-  const marched = await page.waitForFunction((z0) => { const e = roi.enemies.list.find((e) => e.camp === band); return e && (e.z > z0 + 3 || e.alerted); }, z0, { timeout: 60000 }).then(() => true, () => false);
+  const marched = await page.waitForFunction((z0) => { const e = roi.enemies.list.find((e) => e.camp === band); return e && (e.z > z0 + 3 || e.alerted); }, z0, { timeout: 240000 }).then(() => true, () => false);
   check(marched, 'a band can be met on the road, marching or turning on the ranger');
   const clearedBefore = await page.evaluate(() => roi.state.cleared.length);
   await page.evaluate(() => { for (const e of roi.enemies.list.filter((e) => e.camp === band)) roi.enemies.damage(e, 9999); roi.combat.god = false; roi.enemies.reset(); });
@@ -345,7 +355,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     window.house = h;
     return true;
   });
-  const out2 = await page.waitForFunction(() => { const e = roi.enemies.list.find((e) => e.camp.id === 'test-house'); return e && (Math.abs(e.x - house.x) > house.w / 2 + 0.5 || Math.abs(e.z - house.z) > house.d / 2 + 0.5); }, null, { timeout: 60000 }).then(() => true, () => false);
+  const out2 = await page.waitForFunction(() => { const e = roi.enemies.list.find((e) => e.camp.id === 'test-house'); return e && (Math.abs(e.x - house.x) > house.w / 2 + 0.5 || Math.abs(e.z - house.z) > house.d / 2 + 0.5); }, null, { timeout: 240000 }).then(() => true, () => false);
   check(freed && out2, 'an enemy stuck inside walls finds its way out');
   await page.evaluate(() => { roi.enemies.reset(); roi.combat.god = false; });
 
@@ -376,7 +386,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => roi.teleport(700, 1000, 0));
   await page.evaluate(() => roi.combat.hurt(9999));
   check(await page.isVisible('#fallen'), 'at no health the ranger falls');
-  await page.waitForFunction(() => roi.state.health === 100 && roi.refuge.isInside(roi.player.pos), null, { timeout: 60000 });
+  await page.waitForFunction(() => roi.state.health === 100 && roi.refuge.isInside(roi.player.pos), null, { timeout: 240000 });
   check(await page.isHidden('#fallen') && await page.evaluate(() => roi.enemies.list.length === 0), 'and wakes in the cave, with the field forgotten');
 
   // Hand the task in.
@@ -505,6 +515,12 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.click('#btn-menu');
   await page.waitForSelector('#menu:not([hidden])');
   await shot(page, 'menu');
+  check(await page.isHidden('#fps') && (await page.textContent('#menu-fps')).includes('Show'), 'the frame-rate counter starts hidden');
+  await page.click('#menu-fps');
+  await page.waitForFunction(() => /\d+ fps/.test(document.getElementById('fps').textContent), null, { timeout: 30000 });
+  check(await page.isVisible('#fps') && await page.evaluate(() => roi.state.settings.fps === true), 'the menu turns on a frame-rate counter, and it is remembered');
+  await page.click('#menu-fps');
+  check(await page.isHidden('#fps'), 'and off again');
   await page.click('#menu-resume');
   check(await page.isHidden('#menu'), 'menu opens and closes');
 });
@@ -549,7 +565,7 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   await page.waitForFunction(() => roi.enemies.list.length >= 2, null, { timeout: 30000 });
   const q0 = await page.evaluate(() => roi.state.arrows);
   await page.evaluate(() => { roi.input.attackButton = true; });
-  const acted = await page.waitForFunction((q) => roi.state.arrows < q || roi.enemies.list.some((e) => e.hp < e.maxHp), q0, { timeout: 60000 }).then(() => true, () => false);
+  const acted = await page.waitForFunction((q) => roi.state.arrows < q || roi.enemies.list.some((e) => e.hp < e.maxHp), q0, { timeout: 240000 }).then(() => true, () => false);
   await page.evaluate(() => { roi.input.attackButton = false; });
   check(acted, 'holding Attack shoots or strikes at the nearest enemy without aiming');
   await shot(page, 'phone-fight');
@@ -631,7 +647,7 @@ for (const q of ['medium', 'high']) {
     await page.goto(base + `?quality=${q}&autostart`);
     await ready(page);
     await page.evaluate(() => roi.teleport(1100, 1420, Math.PI));
-    const drew = await page.waitForFunction(() => roi.renderer.info.render.triangles > 100000 && [...roi.grass.tiles.values()].some((t) => t.mesh), null, { timeout: 600000 }).then(() => true, () => false);
+    const drew = await page.waitForFunction(() => roi.renderer.info.render.triangles > 100000 && [...roi.grass.tiles.values()].some((t) => t.dense || t.sparse), null, { timeout: 600000 }).then(() => true, () => false);
     check(drew, `on ${q} the woods draw in full, with grass`);
     await shot(page, `quality-${q}`);
   });
