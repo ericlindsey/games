@@ -518,6 +518,18 @@ up a band or a host on the road.
   change of weapon asked for mid-stroke now happens when the stroke ends,
   instead of being lost.
 
+### v0.2a
+
+- Enemies no longer mend when they give up a chase and go back to their fire.
+  A camp's wounded and dead are remembered when the ranger walks off (the
+  company is forgotten past 190 m and rebuilt on return): the camp mends only
+  once the ranger is more than 1 km from it, or back at Henneth Annûn (within
+  150 m, or by falling or going home from the menu or map). So a company can
+  be picked off from afar, a few arrows at a time. Road bands are not
+  remembered: once out of sight they have marched on.
+- Loot picked up (trophies for an errand, kingsfoil-like goods) updates the task
+  tracker at once; before, the count waited for something else to refresh it.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
