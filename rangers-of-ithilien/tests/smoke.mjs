@@ -205,6 +205,16 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   const b = await pos(page);
   check(b.z > a.z + 1.5, `holding W walks forward (moved ${dist(a, b).toFixed(1)} m)`);
   check(Math.abs(b.y - (await page.evaluate((b) => roi.heightAt(b.x, b.z), b))) < 0.05, 'feet follow the ground');
+  await page.waitForFunction(() => [...roi.grass.tiles.values()].filter((t) => t.mesh).length >= 4, null, { timeout: 30000 }).then(() => check(true, 'grass grows about the ranger on the lawns'), () => check(false, 'grass grows about the ranger on the lawns'));
+
+  // Set down inside a wall (a ruin's), the ranger is freed at once onto open ground.
+  const freed = await page.evaluate(() => {
+    const r = roi.relics.find((q) => q.kind === 'chapel');
+    roi.teleport(r.x + 4, r.z - 2, 0, roi.heightAt(r.x + 4, r.z - 2));
+    const p = roi.player.pos;
+    return { inWall: roi.blocked(r.x + 4, r.z - 2, roi.heightAt(r.x + 4, r.z - 2), 0.4), free: !roi.blocked(p.x, p.z, p.y, 0.4), moved: Math.hypot(p.x - r.x - 4, p.z - r.z + 2) };
+  });
+  check(freed.inWall && freed.free && freed.moved < 3, `set down inside a wall, the ranger is freed close by (${freed.moved.toFixed(1)} m)`);
 
   // The river and the edges of the world stop the ranger.
   await page.evaluate(() => { roi.teleport(150, 2300, -Math.PI / 2); roi.input.haste = true; });
@@ -233,6 +243,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 13, c.z, -Math.PI / 2); roi.rig.yaw = -Math.PI / 2; });
   await page.waitForFunction(() => roi.enemies.list.length >= 2, null, { timeout: 30000 });
   check(true, 'enemies stand at an uncleared camp');
+  check(await page.evaluate(() => roi.enemies.list.every((e) => !roi.blocked(e.x, e.z, e.y, 0.4))), 'none of them stands inside a wall or rock');
   await page.waitForFunction(() => roi.enemies.list.some((e) => e.alerted), null, { timeout: 30000 });
   check(true, 'they notice the ranger');
   check(/seen you|roused/.test(await page.textContent('#callout')), 'and the HUD says so');

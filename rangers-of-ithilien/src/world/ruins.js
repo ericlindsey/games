@@ -5,49 +5,160 @@ import * as THREE from 'three';
 import { LANDMARKS, CAIR_ANDROS, bankX, southRoadZ } from './layout.js';
 import { heightAt } from './terrain.js';
 import { addSolid, addCircle } from './collision.js';
-import { GeoBuilder } from './build.js';
+import { GeoBuilder, SURF, materials } from './build.js';
+import { ATLAS } from './surface.js';
+import { addRock } from './rocks.js';
 import { plantTrees } from './vegetation.js';
 import { rng } from '../util/noise.js';
 
 export const STONE = 0xd6cfba, WORN = 0xb5ae9a, MOSS = 0x8a9a62, DARK = 0x4b484c;
+const IVY = 0x4f7a34;
+
+const _M = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) =>
+  new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(sx, sy, sz));
+
+/** A fluted shaft with a slight swell (entasis), standing on its base at y. */
+function shaft(b, r, h, x, y, z, color, broken = 0) {
+  const g = new THREE.CylinderGeometry(r * 0.88, r, h, 24, Math.max(2, Math.round(h / 0.6)), false);
+  const pos = g.attributes.position, seed = b.rand() * 10;
+  for (let i = 0; i < pos.count; i++) {
+    const px = pos.getX(i), py = pos.getY(i), pz = pos.getZ(i), rad = Math.hypot(px, pz);
+    if (rad < 1e-4) { // the cap's centre: a broken shaft has a jagged top
+      if (broken && py > 0) pos.setY(i, py - broken * 0.5);
+      continue;
+    }
+    const a = Math.atan2(pz, px), t = py / h + 0.5;
+    let k = 1 - 0.07 * Math.pow(Math.abs(Math.sin(a * 10)), 0.6);          // twenty flutes
+    k *= 1 + 0.035 * Math.sin(Math.min(1, t) * Math.PI * 0.9);              // entasis
+    k *= 1 - 0.04 * Math.max(0, Math.sin(a * 3 + seed) * Math.sin(t * 7 + seed)); // weathering
+    let yy = py;
+    if (broken && py > h / 2 - 1e-4) yy -= broken * (0.5 + 0.5 * Math.sin(a * 2 + seed)) * (0.6 + 0.4 * Math.sin(a * 5));
+    pos.setXYZ(i, px * k, yy, pz * k);
+  }
+  g.computeVertexNormals();
+  b.add(g, color, _M(x, y + h / 2, z), true);
+}
 
 /** A standing or broken column; returns nothing, registers its collider. */
 export function column(b, x, z, y, h, r = 0.55, capital = true) {
-  b.cyl(r * 1.25, r * 1.35, 0.35, x, y, z, WORN, 8);
-  b.cyl(r * 0.9, r, h, x, y + 0.35, z, STONE, 8);
-  if (capital) b.box(r * 2.6, 0.35, r * 2.6, x, y + 0.35 + h, z, STONE);
-  else b.cyl(r * 0.5, r * 0.9, 0.3, x, y + 0.35 + h, z, WORN, 6);
+  const k = b.kind;
+  b.kind = SURF.masonry;
+  b.box(r * 2.7, 0.22, r * 2.7, x, y, z, WORN);                                       // plinth
+  b.add(new THREE.TorusGeometry(r * 1.04, r * 0.16, 6, 20), WORN, _M(x, y + 0.3, z, Math.PI / 2, 0, 0), true); // torus moulding
+  b.cyl(r * 1.05, r * 1.18, 0.14, x, y + 0.22, z, WORN, 20);
+  b.kind = SURF.plain;
+  shaft(b, r, h, x, y + 0.36, z, STONE, capital ? 0 : 0.35 + b.rand() * 0.4);
+  b.kind = SURF.masonry;
+  if (capital) {
+    b.add(new THREE.LatheGeometry([[r * 0.88, 0], [r * 1.0, 0.06], [r * 1.25, 0.2], [r * 1.32, 0.28]].map(([a, c]) => new THREE.Vector2(a, c)), 20), STONE, _M(x, y + 0.36 + h, z), true); // echinus
+    b.box(r * 2.8, 0.26, r * 2.8, x, y + 0.36 + h + 0.28, z, STONE);                  // abacus
+  }
+  b.kind = k;
   addCircle(x, z, r * 1.3);
 }
 export function fallenColumn(b, x, z, y, len, ry, r = 0.5) {
-  const m = new THREE.Matrix4().makeRotationY(ry).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2));
-  m.setPosition(x, y + r * 0.8, z);
-  b.add(new THREE.CylinderGeometry(r * 0.9, r, len, 8), WORN, m);
+  // lying in two or three drums, knocked a little askew as they fell
+  const n = 2 + Math.floor(b.rand() * 2), dl = len / n;
+  const k = b.kind;
+  b.kind = SURF.plain;
+  for (let i = 0; i < n; i++) {
+    const off = (i - (n - 1) / 2) * dl, wob = (b.rand() - 0.5) * 0.25;
+    const g = new THREE.CylinderGeometry(r * 0.9, r, dl - 0.06, 20, 1);
+    const pos = g.attributes.position;
+    for (let v = 0; v < pos.count; v++) {
+      const px = pos.getX(v), pz = pos.getZ(v), rad = Math.hypot(px, pz);
+      if (rad < 1e-4) continue;
+      const a = Math.atan2(pz, px), kk = 1 - 0.07 * Math.pow(Math.abs(Math.sin(a * 10)), 0.6);
+      pos.setX(v, px * kk); pos.setZ(v, pz * kk);
+    }
+    g.computeVertexNormals();
+    const m = new THREE.Matrix4().makeRotationY(ry + wob).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2 + wob * 0.3));
+    m.setPosition(x + Math.cos(ry) * off, y + r * 0.8, z - Math.sin(ry) * off);
+    b.add(g, WORN, m, true);
+  }
+  b.kind = k;
   addCircle(x, z, r * 1.2);
 }
-/** A wall block that also blocks the player. */
-export function wall(b, x, z, y, w, h, d, color = STONE) {
-  b.box(w, h, d, x, y - 0.3, z, color);
-  addSolid({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, bottom: y - 2, top: y - 0.3 + h });
+
+/**
+ * Ashlar masonry, w x h x d, standing on y (blocks the player). The top is not
+ * a straight line: the courses have fallen away unevenly. Ivy may climb it.
+ */
+export function wall(b, x, z, y, w, h, d, color = STONE, collide = true) {
+  const long = w >= d, len = long ? w : d, thick = long ? d : w;
+  const k = b.kind;
+  b.kind = SURF.masonry;
+  // the core, then a broken top in runs of a metre or so
+  const core = Math.max(0.3, h - 0.45);
+  b.box(w, core + 0.5, d, x, y - 0.8, z, color); // buried a little, for sloping ground
+  const runs = Math.max(1, Math.round(len / (0.8 + b.rand() * 0.5)));
+  for (let i = 0; i < runs; i++) {
+    const seg = len / runs, o = -len / 2 + seg * (i + 0.5);
+    const top = h - (b.rand() < 0.35 ? b.rand() * 0.45 : 0) - core;
+    if (top <= 0.05) continue;
+    const sw = seg + (b.rand() - 0.5) * 0.1, inset = (b.rand() - 0.5) * 0.06;
+    const c = b.rand() < 0.2 ? WORN : color;
+    if (long) b.box(sw, top, thick + inset, x + o, y - 0.3 + core - 0.001, z, c, (b.rand() - 0.5) * 0.03);
+    else b.box(thick + inset, top, sw, x, y - 0.3 + core - 0.001, z + o, c, (b.rand() - 0.5) * 0.03);
+  }
+  // a block or two fallen at the foot
+  if (b.rand() < 0.5) {
+    const side = b.rand() < 0.5 ? -1 : 1, o = (b.rand() - 0.5) * len * 0.8;
+    const bx = long ? x + o : x + side * (thick / 2 + 0.5), bz = long ? z + side * (thick / 2 + 0.5) : z + o;
+    b.box(0.6, 0.35, 0.4, bx, heightAt(bx, bz) - 0.05, bz, WORN, b.rand() * 3, (b.rand() - 0.5) * 0.3, (b.rand() - 0.5) * 0.3);
+  }
+  // ivy, from the ground up one face
+  if (h > 1.2 && b.rand() < 0.55) {
+    const side = b.rand() < 0.5 ? -1 : 1, o = (b.rand() - 0.5) * len * 0.6, iw = 0.9 + b.rand() * 1.4, ih = Math.min(h, 0.8 + b.rand() * h);
+    const nx = long ? 0 : side, nz = long ? side : 0;
+    const cx = long ? x + o : x + side * (thick / 2 + 0.03), cz = long ? z + side * (thick / 2 + 0.03) : z + o;
+    for (let j = 0; j < 3; j++) {
+      const jx = long ? (b.rand() - 0.5) * iw * 0.6 : 0, jz = long ? 0 : (b.rand() - 0.5) * iw * 0.6;
+      b.card(cx + jx + nx * j * 0.01, y + ih * (0.3 + j * 0.25), cz + jz + nz * j * 0.01, iw, ih * 0.7, nx, 0, nz, j % 2 ? IVY : 0x5a8a3c, ATLAS.ivy, b.rand() * 6.28, [nx, 0.4, nz]);
+    }
+  }
+  b.kind = k;
+  if (collide) addSolid({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, bottom: y - 2, top: y - 0.3 + h });
 }
+
+/** An arch of wedge-shaped stones over a span, rising `rise` above the springing at y. */
+export function archStones(b, cx, y, cz, span, rise, depth, thick, n, ry = 0, color = STONE) {
+  const R = span / 2;
+  for (let i = 0; i < n; i++) {
+    if (b.missing && b.missing(i)) continue;
+    const a0 = Math.PI - (i / n) * Math.PI, a1 = Math.PI - ((i + 1) / n) * Math.PI;
+    // a wedge: inner and outer arcs between the two angles, extruded through the depth
+    const pts = [];
+    for (const a of [a0, a1]) {
+      pts.push([Math.cos(a) * R, Math.sin(a) * rise]);
+      pts.push([Math.cos(a) * (R + thick), Math.sin(a) * (rise + thick)]);
+    }
+    const shape = new THREE.Shape([new THREE.Vector2(...pts[0]), new THREE.Vector2(...pts[1]), new THREE.Vector2(...pts[3]), new THREE.Vector2(...pts[2])]);
+    const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 1 });
+    const m = new THREE.Matrix4().makeRotationY(ry).setPosition(cx, y, cz).multiply(new THREE.Matrix4().makeTranslation(0, 0, -depth / 2));
+    b.add(g, i % 4 === 1 ? MOSS : (i === Math.floor(n / 2) ? WORN : color), m, false);
+  }
+}
+
 export function rubble(b, rand, x, z, n, spread) {
   for (let i = 0; i < n; i++) {
     const rx = x + (rand() - 0.5) * spread, rz = z + (rand() - 0.5) * spread;
-    const s = 0.3 + rand() * 0.6;
-    b.box(s * 1.4, s * 0.8, s, rx, heightAt(rx, rz) - 0.1, rz, rand() < 0.3 ? MOSS : WORN, rand() * 3, (rand() - 0.5) * 0.4);
+    const s = 0.35 + rand() * 0.65;
+    // fallen ashlar, chipped at the edges
+    addRock(b, rx, heightAt(rx, rz) - 0.12, rz, s * 1.4, rand() < 0.3 ? MOSS : WORN, Math.floor(rand() * 1e5), { detail: 1, sx: 1.25, sy: 0.6, sz: 0.85, cuts: 9, rough: 0.08, tilt: 0.4 });
   }
 }
 
 const KINDS = {
   arch(b, l, y, rand) {
     for (const s of [-1, 1]) {
-      b.box(1.3, 4, 1.3, l.x + s * 2.4, y - 0.3, l.z, STONE);
+      wall(b, l.x + s * 2.4, l.z, y, 1.3, 4.0, 1.3, STONE, false);
+      b.box(1.5, 0.25, 1.45, l.x + s * 2.4, y + 3.55, l.z, WORN); // the impost
       addCircle(l.x + s * 2.4, l.z, 0.85);
     }
-    for (let i = 0; i <= 6; i++) { // voussoirs along a half circle
-      const a = (i / 6) * Math.PI;
-      b.box(1.35, 0.8, 1.2, l.x + Math.cos(a) * 2.4, y + 3.3 + Math.sin(a) * 2.1, l.z, i % 3 === 1 ? MOSS : STONE, 0, 0, a - Math.PI / 2);
-    }
+    b.kind = SURF.masonry;
+    archStones(b, l.x, y + 3.6, l.z, 3.5, 1.9, 1.2, 0.8, 9);
+    b.kind = 0;
     rubble(b, rand, l.x, l.z + 3, 7, 9);
   },
 
@@ -213,8 +324,9 @@ export function buildRuins(scene) {
     const make = KINDS[l.kind];
     if (!make) continue;
     const b = new GeoBuilder(l.id.length * 97 + Math.round(l.x), 0.08);
+    b.kind = SURF.masonry;
     make(b, l, heightAt(l.x, l.z), rng(Math.round(l.x * 7 + l.z)), scene);
-    scene.add(b.mesh());
+    scene.add(b.mesh(materials.stone));
   }
 
   // Cair Andros: the fort on the island, seen across the water.
@@ -224,7 +336,7 @@ export function buildRuins(scene) {
   b.box(10, 13, 10, c.x, y - 1, c.z - 34, STONE);
   b.box(9, 10, 9, c.x, y - 1, c.z + 34, STONE);
   b.cyl(0, 7.5, 5, c.x, y + 12, c.z - 34, 0x7b6a5a, 4);
-  scene.add(b.mesh());
+  scene.add(b.mesh(materials.stone));
 
   // A sickly light far up the Morgul Vale.
   const m = LANDMARKS.find((l) => l.id === 'morgul');

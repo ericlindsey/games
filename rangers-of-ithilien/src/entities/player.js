@@ -53,6 +53,8 @@ export class Player {
     this.yaw = yaw;
     this.vy = 0;
     this.onGround = true;
+    this.lastFree = null;
+    this.escape(); // never set down inside a wall or a rock
     this.sync(0, 0);
   }
 
@@ -74,6 +76,38 @@ export class Player {
       if (run > 1e-5 && (h - here) / run > PLAYER.maxSlope) return false;
     }
     return true;
+  }
+
+  /**
+   * If the ranger is somehow inside something solid (a wall, a rock, a pillar)
+   * or sunk under the ground, set them free: back to the last place they stood
+   * clear if it is near, else the nearest open spot. Never leaves them stuck.
+   */
+  escape() {
+    const p = this.pos, r = PLAYER.radius;
+    const sunk = this.onGround && terrainAt(p.x, p.z, p.y) > p.y + PLAYER.stepHeight + 0.4;
+    if (!sunk && !blockedBySolid(p.x, p.z, p.y, r * 0.6)) {
+      if (!blockedBySolid(p.x, p.z, p.y, r)) (this.lastFree ||= new THREE.Vector3()).copy(p);
+      return false;
+    }
+    const free = (x, z) => {
+      const y = groundAt(x, z, p.y + PLAYER.stepHeight);
+      if (blockedBySolid(x, z, y, r) || Math.abs(y - p.y) > 3) return null;
+      const probe = { x, z };
+      resolveCircles(probe, r);
+      return Math.hypot(probe.x - x, probe.z - z) < 0.01 ? y : null;
+    };
+    const lf = this.lastFree;
+    if (lf && Math.hypot(lf.x - p.x, lf.z - p.z) < 3 && free(lf.x, lf.z) !== null) { p.copy(lf); this.vy = 0; return true; }
+    for (let ring = 1; ring <= 24; ring++) {
+      const d = ring * 0.25, n = 8 + ring * 2;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2, x = p.x + Math.cos(a) * d, z = p.z + Math.sin(a) * d;
+        const y = free(x, z);
+        if (y !== null) { p.set(x, y, z); this.vy = 0; this.onGround = true; return true; }
+      }
+    }
+    return false;
   }
 
   notice(text) {
@@ -116,10 +150,17 @@ export class Player {
       const x0 = p.x, z0 = p.z;
       if (this.canStand(nx, p.z)) p.x = nx;
       if (this.canStand(p.x, nz)) p.z = nz;
+      const sx = p.x, sz = p.z;
       resolveCircles(p, PLAYER.radius);
+      // A trunk or pillar must never shove the ranger into a wall: if it would,
+      // stay where the step left us (or where we started).
+      if ((p.x !== sx || p.z !== sz) && blockedBySolid(p.x, p.z, p.y, PLAYER.radius)) {
+        if (!blockedBySolid(sx, sz, p.y, PLAYER.radius)) { p.x = sx; p.z = sz; } else { p.x = x0; p.z = z0; }
+      }
       this.vx = (p.x - x0) / Math.max(dt, 1e-4); this.vz = (p.z - z0) / Math.max(dt, 1e-4);
     } else { this.vx = 0; this.vz = 0; }
 
+    this.escape();
     const ground = groundAt(p.x, p.z, p.y);
     if (this.onGround) {
       if (input.jumpHeld && !act.down) {

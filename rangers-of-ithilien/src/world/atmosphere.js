@@ -2,6 +2,7 @@
 // the land and clears as camps are broken up.
 
 import * as THREE from 'three';
+import { surfaceUniforms } from './surface.js';
 
 const hex = (h) => new THREE.Color(h);
 const CLEAR = {
@@ -25,7 +26,7 @@ export class Atmosphere {
     this.blight = 0;
 
     this.sun = new THREE.DirectionalLight(CLEAR.sun, CLEAR.sunPower);
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(quality.shadowMap || 1024, quality.shadowMap || 1024);
     const sc = this.sun.shadow.camera;
     sc.left = sc.bottom = -110; sc.right = sc.top = 110; sc.near = 10; sc.far = 700;
     this.sun.shadow.bias = -0.0006;
@@ -63,6 +64,7 @@ export class Atmosphere {
     this.sky.renderOrder = -10;
     this.sky.frustumCulled = false;
     scene.add(this.sky);
+    surfaceUniforms.uSunDir.value.copy(SUN_DIR);
     this.setQuality(quality);
   }
 
@@ -91,6 +93,8 @@ export class Atmosphere {
     this.fog.near = L(L(CLEAR.fogNear, BLIGHT.fogNear, t), SHADE.fogNear, sh);
     this.fog.far = this.quality.fogFar * L(L(CLEAR.fogFar, BLIGHT.fogFar, t), SHADE.fogFar, sh);
     this.sun.color.lerpColors(CLEAR.sun, BLIGHT.sun, t);
+    surfaceUniforms.uSkyColor.value.copy(u.horizon.value).lerp(u.top.value, 0.25).multiplyScalar(dim);
+    surfaceUniforms.uSunGlow.value.copy(this.sun.color).multiplyScalar((1 - 0.6 * t) * dim);
     // With real shadows the trees already block the sun; without them, dim it by hand.
     this.sun.intensity = L(CLEAR.sunPower, BLIGHT.sunPower, t) * dim * (this.quality.shadows ? 1 - 0.15 * sh : L(1, SHADE.sun, sh));
     this.hemi.color.lerpColors(CLEAR.hemiSky, BLIGHT.hemiSky, t).lerp(SHADE.hemiSky, sh * 0.6);

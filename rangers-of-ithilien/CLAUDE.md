@@ -19,10 +19,11 @@ When a decision is unclear, choose the option that serves these, in this order:
    long sightlines, landmarks that pull you onward, small ruins worth the detour.
 2. **Faithful geography.** The world layout follows Tolkien's descriptions of
    Ithilien (see "World and lore rules"). Scale is compressed; relationships are not.
-3. **A mood, not a spectacle.** Old-RPG atmosphere: fog, low sun, quiet, stylised
-   low-detail geometry. Think the forest zones of late-90s MMOs and the haze of
-   early-2000s open-world RPGs, with small serene ruins. We take inspiration from a
-   feeling; we never copy another game's assets, models, layouts, or UI.
+3. **A mood, not a spectacle.** Old-RPG atmosphere: fog, low sun, quiet, small
+   serene ruins. Since v0.3 the look is stylised but rich: textured stone and bark,
+   leafy canopies, grass that moves, soft filmic light (see PLAN.md section 4).
+   Not photo-real. We take inspiration from a feeling; we never copy another
+   game's assets, models, layouts, or UI.
 4. **Small and working beats large and broken.** Every milestone ends playable.
 
 ## Tech rules
@@ -32,16 +33,20 @@ When a decision is unclear, choose the option that serves these, in this order:
 - **No runtime dependencies besides Three.js.** No frameworks, no physics engine,
   no asset pipeline. Ask before adding any dependency.
 - **All assets are procedural**: geometry built in code, colours from vertex
-  colours or small canvas-generated textures. No downloaded models or images.
+  colours, grain from small textures generated in code at load (`world/surface.js`).
+  No downloaded models or images.
 - **Deterministic world.** Everything placed in the world derives from the world
   seed and position (seeded RNG, never `Math.random()` in world generation), so the
   same world appears on every device and saves stay small.
 - **Mobile is a first-class target for exploration.** Anything in the exploration
   loop (moving, looking, talking, map, saving) must work with touch. Combat and
   skills may require keyboard and mouse.
-- **Performance budget**: 60 fps on a laptop, 30 fps on a mid-range phone. Use
+- **Performance budget**: 60 fps on a laptop, 30 fps on a recent phone. Use
   fog to bound view distance, `InstancedMesh` for vegetation, chunked terrain, and a
-  capped device pixel ratio. Check draw calls and triangle count when adding content.
+  capped device pixel ratio. Plants have a near and a far form (`setVegetationLod`);
+  ground cover and grass draw only near and shrink away with distance. Check draw
+  calls and triangle count (the `?debug` overlay) when adding content; `high` runs
+  about 2 to 2.5 million triangles in the woods.
 
 ## Code layout
 
@@ -78,7 +83,10 @@ src/
     camps.js          builds the camps from campSites.js
     relics.js         builds the lesser ruins and the waymarks on paths
     herbs.js          draws kingsfoil and the seed plants; gathering
-    build.js          GeoBuilder and other geometry helpers
+    build.js          GeoBuilder (parts with a surface kind, smooth or faceted, leaf cards) and the shared materials
+    surface.js        generated detail textures and leaf atlas; the material patch (triplanar grain, bump, moss, wind, leaf glow)
+    rocks.js          fractured rock geometry (boulders, outcrops, rubble, standing stones)
+    grass.js          the field of grass blades around the ranger, built in tiles
   entities/           player.js (ranger + camera rig), enemies.js (spawning and AI), figure.js
   input/input.js      keyboard, mouse and touch -> one input state
   ui/                 hud.js (compass, vitals, tracker, notices), panels.js (dialogue, map, pack, trade, menu)
@@ -174,6 +182,13 @@ Rules of thumb:
   rise along a stream; draw water from those beds, never from a formula of your own.
 - Anything built on the ground is levelled to the ground as it stands there
   (`FLATS` in terrain.js). tests/unit.test.js checks no ruin sits in a bowl.
+- What you see must match what stops you. Rock skins and bulges stand proud of
+  a wall only above head height near where people walk; colliders of rocks and
+  trunks are as wide as what is drawn at body height. If anyone ever ends up
+  inside a solid, `Player.escape` sets them free (to where they last stood
+  clear, else the nearest open spot); enemies are set down clear of walls,
+  rocks and trunks (`Enemies.clearSpot`), and a trunk's push never shoves anyone
+  into a wall.
 - Everything a person can do must work by touch: on a phone there is no aiming,
   so anything aimed needs an automatic form (see `Combat.update`).
 - All in-game text is ours (dialogue, tasks, item notes, notices). Keep the
@@ -216,8 +231,9 @@ python3 -m http.server 8000     # open http://localhost:8000
    In the console, `roi.teleport(x, z, yaw)` moves the ranger, and `roi.state`,
    `roi.enemies`, `roi.combat`, `roi.quests` and `roi.inv` expose the rest; backtick toggles
    the overlay; `G` toggles a fast debug run.
-5. Headless Chromium renders in software (single-digit fps), so it proves
-   behaviour, not performance. Say so rather than claiming a frame rate.
+5. Headless Chromium renders in software (single-digit fps; on `high` a single
+   screenshot can take a minute), so it proves behaviour, not performance. Say so
+   rather than claiming a frame rate.
 
 Add a check to `tests/smoke.mjs` for each new player-facing behaviour.
 Report what was checked and what was not.

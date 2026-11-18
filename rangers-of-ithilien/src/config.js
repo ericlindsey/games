@@ -23,10 +23,13 @@ export const PLAYER = {
 };
 
 // trees: share of canopy trees kept; under: understory; cover: herbs and flowers.
+// lodNear: plants in chunks nearer than this are drawn in full. grass: radius of
+// the field of blades (0 = none), grassSpacing: metres between clumps.
+// Phones start on medium: a recent phone has the power for shadows and grass.
 export const QUALITY = {
-  low:    { loadRadius: 200, fogFar: 2000, shadows: false, pixelRatio: 1.25, trees: 0.8, under: 0.5, cover: 0.4, motes: 60 },
-  medium: { loadRadius: 280, fogFar: 2600, shadows: false, pixelRatio: 1.5,  trees: 0.9, under: 0.8, cover: 0.7, motes: 120 },
-  high:   { loadRadius: 360, fogFar: 3200, shadows: true,  pixelRatio: 2,    trees: 1,   under: 1,   cover: 1,   motes: 200 },
+  low:    { loadRadius: 200, fogFar: 2000, shadows: false, shadowMap: 0,    pixelRatio: 1.25, trees: 0.8, under: 0.5, cover: 0.4, motes: 60,  terrainSegments: 40, lodNear: 40, grass: 22, grassSpacing: 0.95 },
+  medium: { loadRadius: 280, fogFar: 2600, shadows: true,  shadowMap: 1024, pixelRatio: 2,    trees: 0.9, under: 0.8, cover: 0.7, motes: 120, terrainSegments: 80, lodNear: 60, grass: 38, grassSpacing: 0.72 },
+  high:   { loadRadius: 360, fogFar: 3200, shadows: true,  shadowMap: 2048, pixelRatio: 2,    trees: 1,   under: 1,   cover: 1,   motes: 200, terrainSegments: 80, lodNear: 80, grass: 50, grassSpacing: 0.6 },
 };
 
 export const VERSION = '0.1';

@@ -5,8 +5,10 @@ import { RELICS } from './relicSites.js';
 import { PATHS, pathWear } from './paths.js';
 import { heightAt } from './terrain.js';
 import { addSolid, addCircle } from './collision.js';
-import { GeoBuilder } from './build.js';
-import { column, fallenColumn, wall, rubble, STONE, WORN, MOSS } from './ruins.js';
+import { GeoBuilder, SURF, materials } from './build.js';
+import { addRock } from './rocks.js';
+import { ATLAS } from './surface.js';
+import { column, fallenColumn, wall, rubble, archStones, STONE, WORN, MOSS } from './ruins.js';
 import { rng } from '../util/noise.js';
 
 const GREY = 0x8f8a80, TURF = 0x6f9148;
@@ -16,11 +18,12 @@ const BUILD = {
     const n = 8;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + 0.2, x = r.x + Math.cos(a) * 6.5, z = r.z + Math.sin(a) * 6.5, gy = heightAt(x, z);
-      if (i === 5) { b.box(0.9, 0.6, 3, x, gy - 0.1, z, GREY, a, 0.1); continue; } // one has fallen
-      b.box(1.0, 2.2 + rand() * 1.4, 0.6, x, gy - 0.4, z, i % 3 ? GREY : MOSS, -a + Math.PI / 2, (rand() - 0.5) * 0.2, (rand() - 0.5) * 0.2);
+      if (i === 5) { addRock(b, x, gy - 0.25, z, 2.6, GREY, 900 + i, { detail: 2, sx: 1.25, sy: 0.32, sz: 0.4, cuts: 8, rough: 0.12 }, a); continue; } // one has fallen
+      const tall = 2.4 + rand() * 1.6;
+      addRock(b, x, gy - 0.4, z, 1.3, i % 3 ? GREY : 0x8a8f78, 900 + i, { detail: 2, sx: 0.85, sy: tall / 1.3, sz: 0.5, cuts: 8, rough: 0.1, sink: 0.05, tilt: 0.12 }, -a + Math.PI / 2);
       addCircle(x, z, 0.7);
     }
-    b.box(2.4, 0.5, 1.4, r.x, y - 0.05, r.z, GREY, 0.4);
+    addRock(b, r.x, y - 0.15, r.z, 2.4, GREY, 950, { detail: 2, sx: 1, sy: 0.3, sz: 0.6, cuts: 6, flatTop: true, rough: 0.08 }, 0.4);
     addCircle(r.x, r.z, 1.1);
   },
 
@@ -59,7 +62,9 @@ const BUILD = {
   },
 
   barrow(b, r, y, rand) {
-    b.blob(7.5, r.x, y - 0.6, r.z, TURF, 1, 0.5, 1, 1);
+    b.kind = SURF.leaf;
+    b.lump(7.5, r.x, y - 0.6, r.z, TURF, 1, 0.5, 1, 3, 0.06);
+    b.kind = SURF.masonry;
     addCircle(r.x, r.z, 6.2);
     const dz = 6.6; // the door faces south
     b.box(0.7, 2.2, 0.8, r.x - 1.1, y - 0.3, r.z + dz, GREY);
@@ -69,7 +74,7 @@ const BUILD = {
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2, x = r.x + Math.cos(a) * 8.2, z = r.z + Math.sin(a) * 8.2;
       if (Math.abs(x - r.x) < 2.2 && z > r.z) continue;
-      b.box(0.8, 0.5 + rand() * 0.3, 0.6, x, heightAt(x, z) - 0.15, z, GREY, a);
+      addRock(b, x, heightAt(x, z) - 0.15, z, 0.9, GREY, 970 + i, { detail: 1, sx: 1, sy: 0.6 + rand() * 0.3, sz: 0.7, cuts: 7, rough: 0.1 }, a);
     }
   },
 
@@ -113,21 +118,24 @@ const BUILD = {
     b.box(2.2, 0.35, 2.2, r.x, y - 0.15, r.z, WORN);
     b.box(1.5, 0.35, 1.5, r.x, y + 0.2, r.z, STONE);
     const m = new THREE.Matrix4().makeRotationZ(0.07).setPosition(r.x, y + 0.5 + 1.9, r.z);
-    b.add(new THREE.CylinderGeometry(0.28, 0.55, 3.8, 4), STONE, m);
+    b.add(new THREE.CylinderGeometry(0.28, 0.55, 3.8, 4, 6), STONE, m);
+    b.add(new THREE.ConeGeometry(0.28 * 1.41, 0.4, 4), STONE, new THREE.Matrix4().makeRotationZ(0.07).setPosition(r.x - 0.14, y + 0.5 + 3.98, r.z));
+    b.card(r.x + 0.4, y + 0.9, r.z + 0.1, 0.9, 1.2, 1, 0, 0.3, 0x4f7a34, ATLAS.ivy, 0.5, [1, 0.3, 0]);
     addCircle(r.x, r.z, 0.9);
     rubble(b, rand, r.x, r.z, 4, 6);
   },
 
   gate(b, r, y, rand) {
     for (const s of [-1, 1]) {
-      b.box(1.5, 4.6, 1.5, r.x + s * 2.6, y - 0.3, r.z, STONE);
+      wall(b, r.x + s * 2.6, r.z, y, 1.5, 4.6, 1.5, STONE, false);
       addCircle(r.x + s * 2.6, r.z, 1.0);
       for (let i = 0; i < 3; i++) wall(b, r.x + s * (4.6 + i * 2.4), r.z, y, 2.4, Math.max(0.5, 2.6 - i * 0.9 + (rand() - 0.5) * 0.5), 0.9, i % 2 ? WORN : STONE);
     }
-    for (let i = 0; i <= 6; i++) {
-      const a = (i / 6) * Math.PI;
-      b.box(1.5, 0.8, 1.4, r.x + Math.cos(a) * 2.6, y + 4 + Math.sin(a) * 2.2, r.z, i % 3 === 1 ? MOSS : STONE, 0, 0, a - Math.PI / 2);
-    }
+    // the arch has lost a stone or two from one side
+    const lost = rand() < 0.5 ? 1 + Math.floor(rand() * 2) : -1;
+    b.missing = (i) => i === lost;
+    archStones(b, r.x, y + 4.3, r.z, 3.7, 2.0, 1.4, 0.8, 9);
+    b.missing = null;
     rubble(b, rand, r.x, r.z + 2.5, 6, 9);
   },
 
@@ -160,13 +168,15 @@ const BUILD = {
 export function buildRelics(scene, shadows) {
   for (const r of RELICS) {
     const b = new GeoBuilder(Math.round(r.x * 3 + r.z), 0.08);
+    b.kind = SURF.masonry;
     BUILD[r.kind](b, r, heightAt(r.x, r.z), rng(Math.round(r.x + r.z * 5)));
-    scene.add(b.mesh(undefined, shadows));
+    scene.add(b.mesh(materials.stone, shadows));
   }
 
   // Along the old paths: a worn slab here and there, and a little cairn every
   // so often where the way still shows.
   const b = new GeoBuilder(31, 0.1);
+  b.kind = SURF.masonry;
   const rand = rng(909);
   let count = 0;
   for (const pts of PATHS) {
@@ -180,13 +190,13 @@ export function buildRelics(scene, shadows) {
       if (since > 0) continue;
       since = 90 + rand() * 80;
       const cx = x + (rand() < 0.5 ? -2.4 : 2.4), cz = z + (rand() - 0.5), cy = heightAt(cx, cz);
-      b.blob(0.42, cx, cy + 0.15, cz, GREY, 1.2, 0.6, 1);
-      b.blob(0.3, cx + 0.05, cy + 0.5, cz, 0x9a958a, 1.1, 0.6, 1);
-      b.blob(0.2, cx, cy + 0.78, cz - 0.03, GREY, 1, 0.7, 1);
+      addRock(b, cx, cy - 0.1, cz, 0.95, GREY, count * 3, { detail: 1, sy: 0.55, cuts: 6 });
+      addRock(b, cx + 0.05, cy + 0.3, cz, 0.7, 0x9a958a, count * 3 + 1, { detail: 1, sy: 0.55, cuts: 6 });
+      addRock(b, cx, cy + 0.6, cz - 0.03, 0.45, GREY, count * 3 + 2, { detail: 0, sy: 0.7, cuts: 5 });
       count++;
       if (count % 400 === 0) break;
     }
   }
   // One mesh per stretch of country would cull better, but this is small.
-  scene.add(b.mesh(undefined, false));
+  scene.add(b.mesh(materials.stone, false));
 }
