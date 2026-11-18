@@ -425,6 +425,40 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.keyboard.press('KeyM');
   check(await page.isHidden('#map'), 'map closes');
 
+  // A camp worn down from afar stays worn down: walking off and coming back
+  // does not mend it; only going home (or very far) does.
+  await page.evaluate(() => {
+    roi.enemies.reset();
+    window.snipe = roi.camps.sites.find((c) => !c.isCleared && c.size >= 2 && Math.hypot(c.x - 1000, c.z - 1190) > 400);
+    roi.teleport(snipe.x + 60, snipe.z, -Math.PI / 2);
+  });
+  const company = () => page.evaluate(() => { const es = roi.enemies.list.filter((e) => e.camp.id === snipe.id && !e.dead); return { n: es.length, hurt: es.some((e) => e.hp < e.maxHp) }; });
+  await page.waitForFunction(() => roi.enemies.list.filter((e) => e.camp.id === snipe.id).length >= 2, null, { timeout: 30000 });
+  const whole = await company();
+  await page.evaluate(() => { const es = roi.enemies.list.filter((e) => e.camp.id === snipe.id); roi.enemies.damage(es[0], 1e9); roi.enemies.damage(es[1], es[1].maxHp * 0.5); });
+  await page.evaluate(() => roi.teleport(snipe.x + 400, snipe.z, 0));
+  await page.waitForFunction(() => !roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 20000 });
+  await page.evaluate(() => roi.teleport(snipe.x + 60, snipe.z, 0));
+  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 20000 });
+  const worn = await company();
+  check(worn.n === whole.n - 1 && worn.hurt, `a camp keeps its dead and wounded when the ranger walks off and comes back (${whole.n} -> ${worn.n})`);
+  await page.evaluate(() => roi.goHome('Home.'));
+  await page.evaluate(() => roi.teleport(snipe.x + 60, snipe.z, 0));
+  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 20000 });
+  const mended = await company();
+  check(mended.n === whole.n && !mended.hurt, 'but going home lets it mend');
+  await page.evaluate(() => roi.enemies.reset());
+
+  // A trophy picked up counts toward the task at once.
+  await page.evaluate(() => {
+    delete roi.state.items.orcBlade;
+    roi.quests.acceptErrand(roi.state, { id: 'xtest', giver: 'faramir', errand: 'trophy', title: 'Test blades', offer: '', remind: '', done: '', objective: { type: 'gather', item: 'orcBlade', count: 3 }, reward: { silver: 1, honour: 1, items: {} } });
+    roi.refreshHud();
+    roi.combat.give([['orcBlade', 1]]);
+  });
+  check((await page.textContent('#tracker')).includes('Test blades (1/3)'), 'a trophy picked up counts on the tracker at once');
+  await page.evaluate(() => { roi.state.quests.errands = roi.state.quests.errands.filter((e) => e.id !== 'xtest'); roi.state.quests.active = roi.state.quests.active.filter((id) => id !== 'xtest'); delete roi.state.items.orcBlade; roi.refreshHud(); });
+
   // What the ranger wears shows on them.
   const size = () => page.evaluate(() => { let n = 0; roi.player.figure.traverse((o) => { if (o.isMesh) n += o.geometry.attributes.position.count; }); return n; });
   const plain = await size();

@@ -181,6 +181,7 @@ async function boot() {
   });
   const combat = new Combat({
     scene, camera, player, rig, input, state, enemies, hud,
+    onLoot: () => hud.setTracker(quests.trackers(state)), // trophies and the like count at once
     onFallen: () => { // carried home
       state.health = 100;
       goHome('You wake in the cave. Someone carried you home; no one will say who.');
@@ -202,7 +203,7 @@ async function boot() {
     if (enemies.inCombat()) { hud.toast('', 'Not while the enemy has seen you.'); return; }
     map.close();
     if (p.home) { goHome('You go home by the hidden ways, and the falls are loud again.'); return; }
-    enemies.reset();
+    enemies.reset(false); // camps far behind mend on their own; near ones stay wounded
     combat.reset();
     // arrive on open ground near the place, not inside a wall
     let ax = p.ax, az = p.az;

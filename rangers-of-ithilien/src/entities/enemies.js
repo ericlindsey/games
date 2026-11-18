@@ -18,6 +18,10 @@ import { dangerTier } from '../world/regions.js';
 export { ENEMY_TYPES, rosterFor };
 
 const SPAWN_AT = 120, FORGET_AT = 190, SIGHT = 27, SIGHT_QUIET = 13, LEASH = 80, REACH = 1.9;
+// A camp's wounds and dead are remembered while the ranger is within this of it
+// (and not back at Henneth Annûn), so a company can be worn down from afar.
+const WOUNDS_KEPT = 1000, HOME_HEALS = 150;
+const CAMPS_BY_ID = new Map(CAMPS.map((c) => [c.id, c]));
 
 const _up = new THREE.Vector3(0, 1, 0);
 
@@ -32,6 +36,7 @@ export class Enemies {
     this.api = api;
     this.list = [];
     this.camps = new Map(); // campId -> { alive }
+    this.wounds = new Map(); // campId -> [health left as a share of full, 0 if fallen] by place in the roster
     this.tick = 0;
     this.barMaterial = new THREE.SpriteMaterial({ color: 0xc23a2e, fog: false });
     this.patrolIn = 30;   // seconds until the next band may come down the road
@@ -54,8 +59,10 @@ export class Enemies {
 
   spawnCamp(camp, roster = rosterFor(camp, this.api.renown?.() ?? 0)) {
     const rand = rng(Math.round(camp.x + camp.z * 7));
-    this.camps.set(camp.id, { alive: roster.length, camp });
+    const wounds = this.wounds.get(camp.id); // what the ranger did to them last time: health left, 0 for the dead
+    this.camps.set(camp.id, { alive: roster.filter((t, i) => !wounds || wounds[i] > 0).length, camp });
     roster.forEach((type, i) => {
+      if (wounds && !(wounds[i] > 0)) return; // fallen, and still fallen
       const def = ENEMY_TYPES[type];
       const a = (i / roster.length) * Math.PI * 2 + rand() * 0.8, r = 2.6 + rand() * (2 + camp.size * 1.3);
       // a camp's company stands about its fire; a band on the road walks in file
@@ -74,7 +81,7 @@ export class Enemies {
       this.list.push({
         type, def, camp, fig, material, bar,
         x, z, y: heightAt(x, z), yaw: a + Math.PI, home: { x, z },
-        hp: def.hp * tough, maxHp: def.hp * tough, damage: def.damage * (1 + 0.14 * (camp.tier - 1)) * str.damage,
+        idx: i, hp: def.hp * tough * (wounds?.[i] ?? 1), maxHp: def.hp * tough, damage: def.damage * (1 + 0.14 * (camp.tier - 1)) * str.damage,
         state: 'idle', timer: rand() * 3, cooldown: 0, speed: 0, alerted: false, flash: 0, dead: false, deathT: 0,
         side: rand() < 0.5 ? -1 : 1, stuck: 0,
         vy: 0, air: false, check: { t: 0, x, z }, stuckFor: 0,
@@ -89,13 +96,26 @@ export class Enemies {
   }
 
   forgetCamp(campId) {
-    this.list = this.list.filter((e) => { if (e.camp.id !== campId) return true; this.remove(e); return false; });
+    const c = this.camps.get(campId);
+    const company = this.list.filter((e) => e.camp.id === campId);
+    // Remember a camp's wounds and dead (not a band's: a band marches on and is gone).
+    if (c && !c.camp.patrol && company.some((e) => e.dead || e.hp < e.maxHp)) {
+      const wounds = this.wounds.get(campId) ?? [];
+      for (const e of company) wounds[e.idx] = e.dead ? 0 : e.hp / e.maxHp;
+      this.wounds.set(campId, wounds);
+    }
+    for (const e of company) this.remove(e);
+    this.list = this.list.filter((e) => e.camp.id !== campId);
     this.camps.delete(campId);
   }
 
-  /** Everything forgotten: used when the ranger falls and wakes at home. */
-  reset() {
+  /**
+   * Everything near forgotten. Going home (`heal` true, as when the ranger falls
+   * and wakes there) lets every camp mend; travelling by the old roads does not.
+   */
+  reset(heal = true) {
     for (const id of [...this.camps.keys()]) this.forgetCamp(id);
+    if (heal) this.wounds.clear();
   }
 
   /** The nearest living enemy within range of a point, or null. */
@@ -226,6 +246,12 @@ export class Enemies {
     this.tick -= dt;
     if (this.tick <= 0) {
       this.tick = 0.5;
+      // Camps mend once the ranger is far off, or home.
+      const home = Math.hypot(p.x - HA.x, p.z - HA.z) < HOME_HEALS;
+      for (const id of [...this.wounds.keys()]) {
+        const c = CAMPS_BY_ID.get(id);
+        if (!c || home || this.api.isCleared(id) || Math.hypot(c.x - p.x, c.z - p.z) > WOUNDS_KEPT) this.wounds.delete(id);
+      }
       for (const camp of CAMPS) {
         const d = Math.hypot(camp.x - p.x, camp.z - p.z);
         const here = this.camps.has(camp.id);
@@ -293,7 +319,8 @@ export class Enemies {
         case 'return': {
           if (pat) { // back to the road, then march on
             if (fromCamp < 3) e.state = 'idle'; else this.moveToward(e, haradRoadX(e.z), e.z + pat.dir * 4, e.def.speed * 0.8, dt, 'shift');
-          } else if (Math.hypot(e.home.x - e.x, e.home.z - e.z) < 1) { e.state = 'idle'; e.hp = e.maxHp; } else this.moveToward(e, e.home.x, e.home.z, e.def.speed * 0.8, dt, 'shift');
+          } else if (Math.hypot(e.home.x - e.x, e.home.z - e.z) < 1) e.state = 'idle'; // (still wounded: they do not mend while the ranger is about)
+          else this.moveToward(e, e.home.x, e.home.z, e.def.speed * 0.8, dt, 'shift');
           break;
         }
         case 'chase': {

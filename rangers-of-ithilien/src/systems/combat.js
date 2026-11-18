@@ -121,6 +121,7 @@ export class Combat {
     for (const [id, n] of loot) addItem(this.state, id, n);
     this.hud.toast('', `${heading}: ${describeLoot(loot)}`);
     this.hud.setWeapon(this.state);
+    this.onLoot?.();
   }
 
   /** Where the ranger is looking: the first thing the line of sight meets. */
