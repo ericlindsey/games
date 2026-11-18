@@ -191,9 +191,9 @@ export class Grass {
   }
 }
 
-/** The mouth of the hidden stair and the slot where the cliff at Henneth Annûn is built: no turf over them. */
+/** The mouth of the hidden stair, and the very lip of the cliff at Henneth Annûn: no grass over them. */
 function noGrass(x, z) {
   const h = HA.hatch;
   if (x > h.x0 - 1.5 && x < h.x1 + 1.5 && z > h.z0 - 1.5 && z < h.z1 + 1.5) return true;
-  return x > HA.x - 1 && x < HA.x + 5 && z > HA.rock.minZ - 1 && z < HA.rock.maxZ + 1;
+  return x > HA.x - 1 && x < HA.x + 0.7 && z > HA.rock.minZ - 1 && z < HA.rock.maxZ + 1;
 }

@@ -1,8 +1,8 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.3: visual polish (second round).** The land, the enemy, fighting, gear, tasks and trade are built and
+Status: **v0.3a: visual fixes at Henneth Annûn and on the people.** The land, the enemy, fighting, gear, tasks and trade are built and
 have had three rounds of playtest; v0.3 reworks how all of it looks (section 4, and
-"v0.3" in section 10). Next: playtest the new look on a phone, then Milestone 5
+"v0.3" in section 10); v0.3a fixes what a further look turned up there. Next: playtest the new look on a phone, then Milestone 5
 (sound, day and night) and the gaps listed at the end of section 10.
 
 ---
@@ -228,16 +228,28 @@ Touch devices are detected by capability, not user agent; a device with both get
   in `collision.js` tells the game to ignore the ground overhead when inside.
 - The terrain mesh leaves a slot where the cliff face is built by hand, and a
   hole (`HA.hatch`, on the mesh's 4 m grid) where the hidden stair comes up.
-- A narrow stair of worn stone runs along the south wall of the basin, from the
-  floor beside the pool up to the cave door. Inside, the hall runs on east as a
-  second, narrower stair in the rock (2.6 m wide, roofed), which climbs 12 m to
-  a stone-lipped hole in the forest floor above the cave, crowded by bushes. No
-  old path leads there. The south wall of the basin stands back 2 m for the stair.
+  Over the slot lies a strip of turf on the same grid, heights and colours as
+  the ground beside it (`cliffCap` in terrainMesh.js), with a lip of earth over
+  the rock's edge, so no seam shows on the forest floor.
+- The pool is an oval (`HA.pool`, `poolQ`) reaching east right under the
+  cliff, so the fall drops into deep water.
+- A narrow stair of worn stone (`HA.stair`, `stairTop`) runs along the foot of
+  the south wall of the basin, from the floor beside the pool up to the cave
+  door. The wall comes in to meet it (`southWallEdge` in terrain.js): its face
+  rises from the stair's outer edge just above each tread, all the way up, and
+  its rock skin stands proud only above head height there. Inside, the hall runs
+  on east as a second, narrower stair in the rock (2.6 m wide, roofed), which
+  climbs 12 m to a stone-lipped hole in the forest floor above the cave, crowded
+  by bushes. No old path leads there.
 - From the window behind the fall a ledge steps out through a notch in the pier,
   on to a shelf with a low parapet beside the fall, over the pool.
 - So there are two ways home: down the hole in the forest floor, or up the cut
   from where the stream runs out of it, about 350 m downstream.
 - Inside the cave the sun and sky light are dimmed, so torchlight carries it.
+  All six torches light what is near them at once. Rather than six real lights,
+  which every material in the open world would pay for, the torchlight is a
+  term in the shared surface shader (`surface.js`), switched on by a uniform
+  only near the cave.
 
 ### 6.4 Vegetation and props
 
@@ -622,9 +634,42 @@ up a band or a host on the road.
   fallen into the cut; the stream's channel runs out of the pool with no lip;
   rings spread across the pool from the fall, with foam at its foot; the stair,
   treads and ledge are bare cut rock; the cave is lit from its torches (their
-  glow laid into the rock, and one real light at the torch nearest the ranger);
+  glow laid into the rock, and one real light at the torch nearest the ranger;
+  in v0.3a every torch lights the cave);
   the hall and the hidden stair are taller, with a finer-stepped roof, so the
   camera does not jump about.
+
+### v0.3a: fixes after a look round Henneth Annûn
+
+- **Torches**: every torch in the cave lights its part of the cave at once,
+  each flickering on its own (the torchlight term in `surface.js`); the one
+  moving real light is gone.
+- **Moss stays put**: grain and moss are laid on by where a point rests on its
+  object, before it sways or shrinks with distance, so they no longer slide over
+  small stones; boulders and rocks keep their full shape in the middle distance
+  instead of changing to a coarser one, which moved their moss about (a few
+  per cent more triangles in the woods).
+- **The cliff top**: turf laid over the slot left for the cliff, matching the
+  ground beside it, with grass on it; no strip of other green, no gap.
+- **Boulders round the pool**: about a hundred stones of the woods' grey, mossy
+  kind, big ones with smaller fallen beside them, some in the shallows, clear of
+  where the fall strikes, the foot of the stair and the way out. A local helper
+  named `addRock` in hennethAnnun.js had hidden the boulder builder of the same
+  name, so since v0.3 none of the rim boulders, blocks in the cut, scree or
+  shelf outcrops had been drawn, though their colliders were there. They are now.
+- **The stair** lies against the south wall all the way up (see 6.3).
+- **The pool** reaches the cliff, so the fall drops into it.
+- **Streams and pools meet edge to edge**: a stream's ribbon now ends (or
+  begins) exactly on the edge of the pool's water, its corners slid onto the
+  curve, instead of a metre or two inside it; at Henneth Annûn too. Running
+  water moves at under half its old speed.
+- **Faramir** looks the Prince of Ithilien: a knee-length green coat edged with
+  silver at hem, collar and cuffs, a white tree on a dark field at his breast,
+  a silver circlet with a white stone, a long dark cloak with a jewelled brooch,
+  a silver-hilted sword at his hip, hair to the collar, and a little more height.
+- **The quiver and the slung bow ride over the cloak**, laid along it; the cloak
+  streams out mostly from the hips down (bent row by row, `bendCloak`), so it
+  stays under them even at a run. The smoke test measures the clearance.
 
 ### Known gaps to pick up
 

@@ -13,11 +13,16 @@ export const HA = {
   plateau: 56,      // level of the rock shelf
   floor: 31,        // floor of the basin and the head of the cut
   caveFloor: 40,
-  basin: { minX: 968, halfZ: 14, wall: 4, southSetBack: 2 }, // the south wall stands back to make room for the stair            // floor: x in [minX, x], |z - HA.z| < halfZ
+  basin: { minX: 968, halfZ: 14, wall: 4 }, // floor: x in [minX, x], |z - HA.z| < halfZ (the south wall comes to the stair: southWallEdge in terrain.js)
+  // The stair: a ramp of worn steps along the foot of the south wall, from the
+  // floor beside the pool (x0) up to a landing (x1) at the cave door. z0..z1 is
+  // across it, from HA.z; the wall rises from its outer edge, z1.
+  stair: { x0: 971, x1: 998, z0: 11.3, z1: 14.2 },
   // The cut: a narrow slot, gently winding, that fades into an open valley at
   // `endX` (fully gone by endX - 40). The stream keeps to its north side.
   gorge: { endX: 760, halfFloor: 3.6, halfTop: 6.5, fall: 0.022, channelOffset: -1.4, wind: 3.2 },
-  pool: { x: 985, z: 1187, r: 12 },
+  // An oval, reaching east right under the cliff, so the fall drops into deep water.
+  pool: { x: 987.5, z: 1188, rx: 14, rz: 12 },
   rock: { minX: 1000, maxX: 1036, minZ: 1168, maxZ: 1212 }, // the mass that holds the cave
   // The hidden way up: a narrow stair in the rock from the cave's hall, coming
   // out through a hole in the forest floor above the cave. The hole is cut on
@@ -25,6 +30,17 @@ export const HA = {
   hatch: { x0: 1024, x1: 1032, z0: 1200, z1: 1204, exitX: 1032 },
   spawn: { x: 1022, z: 1192, heading: -Math.PI / 2 },
 };
+
+/** Height of the stair's treads at x: the basin floor below its foot, the cave floor on the landing. */
+export function stairTop(x) {
+  const s = HA.stair;
+  return HA.floor + (HA.caveFloor - HA.floor) * Math.min(1, Math.max(0, (x - s.x0) / (s.x1 - s.x0)));
+}
+
+/** How far out across the pool at Henneth Annûn a point lies: 0 at its middle, 1 at its edge. */
+export function poolQ(x, z) {
+  return Math.hypot((x - HA.pool.x) / HA.pool.rx, (z - HA.pool.z) / HA.pool.rz);
+}
 
 /** Z of the middle of the cut below the pool at a given x: it winds a little. */
 export function gorgeZ(x) {

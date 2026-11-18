@@ -161,7 +161,9 @@ function define(name, trunkR, build, opts = {}) {
   };
   const hi = geo('hi');
   SPECIES[name] = {
-    hi, mid: opts.cover ? hi : geo('hi', true), lo: opts.cover ? hi : geo('lo'), geometry: hi, trunk: trunkR,
+    // (stone keeps its full shape in the middle distance: a coarser one would
+    // move the moss and the light on it about as the ranger walks)
+    hi, mid: opts.cover || opts.stone ? hi : geo('hi', true), lo: opts.cover ? hi : geo('lo'), geometry: hi, trunk: trunkR,
     material: opts.material ?? materials.tree, shadow: opts.shadow !== false, cover: !!opts.cover,
     cls: opts.cover ? 'cover' : GREAT.has(name) ? 'tree' : 'shrub',
   };
@@ -342,11 +344,11 @@ define('stump', 0.5, (b, lod) => {
 }, { shadow: false, material: materials.still });
 define('boulder', 1.5, (b, lod) => {
   addRock(b, 0, -0.1, 0, 3.6, 0x8a867c, 11, { detail: lod === 'hi' ? 3 : 1, sy: 0.62, cuts: 7 });
-}, { material: materials.rock });
+}, { material: materials.rock, stone: true });
 define('boulder2', 1.4, (b, lod) => {
   addRock(b, 0, -0.1, 0, 3.2, 0x8f8a7e, 29, { detail: lod === 'hi' ? 3 : 1, sy: 0.85, sx: 0.8, cuts: 8, strata: 0.6 });
   addRock(b, 1.6, -0.1, 0.7, 1.2, 0x86827a, 31, { detail: lod === 'hi' ? 2 : 1, sy: 0.6 });
-}, { material: materials.rock });
+}, { material: materials.rock, stone: true });
 define('mushrooms', 0, (b) => {
   b.smooth = true;
   for (let i = 0; i < 5; i++) {
@@ -485,11 +487,11 @@ define('reed', 0, (b) => {
 }, COVER_OPTS);
 define('rock', 0.7, (b, lod) => {
   addRock(b, 0, -0.05, 0, 1.7, 0x8d8879, 41, { detail: lod === 'hi' ? 2 : 0, sy: 0.6, cuts: 6 });
-}, { shadow: false, material: materials.rock });
+}, { shadow: false, material: materials.rock, stone: true });
 define('mossRock', 0.7, (b, lod) => {
   addRock(b, 0, -0.05, 0, 1.8, 0x7f7c6c, 53, { detail: lod === 'hi' ? 2 : 0, sy: 0.55, cuts: 6, flatTop: true });
   if (lod === 'hi') b.card(0, 0.5, 0, 1.4, 1.4, 0, 1, 0, lighten(0x6f9148, 1.1), ATLAS.ivy, 0.4, [0, 1, 0]);
-}, { shadow: false, material: materials.rock });
+}, { shadow: false, material: materials.rock, stone: true });
 define('scree', 0, (b) => {
   for (let i = 0; i < 7; i++) {
     const a = i * 2.3, r = 0.3 + (i % 3) * 0.4;

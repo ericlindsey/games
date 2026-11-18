@@ -205,6 +205,9 @@ export function leafAtlas() { return (atlasTex ||= makeLeafAtlas()); }
 // ---------------------------------------------------------------------------
 // The material patch.
 
+/** How many torches the cave's light is reckoned from. */
+export const TORCHES = 6;
+
 /** Shared uniforms: time for the wind, and how hard it blows. */
 export const surfaceUniforms = {
   uTime: { value: 0 },
@@ -213,6 +216,12 @@ export const surfaceUniforms = {
   uSunDir: { value: new THREE.Vector3(-0.86, 0.42, 0.28).normalize() },
   uSunGlow: { value: new THREE.Color(1, 0.92, 0.7) }, // set by the atmosphere: sunlight through leaves
   uSkyColor: { value: new THREE.Color(0.75, 0.85, 0.88) }, // and the sky at the horizon, seen in water
+  // Torchlight in the cave at Henneth Annûn: every torch lights what is near it.
+  // Off (and free) anywhere else; set each frame by hennethAnnun.js.
+  uTorchOn: { value: 0 },
+  uTorchView: { value: Array.from({ length: TORCHES }, () => new THREE.Vector3()) }, // in view space
+  uTorchI: { value: new Array(TORCHES).fill(0) },
+  uTorchColor: { value: new THREE.Color(1.0, 0.66, 0.34) },
 };
 export function updateSurfaces(time) { surfaceUniforms.uTime.value = time; }
 
@@ -232,6 +241,9 @@ uniform vec2 uFade;
 uniform vec2 uFadeIn;
 `;
 const VERT_SWAY = /* glsl */`
+// Grain and moss are laid on by where a point rests on its object, before it
+// sways or shrinks, so they stay fixed to it and never slide across it.
+vec3 surfRest = transformed;
 #ifdef SURF_FADE
 {
   // small things shrink away into the distance instead of popping out
@@ -263,7 +275,7 @@ const VERT_SWAY = /* glsl */`
 `;
 const VERT_TAIL = /* glsl */`
 {
-  vec4 sp = vec4(transformed, 1.0);
+  vec4 sp = vec4(surfRest, 1.0);
   vec3 sn = objectNormal;
   #ifdef USE_INSTANCING
     sp = instanceMatrix * sp;
@@ -287,6 +299,10 @@ uniform float uMossAmt;
 uniform float uDetailAmt;
 uniform vec3 uSunDir;
 uniform vec3 uSunGlow;
+uniform float uTorchOn;
+uniform vec3 uTorchView[${TORCHES}];
+uniform float uTorchI[${TORCHES}];
+uniform vec3 uTorchColor;
 varying vec3 vSurfPos;
 varying vec3 vSurfNrm;
 varying float vSurfKind;
@@ -377,6 +393,18 @@ if (surfLeaf > 0.0) {
   totalEmissiveRadiance += diffuseColor.rgb * uSunGlow * (0.11 + 0.55 * back);
 }
 `;
+// Light from the torches, reckoned as point lights would be (falling off with
+// distance to nothing at 13 m), but only switched on near the cave.
+const FRAG_TORCH = /* glsl */`
+if (uTorchOn > 0.0) {
+  for (int i = 0; i < ${TORCHES}; i++) {
+    vec3 tl = uTorchView[i] - geometryPosition;
+    float td = length(tl);
+    float fall = uTorchI[i] / max(pow(td, 1.6), 0.01) * pow2(saturate(1.0 - pow4(td / 13.0)));
+    reflectedLight.directDiffuse += saturate(dot(geometryNormal, tl / td)) * fall * uTorchOn * uTorchColor * BRDF_Lambert(diffuseColor.rgb);
+  }
+}
+`;
 const FRAG_NORMAL = /* glsl */`
 #ifndef SURF_LITE
 {
@@ -424,7 +452,8 @@ export function surfaceMaterial(o = {}) {
       .replace('#include <common>', '#include <common>\n' + FRAG_HEAD)
       .replace('#include <color_fragment>', '#include <color_fragment>\n' + FRAG_COLOR)
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + FRAG_NORMAL)
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + FRAG_GLOW);
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + FRAG_GLOW)
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n' + FRAG_TORCH);
   };
   mat.customProgramCacheKey = () => `surf|${o.wind ? 1 : 0}|${o.object ? 1 : 0}|${o.fade ? 1 : 0}|${surfaceSettings.lite ? 1 : 0}`;
   return mat;

@@ -69,6 +69,36 @@ function inRockSlot(x, z) {
   return x > HA.x && x < HA.x + 4 && z > HA.rock.minZ && z < HA.rock.maxZ;
 }
 
+/**
+ * Turf over the top of the cliff at Henneth Annûn, where the ground leaves its
+ * slot: the same grid, heights, colours and material as the ground beside it,
+ * so no seam shows, with a lip of earth turned down over the edge of the rock.
+ * (The ground function itself drops to the pool at HA.x, so it is sampled just
+ * east of that.) Covers x0..x1, z0..z1 (on the chunk's grid) inside the slot.
+ */
+function cliffCap(x0, z0, x1, z1, step) {
+  const sample = (x, z) => heightAt(Math.max(x, HA.x + 0.01), z);
+  const nx = Math.round((x1 - x0) / step), nz = Math.round((z1 - z0) / step);
+  const cap = gridGeometry(x0, z0, nx, nz, step, sample, paintGround);
+  if (x0 > HA.x + 0.01) return [cap];
+  const pos = [], nor = [], col = [], idx = [];
+  for (let j = 0; j <= nz; j++) {
+    const z = z0 + j * step, h = sample(HA.x, z);
+    paintGround(HA.x, z, h, 0, rgb);
+    _c.setRGB(rgb[0] * 0.5, rgb[1] * 0.45, rgb[2] * 0.4, THREE.SRGBColorSpace);
+    pos.push(HA.x, h + 0.02, z, HA.x - 0.05, h - 0.5, z);
+    nor.push(-0.6, 0.8, 0, -1, 0, 0);
+    col.push(_c.r * 1.4, _c.g * 1.4, _c.b * 1.4, _c.r, _c.g, _c.b);
+    if (j > 0) { const k = (j - 1) * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
+  }
+  const lip = new THREE.BufferGeometry();
+  lip.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  lip.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  lip.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  lip.setIndex(idx);
+  return [cap, lip];
+}
+
 function farForest(x, z, h) {
   return h > 1.5 && h < 150 && x > 0 ? forestDensity(x, z) : 0;
 }
@@ -140,6 +170,17 @@ export class Ground {
     const mesh = new THREE.Mesh(gridGeometry(cx * size, cz * size, n, n, size / n, heightAt, paintGround, inRockSlot), this.material);
     mesh.receiveShadow = true;
     group.add(mesh);
+    { // turf over the cliff's slot, where it falls in this chunk
+      const step = size / n, x0 = Math.max(cx * size, HA.x), x1 = Math.min((cx + 1) * size, HA.x + 4);
+      const z0 = Math.max(cz * size, HA.rock.minZ), z1 = Math.min((cz + 1) * size, HA.rock.maxZ);
+      if (x1 > x0 && z1 > z0) {
+        for (const geo of cliffCap(Math.floor(x0 / step) * step, Math.floor(z0 / step) * step, Math.ceil(x1 / step) * step, Math.ceil(z1 / step) * step, step)) {
+          const cap = new THREE.Mesh(geo, this.material);
+          cap.receiveShadow = true;
+          group.add(cap);
+        }
+      }
+    }
     const veg = buildVegetation(cx, cz, this.quality);
     for (const m of veg.meshes) group.add(m);
     assignVegetation(veg.groups, px, pz, this.quality);
@@ -152,8 +193,7 @@ export class Ground {
     const ch = this.chunks.get(key);
     if (!ch) return;
     this.scene.remove(ch.group);
-    ch.group.children[0].geometry.dispose();
-    for (const m of ch.group.children) if (m.isInstancedMesh) m.dispose();
+    for (const m of ch.group.children) { if (m.isInstancedMesh) m.dispose(); else m.geometry.dispose(); }
     removeChunkCircles(key);
     this.chunks.delete(key);
   }

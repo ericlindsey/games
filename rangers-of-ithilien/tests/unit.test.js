@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { heightAt } from '../src/world/terrain.js';
-import { HA, LANDMARKS, bankX, CROSSROADS, inClearing, haradRoadX, gorgeZ } from '../src/world/layout.js';
+import { HA, LANDMARKS, bankX, CROSSROADS, inClearing, haradRoadX, gorgeZ, stairTop, poolQ } from '../src/world/layout.js';
 import { regionWeights, dangerTier } from '../src/world/regions.js';
 import { forestDensity, thicketDensity } from '../src/world/forest.js';
 import { CAMPS, blightAt, campNear } from '../src/world/campSites.js';
@@ -39,6 +39,29 @@ test('Henneth Annûn: a walled pool, a deep cut, and a way out downstream', () =
   const depth = (x) => heightAt(x, HA.z + 16) - heightAt(x, HA.z + 3);
   assert.ok(depth(900) > 15, 'the cut is deep near the pool');
   assert.ok(depth(600) < 4, 'and has run out to ground level downstream');
+});
+
+test('Henneth Annûn: the fall drops into deep water, right under the cliff', async () => {
+  const water = HA.floor - 0.12; // the pool's surface (hennethAnnun.js)
+  for (const x of [HA.x - 2, HA.x - 1.5, HA.x - 0.5]) assert.ok(water - heightAt(x, HA.z) > 0.3, `deep water at the foot of the fall (x ${x})`);
+  assert.ok(heightAt(HA.x - 0.05, HA.z) < water, 'the pool reaches the cliff face');
+  // and the stream out of it starts within the pool, so the water runs on unbroken
+  const { STREAMS } = await import('../src/world/terrain.js');
+  const cut = STREAMS.find((s) => s.home === 'cut');
+  assert.ok(poolQ(cut.points[0].x, cut.points[0].z) < 1, 'the cut stream begins in the pool');
+});
+
+test('Henneth Annûn: the stair lies against the south wall, all the way up', () => {
+  const s = HA.stair;
+  for (let x = s.x0; x <= HA.x - 0.2; x += 0.5) {
+    const t = stairTop(x);
+    // nothing of the ground rises through the treads...
+    for (let z = HA.z + s.z0; z <= HA.z + s.z1; z += 0.2) assert.ok(heightAt(x, z) < t + 0.05, `the ground stays under the treads (x ${x}, z ${z.toFixed(1)})`);
+    // ...and the wall stands right at their outer edge, with no gap to fall into
+    assert.ok(heightAt(x, HA.z + s.z1 + 0.3) > t + 0.2, `the wall rises from the stair's outer edge (x ${x})`);
+  }
+  assert.equal(stairTop(s.x0), HA.floor);
+  assert.equal(stairTop(s.x1), HA.caveFloor);
 });
 
 test('you can walk out of the cut: from the pool, down the stream, and up into the woods', async () => {

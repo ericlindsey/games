@@ -271,6 +271,7 @@ export function makeFigure(o) {
     const fore = part((b) => {
       ball(b, 0.062, 0.062, 0.062, 0, 0, 0, o.sleeve ?? o.tunic, 10, 8);  // the elbow
       taper(b, 0.06, 0.047, 0.31, 0, 0.01, 0.004, o.sleeve ?? o.tunic);   // forearm
+      if (o.trim) { b.kind = METAL; b.add(new THREE.TorusGeometry(0.05, 0.011, 5, 14), o.trim, M(0, -0.25, 0.004, Math.PI / 2, 0, 0), true); } // a silver-edged cuff
       b.kind = SKIN;
       ball(b, 0.042, 0.05, 0.032, 0, BOW_HAND, 0.008, o.skin, 10, 8);    // the hand, closed
       ball(b, 0.013, 0.026, 0.013, side * -0.032, BOW_HAND + 0.012, 0.03, o.skin, 6, 5); // thumb
@@ -287,6 +288,9 @@ export function makeFigure(o) {
     if (o.mail) { b.kind = METAL; lathe(b, torso.map(([r, y]) => [r * 1.045 + 0.004, y]), o.mail, M(0, 0, 0, 0, 0, 0, 1.02, 1, 0.68), 14); b.kind = CLOTH; }
     if (o.skirt) {
       lathe(b, [[0.42, -0.9], [0.36, -0.6], [0.26, -0.25], [0.19, 0.06], [0.17, 0.14]], o.tunic, M(0, 0, 0, 0, 0, 0, 1, 1, 0.8), 16);
+    } else if (o.surcoat) { // a long coat, split at the sides, falling to the knee
+      lathe(b, [[0.3, -0.5], [0.27, -0.32], [0.235, -0.15], [0.205, 0.0], [0.19, 0.08]], o.tunic, M(0, 0, 0, 0, 0, 0, 1.06, 1, 0.74), 16);
+      if (o.trim) { b.kind = METAL; b.add(new THREE.TorusGeometry(0.3, 0.012, 5, 24), o.trim, M(0, -0.495, 0, Math.PI / 2, 0, 0, 1.06, 0.74, 1), true); b.kind = CLOTH; }
     } else {
       lathe(b, [[0.25, -0.3], [0.225, -0.2], [0.2, -0.05], [0.18, 0.06]], o.tunic, M(0, 0, 0, 0, 0, 0, 1.08, 1, 0.68), 14);
       if (o.mail) { b.kind = METAL; lathe(b, [[0.255, -0.34], [0.232, -0.2], [0.205, -0.05], [0.19, 0.06]], o.mail, M(0, 0, 0, 0, 0, 0, 1.08, 1, 0.7), 14); b.kind = CLOTH; }
@@ -305,9 +309,29 @@ export function makeFigure(o) {
       // hair: a cap over the crown and the back of the head
       b.add(new THREE.SphereGeometry(0.114, 18, 10, 0, Math.PI * 2, 0, 1.45), o.hair, M(0, hy + 0.012, -0.012, -0.42, 0, 0, 1.0, 1.08, 1.05), true);
       if (o.longHair) lathe(b, [[0.07, -0.42], [0.1, -0.2], [0.115, 0.0], [0.1, 0.06]], o.hair, M(0, hy - 0.03, -0.05, 0, 0, 0, 1, 1, 0.55), 10);
+      else if (o.collarHair) lathe(b, [[0.1, -0.17], [0.115, -0.08], [0.118, 0.0], [0.1, 0.06]], o.hair, M(0, hy - 0.03, -0.035, 0, 0, 0, 1, 1, 0.62), 12); // to the collar
       if (o.beard) ball(b, 0.07, 0.06, 0.05, 0, hy - 0.09, 0.05, o.hair);
     }
-    if (o.circlet) { b.kind = METAL; b.add(new THREE.TorusGeometry(0.11, 0.009, 4, 20), o.circlet, M(0, hy + 0.05, 0.002, Math.PI / 2 - 0.12, 0, 0), true); b.kind = CLOTH; }
+    if (o.circlet) {
+      b.kind = METAL;
+      b.add(new THREE.TorusGeometry(0.11, 0.009, 5, 24), o.circlet, M(0, hy + 0.05, 0.002, Math.PI / 2 - 0.12, 0, 0), true);
+      if (o.gem) { // a white stone set at the brow, in a pointed silver mount
+        b.add(new THREE.ConeGeometry(0.026, 0.06, 4), o.circlet, M(0, hy + 0.085, 0.112, -0.12, Math.PI / 4, 0, 1, 1, 0.35), false);
+        b.add(new THREE.OctahedronGeometry(1, 0), o.gem, M(0, hy + 0.072, 0.118, 0, 0, Math.PI / 4, 0.015, 0.015, 0.009), false);
+      }
+      b.kind = CLOTH;
+    }
+    if (o.trim) { b.kind = METAL; b.add(new THREE.TorusGeometry(0.075, 0.012, 5, 16), o.trim, M(0, 0.655, 0.0, Math.PI / 2, 0, 0, 1.25, 0.9, 1), true); b.kind = CLOTH; } // the collar's edge
+    if (o.device === 'tree') { // on the breast: a white tree on a dark field, edged in silver
+      const T = 0.11, at = (y) => 0.149 + (y - 0.36) * T; // the chest leans out a little going up
+      b.add(new THREE.CircleGeometry(1, 18), 0x16181c, M(0, 0.36, at(0.36), T, 0, 0, 0.066, 0.086, 1), true);
+      if (o.trim) b.add(new THREE.RingGeometry(0.9, 1.1, 18), o.trim, M(0, 0.36, at(0.36) + 0.001, T, 0, 0, 0.066, 0.086, 1), true);
+      const W = 0xf2f0e6;
+      b.box(0.009, 0.11, 0.004, 0, 0.295, at(0.35) + 0.002, W, 0, T);
+      for (const [dy, dx, len, rz] of [[0.355, 0.02, 0.05, 0.8], [0.355, -0.02, 0.05, -0.8], [0.38, 0.015, 0.04, 0.6], [0.38, -0.015, 0.04, -0.6], [0.395, 0, 0.026, 0]]) {
+        b.box(0.007, len, 0.004, dx, dy - len / 2, at(dy) + 0.002, W, 0, T, -rz);
+      }
+    }
     if (o.helm) helm(b, o, hy);
     if (o.badge) b.add(new THREE.CircleGeometry(0.065, 12), o.badge, M(0, 0.33, 0.145), true); // a device on the breast
     if (o.hood) {
@@ -319,24 +343,13 @@ export function makeFigure(o) {
     } else if (o.cloak) {
       lathe(b, [[0.27, 0.5], [0.22, 0.58], [0.12, 0.66], [0.08, 0.68]], o.cloak, M(0, 0, -0.01, 0, 0, 0, 1.08, 1, 0.76), 14); // a mantle
     }
-    const quiver = o.quiver ?? (o.bow ? 0x5a4030 : null);
-    if (quiver) {
-      b.kind = LEATHER;
-      b.add(new THREE.CylinderGeometry(0.058, 0.046, QUIVER.len, 10), quiver, M(QUIVER.x - Math.sin(QUIVER.rz) * QUIVER.len / 2, QUIVER.y + Math.cos(QUIVER.rz) * QUIVER.len / 2, QUIVER.z, 0, 0, QUIVER.rz), true);
-      b.add(new THREE.TorusGeometry(0.058, 0.008, 4, 12), 0x3a2a1e, M(QUIVER.x - Math.sin(QUIVER.rz) * QUIVER.len, QUIVER.y + Math.cos(QUIVER.rz) * QUIVER.len, QUIVER.z, Math.PI / 2, 0, -QUIVER.rz), true);
-      b.kind = CLOTH;
-    }
   }, 0.92, g);
 
-  if (o.quiver ?? o.bow) { // the arrows in it, as many as there are (up to ten)
-    g.quiverArrows = new THREE.Mesh(quiverGeometry(10), SHARED.material);
-    limbs.body.add(g.quiverArrows);
-  }
-
+  const cloakLen = o.longCloak ? 1.34 : o.hood ? 1.12 : 1.02;
   if (o.cloak) { // the cloak hangs from the shoulders and swings as they move
     limbs.cloak = part((b) => {
-      const len = o.hood ? 1.12 : 1.02;
-      const geo = new THREE.CylinderGeometry(0.21, 0.4, len, 14, 5, true, Math.PI - 1.35, 2.7);
+      const len = cloakLen;
+      const geo = new THREE.CylinderGeometry(0.21, 0.4, len, 14, 8, true, Math.PI - 1.35, 2.7);
       const pos = geo.attributes.position;
       for (let i = 0; i < pos.count; i++) { // folds, and a ragged hem
         const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), t = 0.5 - y / len, a = Math.atan2(x, z);
@@ -345,7 +358,48 @@ export function makeFigure(o) {
       }
       geo.computeVertexNormals();
       b.add(geo, o.cloak, M(0, -len / 2, 0.02, 0, 0, 0, 1.05, 1, 0.78), true);
+      if (o.clasp) { // a jewelled brooch pinning the cloak at the breast
+        b.kind = METAL;
+        b.add(new THREE.SphereGeometry(1, 12, 8), o.clasp, M(0.12, -0.06, 0.172, 0, 0, 0, 0.038, 0.038, 0.016), true);
+        b.add(new THREE.SphereGeometry(1, 8, 6), o.gem ?? 0x3a5a8a, M(0.12, -0.06, 0.186, 0, 0, 0, 0.016, 0.016, 0.008), true);
+        b.kind = CLOTH;
+      }
     }, 0.92 + 0.6, g, 0, -0.03);
+    const mesh = limbs.cloak.children[0], geo = mesh.geometry;
+    geo.computeBoundingSphere();
+    geo.boundingSphere.radius += 0.6; // it bends out behind when running (bendCloak)
+    limbs.cloak.userData = {
+      mesh, len: cloakLen, stream: 0, bent: 0,
+      rest: Float32Array.from(geo.attributes.position.array), restN: Float32Array.from(geo.attributes.normal.array),
+    };
+  }
+
+  // What is carried on the back, over the cloak: the quiver and the slung bow.
+  // They ride in a frame that follows the cloak's upper part (which stays close
+  // to the back; only below the hips does it stream out), laid back along it,
+  // so the cloak is always under them.
+  const gear = new THREE.Group(), lay = new THREE.Group();
+  if (o.cloak) {
+    lay.position.set(0, 0.6, 0);         // the shoulders, where the cloak hangs from
+    lay.rotation.x = 0.132;              // along the slope of the cloak down the back
+    gear.position.set(0, -0.6, -0.045);  // and just outside it
+    lay.add(gear);
+    const frame = new THREE.Group();     // in the cloak's frame, the body's origin
+    frame.position.set(0, -0.6, 0.03);
+    frame.add(lay);
+    limbs.cloak.add(frame);
+  } else limbs.body.add(gear);
+  const quiver = o.quiver ?? (o.bow ? 0x5a4030 : null);
+  if (quiver) {
+    const qb = new GeoBuilder(12, 0.02);
+    qb.kind = LEATHER;
+    qb.add(new THREE.CylinderGeometry(0.058, 0.046, QUIVER.len, 10), quiver, M(QUIVER.x - Math.sin(QUIVER.rz) * QUIVER.len / 2, QUIVER.y + Math.cos(QUIVER.rz) * QUIVER.len / 2, QUIVER.z, 0, 0, QUIVER.rz), true);
+    qb.add(new THREE.TorusGeometry(0.058, 0.008, 4, 12), 0x3a2a1e, M(QUIVER.x - Math.sin(QUIVER.rz) * QUIVER.len, QUIVER.y + Math.cos(QUIVER.rz) * QUIVER.len, QUIVER.z, Math.PI / 2, 0, -QUIVER.rz), true);
+    gear.add(meshOf(qb));
+  }
+  if (o.quiver ?? o.bow) { // the arrows in it, as many as there are (up to ten)
+    g.quiverArrows = new THREE.Mesh(quiverGeometry(10), SHARED.material);
+    gear.add(g.quiverArrows);
   }
 
   // Weapons: in the hand when fighting, sheathed or slung otherwise.
@@ -389,10 +443,11 @@ export function makeFigure(o) {
     const slung = meshOf(sb);
     slung.position.set(-0.02, 0.24, -0.26);
     slung.rotation.set(0, Math.PI, 0.38);
-    limbs.body.add(slung);
+    gear.add(slung);
     g.slungBow = slung;
   }
 
+  if (o.stature) g.scale.setScalar(o.stature);
   g.limbs = limbs;
   g.userData.phase = 0;
   g.userData.bodyY = 0.92;
@@ -479,16 +534,46 @@ export function animateFigure(fig, speed, dt, time, pose) {
   l.body.position.y = fig.userData.bodyY + bob;
   l.body.rotation.x = fig.userData.hunch + (moving ? Math.min(0.14, speed * 0.016) : 0);
   if (l.cloak) {
-    // the cloak streams out behind (a positive turn carries its hem backward)
-    const want = l.body.rotation.x + (moving ? Math.min(0.42, 0.06 + speed * 0.05) + Math.abs(s) * 0.05 : 0.02 + Math.sin(time * 1.3) * 0.015);
-    l.cloak.rotation.x += (want - l.cloak.rotation.x) * Math.min(1, dt * 5);
+    // The cloak streams out behind (a positive turn carries its hem backward):
+    // a little from the shoulders, and the rest from the hips down, so what is
+    // slung on the back stays over it.
+    const cu = l.cloak.userData;
+    const want = moving ? Math.min(0.42, 0.06 + speed * 0.05) + Math.abs(s) * 0.05 : 0.02 + Math.sin(time * 1.3) * 0.015;
+    cu.stream += (want - cu.stream) * Math.min(1, dt * 5);
+    l.cloak.rotation.x = l.body.rotation.x + cu.stream * 0.25;
     l.cloak.position.y = l.body.position.y + 0.6 * Math.cos(l.body.rotation.x);
     l.cloak.position.z = -0.03 + Math.sin(l.body.rotation.x) * 0.6;
+    bendCloak(cu, cu.stream * 1.35);
   }
   if (pose) {
     if (pose.armR !== undefined) { l.armR.rotation.x = pose.armR; l.elbowR.rotation.x = pose.elbowR ?? -0.1; }
     if (pose.armL !== undefined) { l.armL.rotation.x = pose.armL; l.elbowL.rotation.x = pose.elbowL ?? 0; }
   }
+}
+
+/**
+ * Bend the cloak below the hips by `phi` (radians at the hem): the cloth from
+ * the shoulders to CLOAK_HIP hangs as it is; below that it curls back evenly,
+ * each row turned by its share of the bend, so it curves rather than kinks.
+ */
+const CLOAK_HIP = 0.6, CLOAK_AXIS_Z = 0.02;
+function bendCloak(cu, phi) {
+  if (Math.abs(phi - cu.bent) < 0.002) return;
+  cu.bent = phi;
+  const geo = cu.mesh.geometry, P = geo.attributes.position, N = geo.attributes.normal;
+  const p = P.array, n = N.array, r = cu.rest, rn = cu.restN;
+  const k = phi / (cu.len - CLOAK_HIP);
+  for (let i = 0; i < p.length; i += 3) {
+    const y = r[i + 1], d = -y - CLOAK_HIP;
+    if (d <= 0 || Math.abs(k) < 1e-5) { p[i] = r[i]; p[i + 1] = y; p[i + 2] = r[i + 2]; n[i] = rn[i]; n[i + 1] = rn[i + 1]; n[i + 2] = rn[i + 2]; continue; }
+    const a = k * d, ca = Math.cos(a), sa = Math.sin(a), dz = r[i + 2] - CLOAK_AXIS_Z;
+    // the line down the middle of the cloak, curled, then this point's offset from it turned with it
+    const cy = -CLOAK_HIP - sa / k, cz = CLOAK_AXIS_Z - (1 - ca) / k;
+    p[i] = r[i]; p[i + 1] = cy - dz * sa; p[i + 2] = cz + dz * ca;
+    const ny = rn[i + 1], nz = rn[i + 2];
+    n[i] = rn[i]; n[i + 1] = ny * ca - nz * sa; n[i + 2] = ny * sa + nz * ca;
+  }
+  P.needsUpdate = true; N.needsUpdate = true;
 }
 
 /** The ranger as their gear makes them look. */
@@ -511,7 +596,11 @@ export function rangerLook(equipped) {
 export const LOOKS = {
   ranger: { tunic: 0x4d6238, legs: 0x4b4032, skin: 0xd9ad86, hair: 0x3a2a1c, cloak: 0x3f5a34, hood: true, bow: true, sleeve: 0x5a4a36, blade: 0xd0d4dc, heldBow: 0x6b4a2a },
   mablung: { tunic: 0x5a5236, legs: 0x3f382c, skin: 0xcfa27c, hair: 0x6b6b68, cloak: 0x4a5a38, hood: false, belt: 0x8a6a3a, sleeve: 0x4d4632 },
-  faramir: { tunic: 0x3f5c3a, legs: 0x3a3a34, skin: 0xdcb08a, hair: 0x241c18, cloak: 0x2e4030, belt: 0xb9b9c4, sleeve: 0x6a5a40, circlet: 0xd8d8e2 },
+  // the Prince of Ithilien: a long green coat edged with silver, the white tree on his breast,
+  // a circlet with a white stone, a long cloak pinned at the throat, a sword with a silver hilt
+  faramir: { tunic: 0x2b4a31, legs: 0x2c2c30, skin: 0xdcb08a, hair: 0x241c18, collarHair: true, cloak: 0x1f3326, longCloak: true, clasp: 0xd8d8e2,
+    belt: 0x2a221c, sleeve: 0x2b4a31, circlet: 0xaeb2be, gem: 0xf4f8ff, trim: 0xb4b6c0, surcoat: true, device: 'tree', boots: 0x2a2018,
+    blade: 0xd8dce4, hilt: 0x9a9ca8, stature: 1.04 },
   eowyn: { tunic: 0xeeeadb, legs: 0xeeeadb, skin: 0xedc5a2, hair: 0xe6c263, cloak: null, skirt: true, longHair: true, belt: 0xc9a84a, boots: 0x8a7a5a },
   // the enemy
   snaga: { orc: true, tunic: 0x5a4a3c, legs: 0x3e362e, skin: 0x8a9a62, hair: 0x2a2a1e, cloak: null, boots: 0x26221f, blade: 0x5a5a5e },
