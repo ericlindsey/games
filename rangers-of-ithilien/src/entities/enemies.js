@@ -379,7 +379,7 @@ export class Enemies {
         case 'aim': {
           e.timer -= dt;
           this.face(e, dx / dist, dz / dist, dt);
-          pose.armL = -1.5; pose.armR = -1.25;
+          pose.armL = -1.5; pose.elbowL = 0; pose.armR = -1.4; pose.elbowR = -0.5 - 2 * Math.min(1, 1 - e.timer / 0.8);
           if (e.timer <= 0) {
             const lead = Math.min(1, dist / 26);
             this.api.shoot({ x: e.x, y: e.y + 1.4 * e.def.scale, z: e.z },
@@ -400,6 +400,10 @@ export class Enemies {
       e.fig.position.set(e.x, e.y, e.z);
       e.fig.rotation.y = e.yaw;
       animateFigure(e.fig, e.speed, dt, time, pose);
+      // blades out once roused; an archer's bow comes off the back to shoot
+      const aiming = e.state === 'aim';
+      e.fig.setWeapons(e.alerted && !e.def.ranged, e.def.ranged && aiming);
+      e.fig.setDraw(aiming ? Math.min(1, 1 - e.timer / 0.8) : 0, e.def.ranged && e.alerted);
       if (e.flash > 0) { e.flash -= dt; e.material.color.setRGB(2.4, 1.3, 1.2); } else e.material.color.setRGB(1, 1, 1);
       const hurt = e.hp < e.maxHp;
       e.bar.visible = hurt || e.alerted;

@@ -109,8 +109,8 @@ export class GeoBuilder {
    * A soft, lumpy mass (a canopy, a bush, a mound): a displaced sphere with
    * rounded normals. `rough` is how far the surface wanders, as a share of r.
    */
-  lump(r, x, y, z, color, sx = 1, sy = 1, sz = 1, detail = 2, rough = 0.18) {
-    const g = new THREE.IcosahedronGeometry(1, detail);
+  lump(r, x, y, z, color, sx = 1, sy = 1, sz = 1, detail = 2, rough = 0.18, rot = null) {
+    const g = new THREE.IcosahedronGeometry(1, Math.min(detail, this.maxDetail ?? 9));
     const pos = g.attributes.position, seed = Math.floor(this.rand() * 1000);
     const cache = new Map();
     for (let i = 0; i < pos.count; i++) {
@@ -124,7 +124,8 @@ export class GeoBuilder {
       pos.setXYZ(i, _v.x * f, _v.y * f, _v.z * f);
     }
     smoothNormals(g);
-    _m.compose(_v.set(x, y, z), _q.setFromEuler(_e.set(this.rand() * 3, this.rand() * 3, 0)), new THREE.Vector3(sx * r, sy * r, sz * r));
+    const r1 = this.rand() * 3, r2 = this.rand() * 3;
+    _m.compose(_v.set(x, y, z), _q.setFromEuler(rot ? _e.set(rot[0], rot[1], rot[2], 'YXZ') : _e.set(r1, r2, 0)), new THREE.Vector3(sx * r, sy * r, sz * r));
     return this.add(g, color, _m.clone(), true);
   }
 
@@ -168,6 +169,12 @@ export class GeoBuilder {
     const sh = out ? new THREE.Vector3(...out).normalize() : _n.clone();
     _c.set(color);
     const k = 1 + (this.rand() - 0.5) * 2 * this.vary;
+    // A lighter form keeps only some cards (the same ones each time), a little larger.
+    if (this.cardKeep !== undefined && this.cardKeep < 1) {
+      const n = (this._cards = (this._cards ?? 0) + 1);
+      if (Math.floor(n * this.cardKeep) === Math.floor((n - 1) * this.cardKeep)) return this;
+      ax.multiplyScalar(1.3); ay.multiplyScalar(1.3);
+    }
     const [u0, u1] = region;
     const corner = (sx, sy) => [x + ax.x * sx + ay.x * sy, y + ax.y * sx + ay.y * sy, z + ax.z * sx + ay.z * sy, u0 + (u1 - u0) * (sx + 1) / 2, (sy + 1) / 2];
     const A = corner(-1, -1), B = corner(1, -1), C = corner(1, 1), D = corner(-1, 1);

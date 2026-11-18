@@ -24,6 +24,8 @@ const UP = new THREE.Vector3(0, 1, 0), ONE = new THREE.Vector3(1, 1, 1);
 
 /** A tapering bough from one point to another. */
 function limb(b, x0, y0, z0, x1, y1, z1, r0, r1, color, seg = 6) {
+  if (b.lite && r0 < 0.12) return; // the middle form leaves out twigs hidden in the leaves
+  if (b.lite) seg = Math.min(seg, 5);
   _a.set(x0, y0, z0); _b.set(x1, y1, z1);
   const len = _a.distanceTo(_b);
   _lq.setFromUnitVectors(UP, _b.clone().sub(_a).normalize());
@@ -39,7 +41,7 @@ function limb(b, x0, y0, z0, x1, y1, z1, r0, r1, color, seg = 6) {
  * Base at y0, height h. Returns nothing; the top is at (lean, y0 + h, 0) rotated by dir.
  */
 function trunk(b, h, r0, r1, color, o = {}) {
-  const seg = o.seg ?? 10, rows = o.rows ?? 6, roots = o.roots ?? 0, lean = o.lean ?? 0, dir = o.dir ?? 0, y0 = o.y0 ?? -0.4;
+  const seg = Math.min(o.seg ?? 10, b.lite ? 7 : 99), rows = Math.min(o.rows ?? 6, b.lite ? 3 : 99), roots = o.roots ?? 0, lean = o.lean ?? 0, dir = o.dir ?? 0, y0 = o.y0 ?? -0.4;
   const g = new THREE.CylinderGeometry(1, 1, 1, seg, rows, o.open ?? true);
   const pos = g.attributes.position, ph = b.rand() * 6.28;
   for (let i = 0; i < pos.count; i++) {
@@ -108,16 +110,63 @@ function skirt(b, lod, y, R, H, color, o = {}) {
   b.kind = 0;
 }
 
-// name -> { hi, lo, trunk radius (0 = no collision), material, shadow, cover }
+/** One bough of a conifer: a branch out from the trunk, drooping, carrying a flat spray of needles. */
+function bough(b, lod, y, a, len, droop, w, color, o = {}) {
+  const dx = Math.cos(a), dz = Math.sin(a);
+  if (!b.lite) limb(b, 0, y, 0, dx * len * 0.85, y - droop * 0.8, dz * len * 0.85, Math.max(0.05, len * 0.03), 0.025, o.bark ?? BARK, 4);
+  b.kind = SURF.leaf;
+  const tilt = Math.atan2(droop, len);
+  b.lump(1, dx * len * 0.55, y - droop * 0.5, dz * len * 0.55, lighten(color, 0.82), len * 0.55, w * (o.thick ?? 0.2), w * 0.45, 0, 0.3, [0, -a, -tilt]);
+  if (lod === 'hi') { // sprays of needles along it, lying flat and drooping toward the tip
+    const n = Math.round(len * (o.density ?? 1.5)) + 2, px = -dz, pz = dx;
+    for (let k = 0; k < n; k++) {
+      const t = 0.25 + 0.8 * (k / (n - 1)), side = (b.rand() - 0.5) * w * 0.7;
+      const cx = dx * len * t + px * side, cz = dz * len * t + pz * side, cy = y - droop * t * t + 0.12 + b.rand() * 0.15;
+      const sz = w * (0.75 + b.rand() * 0.35) * (1.1 - t * 0.35);
+      b.card(cx, cy, cz, sz, sz * 1.25, dx * 0.45 + (b.rand() - 0.5) * 0.4, 1, dz * 0.45 + (b.rand() - 0.5) * 0.4,
+        lighten(color, 1.3 + b.rand() * 0.25), o.region ?? ATLAS.needle, a + Math.PI / 2 + (b.rand() - 0.5) * 0.5, [dx, 0.8, dz]);
+    }
+  }
+  b.kind = 0;
+}
+
+/**
+ * A conifer of whorls: every metre or two up the trunk a ring of four to seven
+ * boughs, each at its own angle and length, shrinking toward the top.
+ */
+function whorls(b, lod, y0, y1, R0, color, o = {}) {
+  let y = y0, w = 0;
+  const greens = Array.isArray(color) ? color : [color];
+  while (y < y1) {
+    const t = (y - y0) / (y1 - y0), R = R0 * Math.pow(1 - t, o.shape ?? 0.85) + (o.tipR ?? 0.6);
+    const n = (o.min ?? 4) + Math.floor(b.rand() * (o.spread ?? 3)), a0 = b.rand() * 6.283;
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (i / n) * 6.283 + (b.rand() - 0.5) * 0.8, len = R * (0.7 + b.rand() * 0.45);
+      bough(b, lod, y + (b.rand() - 0.5) * 0.5, a, len, len * (o.droop ?? 0.3) * (0.8 + b.rand() * 0.5), (o.width ?? 1.2) + R * 0.22, greens[(w + i) % greens.length], o);
+    }
+    y += (o.step ?? 1.8) * (0.8 + b.rand() * 0.5); w++;
+  }
+}
+
+// name -> { hi, mid, lo, trunk radius (0 = no collision), material, shadow, cls }
+// hi: in full; mid: the same tree with fewer, larger leaf cards and no twigs;
+// lo: a light form for the distance. Ground cover has only its full form.
 const SPECIES = {};
 function define(name, trunkR, build, opts = {}) {
-  const geo = (lod) => { const b = new GeoBuilder(name.length * 31 + 7, 0.09); build(b, lod); return b.geometry(); };
+  const geo = (lod, mid) => {
+    const b = new GeoBuilder(name.length * 31 + 7, 0.09);
+    if (mid) { b.lite = true; b.cardKeep = 0.4; b.maxDetail = 0; }
+    build(b, lod);
+    return b.geometry();
+  };
   const hi = geo('hi');
   SPECIES[name] = {
-    hi, lo: opts.cover ? hi : geo('lo'), geometry: hi, trunk: trunkR,
+    hi, mid: opts.cover ? hi : geo('hi', true), lo: opts.cover ? hi : geo('lo'), geometry: hi, trunk: trunkR,
     material: opts.material ?? materials.tree, shadow: opts.shadow !== false, cover: !!opts.cover,
+    cls: opts.cover ? 'cover' : GREAT.has(name) ? 'tree' : 'shrub',
   };
 }
+const GREAT = new Set(['greatOak', 'greatCedar', 'greatFir', 'greatBeech', 'larch', 'cypress', 'stonePine', 'willow']);
 
 // ---- The great trees: planted long ago, a hundred feet tall, roofing the woods. ----
 define('greatOak', 1.6, (b, lod) => {
@@ -133,32 +182,22 @@ define('greatOak', 1.6, (b, lod) => {
 });
 define('greatCedar', 1.4, (b, lod) => {
   trunk(b, 31, 1.15, 0.25, BARK, { roots: lod === 'hi' ? 6 : 0, seg: lod === 'hi' ? 11 : 6, rows: lod === 'hi' ? 8 : 2, lean: 0.6 });
-  const tiers = [[11.5, 12.5], [16.5, 10.8], [21.5, 8.4], [26, 5.6], [29.5, 3]];
-  const greens = [0x355f3c, 0x3a6c3e, 0x2f5838];
-  tiers.forEach(([y, R], t) => {
-    const n = t < 3 ? 3 : 2;
-    for (let i = 0; i < n; i++) {
-      const a = t * 1.1 + i * (6.283 / n);
-      const px = Math.cos(a) * R * 0.5, pz = Math.sin(a) * R * 0.5;
-      limb(b, 0, y - 1.5, 0, px, y, pz, 0.4, 0.14, BARK, lod === 'hi' ? 6 : 4);
-      // flat plates of foliage, the cedar's mark
-      b.kind = SURF.leaf;
-      const r = R * 0.6, col = greens[i % 3];
-      if (lod === 'hi') {
-        b.lump(r * 0.9, px, y + 0.4, pz, lighten(col, 0.72), 1.2, 0.2, 1.2, 1, 0.25);
-        for (let k = 0; k < 16; k++) {
-          const aa = b.rand() * 6.283, d = Math.sqrt(b.rand()) * r * 1.05;
-          b.card(px + Math.cos(aa) * d, y + 0.7 + b.rand() * 0.5, pz + Math.sin(aa) * d, 2.8, 2.8, (b.rand() - 0.5) * 0.6, 1, (b.rand() - 0.5) * 0.6, lighten(col, 1.2 + b.rand() * 0.2), ATLAS.needle, b.rand() * 6.28, [0, 1, 0]);
-        }
-      } else b.lump(r, px, y + 0.5, pz, lighten(col, 0.86), 1.2, 0.22, 1.2, 0, 0.2);
-      b.kind = 0;
-    }
-  });
+  if (lod === 'lo') {
+    for (const [y, R, i] of [[12, 7.5, 0], [17, 6.5, 1], [22, 5, 2], [26.5, 3.4, 0], [29.5, 1.8, 1]]) { b.kind = SURF.leaf; b.lump(R, 0, y, 0, lighten([0x355f3c, 0x3a6c3e, 0x2f5838][i], 0.9), 1.2, 0.2, 1.2, 0, 0.3); b.kind = 0; }
+    return;
+  }
+  // great flat plates of foliage on long level boughs, the cedar's mark
+  whorls(b, lod, 10, 30, 11.5, [0x355f3c, 0x3a6c3e, 0x2f5838], { step: 2.6, min: 3, spread: 3, droop: 0.08, width: 2.6, thick: 0.18, density: 1.2, shape: 1.1, tipR: 1.2 });
 });
 define('greatFir', 1.05, (b, lod) => {
   trunk(b, 30, 0.9, 0.15, BARK, { roots: lod === 'hi' ? 4 : 0, seg: lod === 'hi' ? 9 : 6, rows: lod === 'hi' ? 5 : 2 });
-  const tiers = [[8.5, 7, 6], [12, 6.4, 6], [15.5, 5.6, 5.5], [19, 4.8, 5], [22.5, 3.9, 4.6], [25.8, 3, 4], [28.8, 1.9, 3.6]];
-  tiers.forEach(([y, R, H], i) => skirt(b, lod, y, R, H, [0x2f6a42, 0x34734a, 0x3a7a4c, 0x3f8250][i % 4], { droop: 0.32 }));
+  if (lod === 'lo') {
+    const tiers = [[8.5, 7, 6], [12, 6.4, 6], [15.5, 5.6, 5.5], [19, 4.8, 5], [22.5, 3.9, 4.6], [25.8, 3, 4], [28.8, 1.9, 3.6]];
+    tiers.forEach(([y, R, H], i) => skirt(b, lod, y, R, H, [0x2f6a42, 0x34734a, 0x3a7a4c, 0x3f8250][i % 4], { droop: 0.32 }));
+    return;
+  }
+  whorls(b, lod, 6.5, 29, 6.8, [0x2f6a42, 0x34734a, 0x3a7a4c, 0x2b6440], { step: 1.9, droop: 0.32 });
+  skirt(b, lod, 28, 0.9, 3.4, 0x3f8250, { seg: 7, droop: 0.1, cards: 8 }); // the leader at the top
 });
 define('greatBeech', 1.0, (b, lod) => {
   const SKIN = 0x9c968a;
@@ -170,22 +209,34 @@ define('greatBeech', 1.0, (b, lod) => {
 });
 define('larch', 0.5, (b, lod) => {
   trunk(b, 24, 0.5, 0.1, 0x6e5a44, { roots: lod === 'hi' ? 3 : 0, seg: lod === 'hi' ? 8 : 5, rows: lod === 'hi' ? 4 : 1 });
-  [[6, 4.2, 6], [10, 3.6, 6], [14, 3, 5.5], [17.5, 2.3, 5], [20.5, 1.4, 4]].forEach(([y, R, H], i) =>
-    skirt(b, lod, y, R, H, [0x86b352, 0x8fbc59, 0x98c460, 0xa0cb66][i % 4], { droop: 0.15, seg: 10 }));
+  if (lod === 'lo') {
+    [[6, 4.2, 6], [10, 3.6, 6], [14, 3, 5.5], [17.5, 2.3, 5], [20.5, 1.4, 4]].forEach(([y, R, H], i) =>
+      skirt(b, lod, y, R, H, [0x86b352, 0x8fbc59, 0x98c460, 0xa0cb66][i % 4], { droop: 0.15, seg: 10 }));
+    return;
+  }
+  // a larch is open and airy: fewer, finer boughs, lifting a little at the tips
+  whorls(b, lod, 5, 22.5, 4.3, [0x86b352, 0x8fbc59, 0x98c460], { step: 1.7, min: 3, spread: 3, droop: 0.12, width: 0.9, thick: 0.16, bark: 0x6e5a44, density: 1.8 });
+  skirt(b, lod, 21.5, 0.6, 2.6, 0xa0cb66, { seg: 6, droop: 0.05, cards: 5 });
 });
 define('cypress', 0.55, (b, lod) => {
   trunk(b, 3, 0.4, 0.3, BARK, { seg: 6, rows: 1 });
   b.kind = SURF.leaf;
-  const col = 0x234d33;
-  if (lod === 'hi') {
-    for (let i = 0; i < 6; i++) b.lump(1.9 - i * 0.22, 0, 3 + i * 2.6, 0, lighten(col, 0.75 + i * 0.03), 1, 1.5, 1, 1, 0.22);
-    for (let i = 0; i < 70; i++) {
-      const t = i / 70, a = i * 2.4, y = 2.2 + t * 17, r = (2.1 - t * 1.7) * (0.85 + b.rand() * 0.25);
-      b.card(Math.cos(a) * r, y, Math.sin(a) * r, 1.9, 2.4, Math.cos(a), 0.2, Math.sin(a), lighten(0x2b5a3a, 1.15 + b.rand() * 0.2), ATLAS.needle, b.rand() * 6.28, [Math.cos(a), 0.3, Math.sin(a)]);
-    }
-  } else {
+  const col = 0x234d33, H = 19;
+  // a flame of foliage: many small irregular masses filling a narrow column that swells and tapers
+  const profile = (t) => 2.0 * Math.sin(Math.PI * Math.min(1, 0.15 + t * 0.95)) * (1 - 0.35 * t) + 0.15;
+  if (lod === 'lo') {
     b.lump(2, 0, 7, 0, lighten(col, 0.85), 1, 3.0, 1, 0, 0.12);
     b.lump(1.3, 0, 15, 0, lighten(col, 0.9), 1, 3.0, 1, 0, 0.12);
+  } else {
+    for (let i = 0; i < 22; i++) {
+      const t = (i + 0.5) / 22, y = 2 + t * H, R = profile(t), a = i * 2.4 + b.rand();
+      const d = R * (0.25 + b.rand() * 0.4), r = R * (0.45 + b.rand() * 0.3) + 0.3;
+      b.lump(r, Math.cos(a) * d, y, Math.sin(a) * d, lighten(col, 0.72 + t * 0.12 + b.rand() * 0.06), 1, 1.3 + b.rand() * 0.5, 1, 0, 0.3);
+    }
+    if (lod === 'hi') for (let i = 0; i < 90; i++) {
+      const t = b.rand(), a = i * 2.4 + b.rand(), y = 1.6 + t * (H + 0.6), r = profile(t) * (0.9 + b.rand() * 0.3);
+      b.card(Math.cos(a) * r, y, Math.sin(a) * r, 1.4, 2.0, Math.cos(a), 0.15 + (b.rand() - 0.5) * 0.4, Math.sin(a), lighten(0x2b5a3a, 1.2 + b.rand() * 0.25), ATLAS.needle, (b.rand() - 0.5) * 0.6, [Math.cos(a), 0.3, Math.sin(a)]);
+    }
   }
   b.kind = 0;
 });
@@ -225,9 +276,15 @@ define('hazel', 0.35, (b, lod) => {
   crown(b, lod, [[0, 3.1, 0, 1.9, 0.75], [1, 2.6, -0.8, 1.3, 0.8], [-1, 2.4, 0.7, 1.3, 0.8]], [0x8cb850, 0x9ac55a], { cards: 16, size: 1.3 });
 }, SHRUB);
 define('juniper', 0.4, (b, lod) => {
-  skirt(b, lod, 0.0, 1.0, 2.8, 0x3f6a4a, { droop: 0.05, seg: 9, cards: 14 });
   b.kind = SURF.leaf;
-  b.add(new THREE.ConeGeometry(0.7, 2.0, 7, 1, true), lighten(0x477552, 0.85), new THREE.Matrix4().makeTranslation(0.6, 1.0, 0.35), true);
+  for (let i = 0; i < (lod === 'lo' ? 3 : 7); i++) { // a ragged clump of upright sprays
+    const a = i * 2.3 + b.rand(), d = 0.15 + b.rand() * 0.5, h = 0.8 + b.rand() * 1.4;
+    b.lump(0.45 + b.rand() * 0.3, Math.cos(a) * d, h, Math.sin(a) * d, lighten(i % 2 ? 0x3f6a4a : 0x477552, 0.85), 1, 1.6, 1, 0, 0.3);
+  }
+  if (lod === 'hi') for (let i = 0; i < 18; i++) {
+    const a = i * 2.4, t = b.rand(), r = 0.55 + (1 - t) * 0.4;
+    b.card(Math.cos(a) * r, 0.4 + t * 2.4, Math.sin(a) * r, 0.9, 1.2, Math.cos(a), 0.3, Math.sin(a), lighten(0x4a7a56, 1.25), ATLAS.needle, b.rand() * 6, [Math.cos(a), 0.4, Math.sin(a)]);
+  }
   b.kind = 0;
 }, SHRUB);
 define('tamarisk', 0.2, (b, lod) => {
@@ -237,9 +294,14 @@ define('tamarisk', 0.2, (b, lod) => {
 }, SHRUB);
 define('youngFir', 0.2, (b, lod) => {
   trunk(b, 4.5, 0.15, 0.05, BARK, { seg: 5, rows: 1 });
-  skirt(b, lod, 0.6, 1.5, 2.4, 0x2f6b3a, { seg: 9, droop: 0.25 });
-  skirt(b, lod, 2.0, 1.1, 2.2, 0x397a41, { seg: 8, droop: 0.25 });
-  skirt(b, lod, 3.3, 0.6, 1.6, 0x3f8247, { seg: 7, droop: 0.2 });
+  if (lod === 'lo') {
+    skirt(b, lod, 0.6, 1.5, 2.4, 0x2f6b3a, { seg: 9, droop: 0.25 });
+    skirt(b, lod, 2.0, 1.1, 2.2, 0x397a41, { seg: 8, droop: 0.25 });
+    skirt(b, lod, 3.3, 0.6, 1.6, 0x3f8247, { seg: 7, droop: 0.2 });
+    return;
+  }
+  whorls(b, lod, 0.7, 4.3, 1.7, [0x2f6b3a, 0x397a41, 0x3f8247], { step: 0.55, droop: 0.28, width: 0.55, min: 4, spread: 2, tipR: 0.2, density: 2.6 });
+  skirt(b, lod, 4.0, 0.3, 1.0, 0x3f8247, { seg: 5, droop: 0.05, cards: 3 });
 }, SHRUB);
 define('sapling', 0.15, (b, lod) => { // a young broadleaf, thin and reaching for the light
   trunk(b, 5, 0.12, 0.05, 0x8a8070, { seg: 5, rows: 2, lean: 0.4 });
@@ -458,8 +520,7 @@ const COVER = {
   foothill: [['heather', 0.38], ['rock', 0.22], ['thyme', 0.18], ['tuft', 0.12], ['scree', 0.1]],
 };
 const REGION_KEYS = ['central', 'south', 'heath', 'river', 'foothill'];
-// The great trees: their trunks stop an arrow. Lesser growth does not.
-const GREAT = new Set(['greatOak', 'greatCedar', 'greatFir', 'greatBeech', 'larch', 'cypress', 'stonePine', 'willow']);
+// The great trees (GREAT, above): their trunks stop an arrow. Lesser growth does not.
 const TINTABLE = { flowers: 1, asphodel: 1 };
 const FLOWER_TINTS = [0xffffff, 0xf6e36a, 0xf2a3c0, 0xb99cf0, 0x8fc0f5, 0xffc27a, 0xe8705f].map((h) => new THREE.Color(h));
 
@@ -480,7 +541,7 @@ const _up = new THREE.Vector3(0, 1, 0), _col = new THREE.Color();
  * Build the plants for one terrain chunk.
  * @returns {{ meshes: THREE.InstancedMesh[], circles: {x:number,z:number,r:number}[] }}
  */
-export function buildVegetation(cx, cz, quality, lod = 'hi') {
+export function buildVegetation(cx, cz, quality) {
   const lists = {}; // species -> [x, y, z, rot, scale, tint r, g, b]
   const circles = [];
   const put = (name, x, y, z, rot, scale, r, g, b) => {
@@ -584,36 +645,73 @@ export function buildVegetation(cx, cz, quality, lod = 'hi') {
     }
   }
 
-  const meshes = [];
+  // Each species gets a mesh for each of its forms; which instance goes in which
+  // is settled by distance from the ranger (assignVegetation), tree by tree.
+  const meshes = [], groups = [];
   for (const name in lists) {
     const a = lists[name], n = a.length / 8, sp = SPECIES[name];
-    const mesh = new THREE.InstancedMesh(lod === 'hi' ? sp.hi : sp.lo, sp.material, n);
-    mesh.userData.species = name;
-    if (sp.cover) mesh.visible = lod === 'hi';
+    const mats = new Float32Array(n * 16), cols = new Float32Array(n * 3), xs = new Float32Array(n), zs = new Float32Array(n);
+    let cx0 = 0, cz0 = 0;
     for (let i = 0; i < n; i++) {
       const o = i * 8;
       _p.set(a[o], a[o + 1], a[o + 2]);
       _q.setFromAxisAngle(_up, a[o + 3]);
       _s.setScalar(a[o + 4]);
-      mesh.setMatrixAt(i, _m.compose(_p, _q, _s));
-      mesh.setColorAt(i, _col.setRGB(a[o + 5], a[o + 6], a[o + 7]));
+      _m.compose(_p, _q, _s).toArray(mats, i * 16);
+      cols[i * 3] = a[o + 5]; cols[i * 3 + 1] = a[o + 6]; cols[i * 3 + 2] = a[o + 7];
+      xs[i] = a[o]; zs[i] = a[o + 2]; cx0 += a[o] / n; cz0 += a[o + 2] / n;
     }
-    mesh.castShadow = sp.shadow && quality.shadows && lod === 'hi';
-    mesh.receiveShadow = !sp.cover && quality.shadows;
-    mesh.computeBoundingSphere();
-    meshes.push(mesh);
+    let rad = 0, cy = 0;
+    for (let i = 0; i < n; i++) { rad = Math.max(rad, Math.hypot(xs[i] - cx0, zs[i] - cz0)); cy += a[i * 8 + 1] / n; }
+    const sphere = new THREE.Sphere(new THREE.Vector3(cx0, cy + 15, cz0), rad + 40);
+    const forms = sp.cls === 'cover' ? ['hi'] : ['hi', 'mid', 'lo'];
+    const ms = forms.map((f, k) => {
+      const m = new THREE.InstancedMesh(sp[f], sp.material, n);
+      m.setColorAt(0, _col.setRGB(1, 1, 1)); // makes the colour buffer
+      m.count = 0;
+      m.boundingSphere = sphere;
+      m.castShadow = sp.shadow && quality.shadows && k < 2;
+      m.receiveShadow = !sp.cover && quality.shadows;
+      m.userData.species = name;
+      meshes.push(m);
+      return m;
+    });
+    groups.push({ sp, n, mats, cols, xs, zs, meshes: ms, level: new Int8Array(n).fill(-2) });
   }
-  return { meshes, circles };
+  return { meshes, circles, groups };
 }
 
-/** Swap a chunk's plants between the near ('hi') and far ('lo') forms. Ground cover shows only near. */
-export function setVegetationLod(meshes, lod, shadows) {
-  for (const m of meshes) {
-    const sp = SPECIES[m.userData.species];
-    if (!sp) continue;
-    m.geometry = lod === 'hi' ? sp.hi : sp.lo;
-    if (sp.cover) m.visible = lod === 'hi';
-    m.castShadow = sp.shadow && shadows && lod === 'hi'; // far plants lie outside the shadow map anyway
+/**
+ * Put each plant in its near, middle or far form by its own distance from
+ * (px, pz), with a little slack so a plant on the line does not flicker.
+ * Ground cover shows only near. Ranges come from the quality setting.
+ */
+export function assignVegetation(groups, px, pz, q) {
+  for (const g of groups) {
+    const cls = g.sp.cls;
+    const r0 = cls === 'tree' ? q.treeNear : cls === 'cover' ? q.coverFar : q.shrubNear;
+    const r1 = cls === 'tree' ? q.treeMid : cls === 'cover' ? -1 : q.shrubMid;
+    const counts = [0, 0, 0];
+    const arrays = g.meshes.map((m) => m.instanceMatrix.array), colours = g.meshes.map((m) => m.instanceColor.array);
+    for (let i = 0; i < g.n; i++) {
+      const d = Math.hypot(g.xs[i] - px, g.zs[i] - pz), prev = g.level[i];
+      let lv = d < r0 ? 0 : r1 < 0 ? -1 : d < r1 ? 1 : 2;
+      if (prev >= 0 && lv !== prev && (lv === -1 || lv > prev)) { // going coarser: only once well past the line
+        const edge = prev === 0 ? r0 : r1;
+        if (d < edge + 8) lv = prev;
+      }
+      g.level[i] = lv;
+      if (lv < 0) continue;
+      const k = counts[lv]++;
+      arrays[lv].set(g.mats.subarray(i * 16, i * 16 + 16), k * 16);
+      colours[lv].set(g.cols.subarray(i * 3, i * 3 + 3), k * 3);
+    }
+    g.meshes.forEach((m, k) => {
+      m.count = counts[k];
+      m.visible = counts[k] > 0;
+      m.instanceMatrix.needsUpdate = true;
+      m.instanceColor.needsUpdate = true;
+    });
   }
 }
 
@@ -637,6 +735,6 @@ export function plantTrees(name, items, shadows = true) {
 /** Triangles per species, near and far (for checking the budget). */
 export function speciesStats() {
   const out = {};
-  for (const [k, sp] of Object.entries(SPECIES)) out[k] = [sp.hi.attributes.position.count / 3, sp.lo.attributes.position.count / 3];
+  for (const [k, sp] of Object.entries(SPECIES)) out[k] = [sp.hi, sp.mid, sp.lo].map((g) => g.attributes.position.count / 3);
   return out;
 }

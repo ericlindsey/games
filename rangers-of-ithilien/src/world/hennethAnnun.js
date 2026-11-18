@@ -9,6 +9,8 @@ import { HA, gorgeZ } from './layout.js';
 import { heightAt } from './terrain.js';
 import { addSolid, addCircle, addHollow } from './collision.js';
 import { GeoBuilder, rockDisplace, makeNoiseTexture, materials, SURF } from './build.js';
+import { ATLAS } from './surface.js';
+const lighten = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
 import { addRock, fbm3, noise3 } from './rocks.js';
 import { rng } from '../util/noise.js';
 import { STREAM_DEPTH } from './water.js';
@@ -26,8 +28,8 @@ export function buildHennethAnnun(scene, water) {
   // Voids in the rock, in local coordinates.
   const room = { x0: 6, x1: 30, z0: -9, z1: 9 };
   const win = { x0: 0, x1: 6, z0: -5, z1: 5, ceil: floorY + 4.6 };
-  const hall = { x0: 0, x1: 10, z0: 11, z1: 14, ceil: floorY + 3 };   // in from the stair
-  const turn = { x0: 7, x1: 10, z0: 9, z1: 11, ceil: floorY + 3 };    // and round into the cave
+  const hall = { x0: 0, x1: 10, z0: 11, z1: 14, ceil: floorY + 3.9 }; // in from the stair (tall enough for the camera)
+  const turn = { x0: 7, x1: 10, z0: 9, z1: 11, ceil: floorY + 3.9 };  // and round into the cave
   const R = { x0: 0, x1: 36, z0: -22, z1: 22 };
   // The hidden way up: the hall runs on east as a narrow stair in the rock,
   // climbing to a hole in the forest floor above the cave (HA.hatch).
@@ -48,26 +50,33 @@ export function buildHennethAnnun(scene, water) {
 
   const box = (x0, x1, z0, z1, bottom, top, extra) =>
     ({ minX: fx + x0, maxX: fx + x1, minZ: fz + z0, maxZ: fz + z1, bottom, top, ...extra });
+  // The top of the rock: just under the forest floor, so where the terrain mesh
+  // is cut away for the cliff there is rock to see, not a gap; never lower than
+  // the stream bed over the fall.
+  // (well under it away from the cliff, so the finer rock never pokes through the coarser turf)
+  const rockTop = (x, z) => Math.max(topY, heightAt(Math.max(x, fx + 2.5), z) - (x < fx + 4.5 ? 0.15 : 1.0));
+  const ROCK_TOP_MAX = HA.plateau + 6;
+  const top = { topMax: ROCK_TOP_MAX };
   const rock = [
-    box(R.x0, R.x1, R.z0, room.z0, base, topY),                 // north
-    box(room.x1, R.x1, room.z0, pass.z0, base, topY),           // east, either side of the stair
-    box(room.x1, R.x1, pass.z1, R.z1, base, topY),
-    box(pass.x1, R.x1, pass.z0, pass.z1, base, topY),
-    box(ledge.notch, room.x0, room.z0, win.z0, base, topY),     // piers either side of the window (the north one notched for the ledge)
-    box(R.x0, room.x0, win.z1, room.z1, base, topY),
-    box(R.x0, turn.x0, room.z1, hall.z0, base, topY),           // between the cave and the hall
-    box(turn.x1, room.x1, room.z1, pass.z0, base, topY),        // between the cave and the stair
-    box(R.x0, room.x1, hall.z1, R.z1, base, topY),              // south
+    box(R.x0, R.x1, R.z0, room.z0, base, rockTop, top),                 // north
+    box(room.x1, R.x1, room.z0, pass.z0, base, rockTop, top),           // east, either side of the stair
+    box(room.x1, R.x1, pass.z1, R.z1, base, rockTop, top),
+    box(pass.x1, R.x1, pass.z0, pass.z1, base, rockTop, top),
+    box(ledge.notch, room.x0, room.z0, win.z0, base, rockTop, top),     // piers either side of the window (the north one notched for the ledge)
+    box(R.x0, room.x0, win.z1, room.z1, base, rockTop, top),
+    box(R.x0, turn.x0, room.z1, hall.z0, base, rockTop, top),           // between the cave and the hall
+    box(turn.x1, room.x1, room.z1, pass.z0, base, rockTop, top),        // between the cave and the stair
+    box(R.x0, room.x1, hall.z1, R.z1, base, rockTop, top),              // south
     // floors
     box(room.x0, room.x1, room.z0, room.z1, base, floorY),
     box(win.x0, win.x1, win.z0, win.z1, base, floorY),
     box(hall.x0, hall.x1, hall.z0, hall.z1, base, floorY),
     box(turn.x0, turn.x1, turn.z0, turn.z1, base, floorY),
     // roofs
-    box(room.x0, room.x1, room.z0, room.z1, ceilY, topY),
-    box(win.x0, win.x1, win.z0, win.z1, win.ceil, topY),
-    box(hall.x0, hall.x1, hall.z0, hall.z1, hall.ceil, topY),
-    box(turn.x0, turn.x1, turn.z0, turn.z1, turn.ceil, topY),
+    box(room.x0, room.x1, room.z0, room.z1, ceilY, rockTop, top),
+    box(win.x0, win.x1, win.z0, win.z1, win.ceil, rockTop, top),
+    box(hall.x0, hall.x1, hall.z0, hall.z1, hall.ceil, rockTop, top),
+    box(turn.x0, turn.x1, turn.z0, turn.z1, turn.ceil, rockTop, top),
     // the stair's walls, carried up from the top of the rock to just under the
     // forest floor, and as a lip of stone round the hole
     box(pass.x0, pass.hole, pass.z0 - 2, pass.z0, topY, groundLo - 0.15),
@@ -77,9 +86,9 @@ export function buildHennethAnnun(scene, water) {
     box(pass.hole - 1.2, pass.hole, ht.z0 - fz, pass.z1 + 1.2, passTop(fx + pass.hole) + 2.4, lip(ht.z0, fz + pass.z1 + 1.2)),
   ];
   // its stepped roof, until it opens to the sky
-  for (let x = pass.x0; x < pass.hole - 1.2; x += 2) {
-    const x1 = Math.min(x + 2, pass.hole - 1.2);
-    rock.push(box(x, x1, pass.z0, pass.z1, passTop(fx + x1) + 2.5, groundLo - 0.15));
+  for (let x = pass.x0; x < pass.hole - 1.2; x += 1) {
+    const x1 = Math.min(x + 1, pass.hole - 1.2), under = passTop(fx + x1) + 3.4;
+    if (under < groundLo - 0.6) rock.push(box(x, x1, pass.z0, pass.z1, under, groundLo - 0.15));
   }
   // The stair: a ramp of worn steps along the south wall of the basin, from
   // the floor of the cut up to the hidden door.
@@ -103,16 +112,32 @@ export function buildHennethAnnun(scene, water) {
 
   // --- Rock: every solid drawn as a box with its faces roughened. ---
   const rand = rng(77);
+  // Torches on the walls. Their light is laid into the colour of the rock round
+  // them (warm, falling off with distance); one real light sits at the torch
+  // nearest the ranger, so whatever moves near a torch is lit by it.
+  const torches = [[10, -8.3], [25, -8.3], [14, 8.3], [27.5, 8.3], [5, 13.6], [13, 13.75]];
+  const torchPts = torches.map(([dx, dz]) => new THREE.Vector3(fx + dx, floorY + 2.55, fz + dz));
+  const warm = new THREE.Color(1.0, 0.62, 0.3);
+  const bakeTorchlight = (b) => {
+    for (let i = 0; i < b.p.length; i += 3) {
+      const x = b.p[i], y = b.p[i + 1], z = b.p[i + 2];
+      if (x < fx - 1 || x > fx + R.x1 || Math.abs(z - fz) > 22 || y < floorY - 1 || y > ceilY + 2) continue;
+      let glow = 0;
+      for (const t of torchPts) { const d2 = (x - t.x) ** 2 + (y - t.y) ** 2 + (z - t.z) ** 2; glow += 1.5 / (1 + d2 / 4); }
+      glow = Math.min(2.2, glow);
+      b.c[i] *= 1 + glow * warm.r; b.c[i + 1] *= 1 + glow * warm.g; b.c[i + 2] *= 1 + glow * warm.b;
+    }
+  };
   const within = (p, v, pad) => p.x > fx + v.x0 - pad && p.x < fx + v.x1 + pad && p.z > fz + v.z0 - pad && p.z < fz + v.z1 + pad;
   const inside = (p) => inPassage(p) || (p.x > fx + 1.4 && p.y > floorY - 0.6 && p.y < ceilY + 1.2 &&
     (within(p, room, 0.9) || within(p, win, 0.9) || within(p, hall, 0.9) || within(p, turn, 0.9)));
   const paintRock = (p, n) => {
-    if (p.y > topY - 0.2 && n.y > 0.6) return 0x8a8470; // the lip round the hole
+    if (n.y > 0.6 && p.y > topY - 0.2 && p.x > ht.x0 - 2.5 && p.x < ht.x1 + 2.5 && p.z > ht.z0 - 2.5 && p.z < ht.z1 + 2.5) return 0x8a8470; // the lip round the hole
     if (inside(p)) return n.y > 0.6 ? 0x6f6657 : n.y < -0.6 ? 0x4a443c : 0x5d554a;
-    if (n.y > 0.6) return 0x7c8a5c;
+    if (n.y > 0.6) return p.y > topY + 0.5 ? 0x6f8a4a : 0x7c8a5c;
     return p.y < HA.floor + 5 ? 0x6b675c : 0x8d8575; // darker where the spray wets it
   };
-  const paintStair = (p, n) => (n.y > 0.5 ? 0xa39a86 : 0x8a8272);
+  const paintStair = (p, n) => (n.y > 0.5 ? 0x857f70 : 0x777164); // cut from the same rock, worn paler on the treads
 
   const builder = new GeoBuilder(5, 0);
   builder.kind = SURF.rock;
@@ -123,7 +148,7 @@ export function buildHennethAnnun(scene, water) {
     rockDisplace(v, amp);
     if (amp < 0.3) return v;
     const f = fbm3(v.x * 0.35, v.y * 0.35, v.z * 0.35, 3, 41) * amp * 0.7;
-    const bed = Math.pow(0.5 + 0.5 * Math.sin((v.y + noise3(v.x * 0.08, 0, v.z * 0.08, 5) * 3) * 2.9), 6) * amp * 0.55;
+    const bed = Math.pow(0.5 + 0.5 * Math.sin((v.y + noise3(v.x * 0.08, 0, v.z * 0.08, 5) * 5) * 2.3), 6) * amp * 0.25;
     v.x += f - bed; v.z += f * 0.8 - bed * 0.6; v.y += f * 0.3;
     return v;
   };
@@ -161,14 +186,16 @@ export function buildHennethAnnun(scene, water) {
     }
   };
   for (const s of rock) addRock(s, paintRock, 0.5);
-  builder.kind = SURF.masonry;
+  builder.kind = SURF.cave; // the stair and the ledge: bare cut rock, no moss
   for (const s of stair) addRock(s, paintStair, 0.08);
   // Treads, so the two flights read as stairs.
-  const treads = new GeoBuilder(21, 0.05);
-  treads.kind = SURF.masonry;
-  for (let x = stairX0 + 0.6; x < stairX1; x += 0.9) treads.box(0.5, 0.13, stairZ1 - stairZ0 - 0.2, fx + x, stairTop(fx + x) - 0.02, fz + (stairZ0 + stairZ1) / 2, 0xb3aa95);
-  for (let x = pass.x0 + 0.5; x < pass.x1; x += 0.8) treads.box(0.45, 0.12, pass.z1 - pass.z0 - 0.2, fx + x, passTop(fx + x) - 0.02, passZ, 0xa39a86);
-  scene.add(treads.mesh(materials.stone));
+  const treads = new GeoBuilder(21, 0.08);
+  treads.kind = SURF.cave;
+  for (let x = stairX0 + 0.6; x < stairX1; x += 0.9) treads.box(0.5, 0.13, stairZ1 - stairZ0 - 0.2, fx + x, stairTop(fx + x) - 0.02, fz + (stairZ0 + stairZ1) / 2, 0x8f897a, (rand() - 0.5) * 0.06);
+  for (let x = pass.x0 + 0.5; x < pass.x1; x += 0.8) treads.box(0.45, 0.12, pass.z1 - pass.z0 - 0.2, fx + x, passTop(fx + x) - 0.02, passZ, 0x857f70, (rand() - 0.5) * 0.06);
+  bakeTorchlight(treads);
+  bakeTorchlight(builder);
+  scene.add(treads.mesh(materials.rock));
   scene.add(builder.mesh(materials.rock));
   scene.add(cliffSkins(rand));
 
@@ -204,8 +231,11 @@ export function buildHennethAnnun(scene, water) {
   for (const [dy, dz, len] of [[2.5, 0.35, 0.8], [2.5, -0.35, 0.8], [3.0, 0.3, 0.7], [3.0, -0.3, 0.7], [3.5, 0, 0.5]]) {
     f.box(0.04, 0.14, len, wx - 0.05, floorY + dy + 0.5, fz + dz, 0xf2f0e6, 0, dz > 0 ? 0.5 : dz < 0 ? -0.5 : 0);
   }
-  const torches = [[10, -8.3], [25, -8.3], [14, 8.3], [27.5, 8.3], [5, 13.6]];
-  for (const [dx, dz] of torches) f.box(0.12, 0.5, 0.12, fx + dx, floorY + 1.9, fz + dz, 0x3a3028);
+  for (const [dx, dz] of torches) { // a bracket and a wrapped head on each torch
+    f.box(0.12, 0.5, 0.12, fx + dx, floorY + 1.9, fz + dz, 0x3a3028);
+    f.box(0.18, 0.12, 0.18, fx + dx, floorY + 2.35, fz + dz, 0x2a2018);
+  }
+  bakeTorchlight(f);
   scene.add(f.mesh());
 
   const flames = new THREE.Group();
@@ -216,9 +246,10 @@ export function buildHennethAnnun(scene, water) {
     flames.add(fl);
   }
   scene.add(flames);
-  const lamp = new THREE.PointLight(0xffb060, 60, 36, 1.5);
-  lamp.position.set(fx + 19, floorY + 3.6, fz);
+  const lamp = new THREE.PointLight(0xffa850, 34, 16, 1.6);
+  lamp.position.copy(torchPts[0]).add(new THREE.Vector3(0, -0.2, 0));
   scene.add(lamp);
+  let lampAt = 0;
 
   // --- Water: the fall, the pool, the mist. (The stream itself is in water.js.) ---
   const waterY = topY + 0.1 + STREAM_DEPTH;
@@ -245,7 +276,7 @@ export function buildHennethAnnun(scene, water) {
 
   const pool = new THREE.Mesh(
     new THREE.CircleGeometry(HA.pool.r + 0.5, 24),
-    water.poolMaterial,
+    water.rippledMaterial(fx - 1.9, fz),
   );
   pool.rotation.x = -Math.PI / 2;
   pool.position.set(HA.pool.x, poolY, HA.pool.z);
@@ -296,6 +327,20 @@ export function buildHennethAnnun(scene, water) {
     const x = b.minX + 2 + rand() * 26, z = fz - b.halfZ + 1.2 + rand() * 2.5;
     addRock(rocks, x, heightAt(x, z) - 0.15, z, 1.0 + rand() * 1.8, 0x6f6a5e, rockSeed++, { detail: 2, sy: 0.6, cuts: 6 });
   }
+  for (let i = 0; i < 22; i++) { // boulders fallen round the pool, clear of the stair, the way out and the fall
+    const a = (i / 22) * Math.PI * 2 + rand() * 0.25, r = HA.pool.r + 0.6 + rand() * 2.2;
+    const x = HA.pool.x + Math.cos(a) * r, z = HA.pool.z + Math.sin(a) * r;
+    if (z > fz + 10 || x > fx - 3 || (x < b.minX + 9 && Math.abs(z - fz) < 6) || x < b.minX + 1 || Math.abs(z - fz) > b.halfZ - 0.8) continue;
+    const sz = 0.7 + rand() * 1.8;
+    addRock(rocks, x, heightAt(x, z) - 0.2, z, sz, rand() < 0.5 ? 0x6f6a5e : 0x7d776a, rockSeed++, { detail: 2, sy: 0.55 + rand() * 0.3, cuts: 7 });
+    if (sz > 1.2) addCircle(x, z, sz * 0.38);
+  }
+  for (let x = HA.gorge.endX + 30; x < b.minX - 6; x += 7 + rand() * 9) { // and blocks fallen into the cut, against its walls
+    const side = rand() < 0.5 ? -1 : 1, sz = 0.9 + rand() * 1.5;
+    const z = gorgeZ(x) + side * (HA.gorge.halfFloor - 0.35);
+    addRock(rocks, x, heightAt(x, z) - 0.25, z, sz, 0x787266, rockSeed++, { detail: 2, sy: 0.6 + rand() * 0.3, cuts: 7, strata: rand() });
+    addCircle(x, z, sz * 0.33);
+  }
   for (let i = 0; i < 30; i++) { // and scree all along the foot of the cut
     const x = HA.gorge.endX + 40 + rand() * (b.minX - HA.gorge.endX - 40), side = rand() < 0.5 ? -1 : 1;
     const z = gorgeZ(x) + side * (HA.gorge.halfFloor - 0.2 - rand() * 0.6);
@@ -342,7 +387,14 @@ export function buildHennethAnnun(scene, water) {
     /** The ledge beside the fall, looking out over the pool. */
     ledge: { x: fx + (ledge.x0 + 0.45) / 2, z: fz + (ledge.z0 + ledge.z1) / 2 },
     isInside: (p) => inPassage(p) || (p.x > fx && p.x < fx + R.x1 && Math.abs(p.z - fz) < 22 && p.y < topY - 0.3),
-    update(time) {
+    update(time, who) {
+      if (who) { // the real light goes to the torch nearest the ranger, stepping off the wall toward the room
+        let best = lampAt, bd = Infinity;
+        torchPts.forEach((t, i) => { const d = t.distanceToSquared(who); if (d < bd) { bd = d; best = i; } });
+        if (best !== lampAt) { lampAt = best; }
+        const t = torchPts[lampAt];
+        lamp.position.lerp(_v.set(t.x + (t.x < fx + 6 ? 0.6 : 0), t.y - 0.1, t.z - Math.sign(t.z - fz) * 0.6), 0.2);
+      }
       fallTex[0].offset.y = time * 0.9;
       fallTex[1].offset.y = time * 1.3;
       for (let i = 0; i < MIST; i++) {
@@ -354,7 +406,7 @@ export function buildHennethAnnun(scene, water) {
       }
       mistGeo.attributes.position.needsUpdate = true;
       flames.children.forEach((fl, i) => fl.scale.setScalar(0.9 + 0.18 * Math.sin(time * 9 + i * 2.1)));
-      lamp.intensity = 60 + 6 * Math.sin(time * 7.3);
+      lamp.intensity = 34 + 5 * Math.sin(time * 7.3) + 3 * Math.sin(time * 13.1);
     },
   };
 }
@@ -399,11 +451,11 @@ function cliffSkins(rand) {
           const px = st.x + st.dx * lo, pz = st.z + st.dz * lo;
           const n1 = fbm3(px * 0.22, y * 0.22, pz * 0.22, 3, seed);
           const fine = fbm3(px * 1.3, y * 1.3, pz * 1.3, 2, seed + 5);
-          const bed = Math.pow(0.5 + 0.5 * Math.sin((y + noise3(u * 0.05, 0, 0, seed + 3) * 4) * 2.6), 8);
+          const bed = Math.pow(0.5 + 0.5 * Math.sin((y + noise3(u * 0.05, 0, 0, seed + 3) * 7) * 2.1), 8);
           // blocks: the face breaks along joints into slabs standing out by different amounts
           const q = noise3(u * 0.32, y * 0.14, 0.5, seed + 11) * 1.6;
           const step = Math.floor(q) + Math.min(1, Math.max(0, (q - Math.floor(q) - 0.8) * 5));
-          const out = ramp * (0.4 + 0.45 * (n1 + 0.5) + 0.3 * step + 0.65 * bed + 0.14 * fine);
+          const out = ramp * (0.4 + 0.65 * (n1 + 0.5) + 0.2 * step + 0.25 * bed + 0.18 * fine);
           const jx = noise3(px * 0.7, y * 0.7, pz * 0.7, seed + 7) * 0.18 * ramp;
           levels.push([px - st.dx * out + jx, y + noise3(px * 0.5, y * 0.5, pz * 0.5, seed + 9) * 0.15 * ramp, pz - st.dz * out + jx, t, above]);
         }
@@ -460,6 +512,29 @@ function cliffSkins(rand) {
   const mesh = new THREE.Mesh(geo, materials.rockDouble);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  // Ferns and tufts take hold on the ledges; ivy hangs down the faces.
+  const gn = geo.attributes.normal, plants = new GeoBuilder(78, 0.15), pr = rng(4242);
+  const greens = [0x4f8f3f, 0x5a9a48, 0x6f9e42, 0x3f7a34];
+  for (let i = 0; i < pos.length / 3; i++) {
+    const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2], nx = gn.getX(i), ny = gn.getY(i), nz = gn.getZ(i);
+    if (y < HA.floor + 1.2) continue;
+    const roll = pr();
+    if (ny > 0.45 && roll < 0.1) { // a ledge
+      const s = 0.35 + pr() * 0.5, c = greens[Math.floor(pr() * 4)];
+      plants.smooth = true;
+      for (let k = 0; k < 6; k++) {
+        const a = k * 1.05 + pr(), ca = Math.cos(a), sa = Math.sin(a);
+        plants.tri(x - sa * 0.04, y, z + ca * 0.04, x + sa * 0.04, y, z - ca * 0.04, x + ca * s * 0.7, y + s * (0.5 + pr() * 0.5), z + sa * s * 0.7, c);
+      }
+      plants.smooth = false;
+      if (pr() < 0.5) plants.card(x + nx * 0.1, y + s * 0.3, z + nz * 0.1, s * 1.6, s * 1.4, nx, 1, nz, lighten(c, 1.2), ATLAS.broad, pr() * 6, [nx, 1, nz]);
+    } else if (Math.abs(ny) < 0.35 && roll < 0.008) { // a curtain of ivy down the face
+      const len = 1.2 + pr() * 2.6, wd = 0.8 + pr() * 1.2;
+      plants.card(x + nx * 0.12, y - len / 2, z + nz * 0.12, wd, len, nx, 0, nz, lighten(0x4f7a34, 0.9 + pr() * 0.3), ATLAS.ivy, (pr() - 0.5) * 0.4, [nx, 0.4, nz]);
+    }
+  }
+  const group = new THREE.Group();
+  group.add(mesh, plants.mesh(materials.plant, false));
   void b;
-  return mesh;
+  return group;
 }

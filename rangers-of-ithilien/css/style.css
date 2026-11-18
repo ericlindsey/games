@@ -202,3 +202,10 @@ body.panel-open #btn-aim, body.panel-open #hitmark { display: none !important; }
 #callout .felled { color: #e8f0d0; }
 body.touch #callout { bottom: auto; top: 40%; }
 body.panel-open #callout { display: none !important; }
+
+/* the frame-rate counter, bottom left (off unless chosen in the menu) */
+#fps {
+  position: absolute; left: calc(10px + env(safe-area-inset-left)); bottom: calc(8px + env(safe-area-inset-bottom));
+  font: 12px/1 ui-monospace, Menlo, Consolas, monospace; color: #f2ecd8; background: rgba(20, 24, 18, 0.55);
+  padding: 4px 7px; border-radius: 4px; pointer-events: none; z-index: 5;
+}

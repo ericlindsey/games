@@ -224,7 +224,8 @@ function buildStreams() {
   // entry gives the water its line, and cuts the broad upper valley above the slot.
   const g = HA.gorge, cutEnd = g.endX - 20;
   const cut = [];
-  for (let x = HA.basin.minX + 2; x >= cutEnd; x -= 5) {
+  // It starts in the pool itself, so the water runs out of the pool into the cut with no lip between.
+  for (let x = HA.pool.x - HA.pool.r * 0.6; x >= cutEnd; x -= 5) {
     const bed = HA.floor - g.fall * Math.max(0, HA.basin.minX - x) - 0.6;
     // Along the slot the valley above it is cut only to the shelf's stream level;
     // where the slot ends, the valley comes down to the water and opens out.
@@ -380,7 +381,7 @@ function cutHenneth(x, z, h) {
     const rp = Math.hypot(x - HA.pool.x, z - HA.pool.z);
     h = lerp(h, HA.floor - 1.2 * (1 - smoothstep(HA.pool.r * 0.6, HA.pool.r, rp)), w);
   }
-  if (x < b.minX + 4) {
+  if (x < HA.pool.x - HA.pool.r * 0.4) { // the cut's floor, and the stream's channel running from the pool down it
     let floor = HA.floor - g.fall * Math.max(0, b.minX - x);
     floor -= 0.6 * (1 - smoothstep(1.6, 2.6, Math.abs(z - (gorgeZ(x) + g.channelOffset)))); // the stream's bed
     // the slot fades out over the last stretch, where the open valley begins

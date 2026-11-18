@@ -229,6 +229,7 @@ uniform float uWind;
 uniform float uDefaultKind;
 uniform float uSway;
 uniform vec2 uFade;
+uniform vec2 uFadeIn;
 `;
 const VERT_SWAY = /* glsl */`
 #ifdef SURF_FADE
@@ -239,7 +240,8 @@ const VERT_SWAY = /* glsl */`
     o = instanceMatrix[3].xyz;
   #endif
   o = (modelMatrix * vec4(o, 1.0)).xyz;
-  transformed *= 1.0 - smoothstep(uFade.x, uFade.y, distance(o, cameraPosition));
+  float fd = distance(o, cameraPosition);
+  transformed *= (1.0 - smoothstep(uFade.x, uFade.y, fd)) * smoothstep(uFadeIn.x, uFadeIn.y, fd);
 }
 #endif
 #ifdef SURF_WIND
@@ -325,6 +327,12 @@ const FRAG_COLOR = /* glsl */`
   else if (k == 11.0) { ch = vec4(1.0, 0.0, 0.0, 0.0); sc = 3.0;  con = 0.25; bmp = 0.3; }
   vec4 t = surfTri(vSurfPos * sc, w);
   float d = dot(t, ch);
+  if (k == 5.0 || k == 12.0) {
+    // rock: blend in the same grain at a much larger, offset scale, so the
+    // repeat of the small one cannot be seen across a cliff
+    float big = surfTri(vSurfPos * 0.11 + vec3(3.7, 1.3, 5.1), w).r;
+    d = mix(d, big, 0.45);
+  }
   #ifdef SURF_LITE
     vec4 macro = vec4(0.55);
   #else
@@ -351,6 +359,7 @@ const FRAG_COLOR = /* glsl */`
   if (moss > 0.0 && uMossAmt > 0.0) {
     float up = tn.y + (macro.g - 0.5) * 0.9 + (d - 0.5) * 0.35;
     float m = smoothstep(0.5, 0.85, up) * smoothstep(0.3, 0.6, macro.g + (d - 0.5)) * moss * uMossAmt;
+    if (k == 5.0) m = max(m, smoothstep(0.6, 0.76, macro.g + (d - 0.5) * 0.5) * 0.65 * uMossAmt); // damp patches on the walls too
     diffuseColor.rgb = mix(diffuseColor.rgb, uMossColor * (0.75 + 0.5 * t.g), m);
     surfBump *= 1.0 - 0.6 * m;
   }
@@ -398,6 +407,7 @@ export function surfaceMaterial(o = {}) {
     uMossAmt: { value: o.moss ?? 1 },
     uDetailAmt: { value: o.detail ?? 1 },
     uFade: { value: new THREE.Vector2(...(o.fade ?? [1e5, 2e5])) },
+    uFadeIn: { value: new THREE.Vector2(-2, -1) },
   };
   mat.userData.surf = uniforms;
   mat.onBeforeCompile = (shader) => {

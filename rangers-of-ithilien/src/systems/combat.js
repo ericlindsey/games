@@ -12,6 +12,12 @@ import { GeoBuilder } from '../world/build.js';
 const GRAVITY = 9, SWING = 0.5, FULL_DRAW = 0.8;
 const _v = new THREE.Vector3(), _d = new THREE.Vector3();
 
+/** Arms for drawing a bow: the left held out straight, the right drawing the string back to the cheek. */
+function drawPose(f) {
+  f = Math.max(0, Math.min(1, f));
+  return { armL: -1.5, elbowL: 0, armR: -1.45 + f * 0.25, elbowR: -0.5 - f * 2.0 };
+}
+
 export class Combat {
   /** @param g { scene, camera, player, rig, input, state, enemies, hud, onFallen() } */
   constructor(g) {
@@ -40,10 +46,7 @@ export class Combat {
   get weapon() { return this.state.weapon; }
 
   syncWeapon() {
-    const f = this.player.figure;
-    f.sword.visible = this.state.weapon === 'sword';
-    f.heldBow.visible = this.state.weapon === 'bow';
-    this.hud.setWeapon(this.state);
+    this.hud.setWeapon(this.state); // what is in hand is decided each frame (handWeapons)
   }
 
   swap(to) {
@@ -138,7 +141,21 @@ export class Combat {
   }
 
   /** @param aimed true if the ranger chose the mark (so where it strikes matters) */
+  /**
+   * What the ranger holds this frame: the bow only while drawing or taking aim
+   * (and a moment after loosing), the sword only in a fight. Otherwise the bow is
+   * slung and the sword sheathed. Also how far the bow is drawn.
+   */
+  handWeapons(running) {
+    const st = this.state, bowing = this.drawing || this.aim || !!this.autoShot || this.sinceLoose < 0.6;
+    const sword = st.weapon === 'sword' && (this.swing > 0 || this.sinceFight < 4 || (this.enemies.inCombat() && !running));
+    const bow = st.weapon === 'bow' && bowing;
+    const draw = this.autoShot ? Math.min(1, this.autoShot.t / 0.45) : Math.min(1, this.draw / FULL_DRAW);
+    return { sword, bow, draw, nocked: st.arrows > 0 && bow && this.sinceLoose > 0.25 };
+  }
+
   loose(target, power, aimed) {
+    this.sinceLoose = 0;
     const p = this.player.pos, s = stats(this.state);
     const from = { x: p.x + Math.sin(this.player.yaw) * 0.5, y: p.y + 1.45, z: p.z + Math.cos(this.player.yaw) * 0.5 };
     this.shoot(from, target, s.bow * (0.5 + 0.5 * power), 36 + 26 * power, true, aimed);
@@ -156,6 +173,9 @@ export class Combat {
     const pose = {}, st = this.state, p = this.player.pos, touch = this.input.touch;
     this.cooldown -= dt;
     this.sinceHurt += dt;
+    this.sinceLoose = (this.sinceLoose ?? 9) + dt;
+    this.sinceFight = (this.sinceFight ?? 9) + dt;
+    if (this.enemies.inCombat()) this.sinceFight = 0;
     this.noArrowsToast -= dt;
     let slow = false;
 
@@ -176,7 +196,7 @@ export class Combat {
       this.player.yaw = this.rig.yaw;
       if (this.cooldown <= 0) this.draw = Math.min(FULL_DRAW, this.draw + dt);
       this.drawing = this.draw > 0;
-      pose.armL = -1.5; pose.armR = -1.5 + Math.min(1, this.draw / FULL_DRAW) * 0.55;
+      Object.assign(pose, drawPose(this.draw / FULL_DRAW));
       if (attack && !this.wasAttack && this.draw > 0.25) {
         this.loose(this.aimPoint(_v), Math.min(1, this.draw / FULL_DRAW), true);
         this.draw = 0;
@@ -200,7 +220,7 @@ export class Combat {
       a.t += dt;
       slow = true;
       this.player.yaw = Math.atan2(a.target.x - p.x, a.target.z - p.z);
-      pose.armL = -1.5; pose.armR = -1.5 + Math.min(1, a.t / 0.45) * 0.5;
+      Object.assign(pose, drawPose(Math.min(1, a.t / 0.45) * 0.9));
       if (a.target.dead) this.autoShot = null;
       else if (a.t >= 0.45) {
         this.loose({ x: a.target.x, y: a.target.y + 1.1 * a.target.def.scale, z: a.target.z }, 0.85, false);
@@ -221,7 +241,7 @@ export class Combat {
       if (this.drawing) {
         slow = true;
         this.player.yaw = this.rig.yaw;
-        pose.armL = -1.5; pose.armR = -1.5 + Math.min(1, this.draw / FULL_DRAW) * 0.55;
+        Object.assign(pose, drawPose(this.draw / FULL_DRAW));
       }
     }
 
@@ -229,6 +249,8 @@ export class Combat {
       this.swing -= dt;
       const t = 1 - this.swing / SWING; // 0..1 through the stroke
       pose.armR = t < 0.3 ? -0.4 - (t / 0.3) * 2.4 : -2.8 + Math.min(1, (t - 0.3) / 0.25) * 2.6;
+      pose.elbowR = t < 0.3 ? -0.2 - (t / 0.3) * 0.9 : -1.1 + Math.min(1, (t - 0.3) / 0.25) * 1.0;
+      this.sinceFight = 0;
       if (!this.struck && t >= 0.42) {
         this.struck = true;
         const fx = Math.sin(this.player.yaw), fz = Math.cos(this.player.yaw), dmg = stats(st).sword;
@@ -245,6 +267,8 @@ export class Combat {
       }
       if (this.swing <= 0) this.cooldown = 0.08;
     }
+    // just after loosing, the bow arm stays up a moment before the bow goes back over the shoulder
+    if (pose.armL === undefined && st.weapon === 'bow' && this.sinceLoose < 0.6) Object.assign(pose, drawPose(0));
     if (this.pendingSwap && this.swing <= 0 && !this.drawing) {
       this.swap(this.pendingSwap);
     }

@@ -53,16 +53,40 @@ export function waterMaterial(color, normals, repeat, opacity, o = {}) {
     transparent: true, opacity, depthWrite: false, side: o.side ?? THREE.FrontSide, map: o.map ?? null,
   });
   const sky = surfaceUniforms.uSkyColor;
+  const rip = o.ripple ? new THREE.Vector3(o.ripple[0], o.ripple[1], o.ripple[2] ?? 1) : null;
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uSkyColor = sky;
+    if (rip) {
+      // Rings spreading from where the fall strikes the pool, and foam at its foot.
+      shader.uniforms.uRipple = { value: rip };
+      shader.uniforms.uTime = surfaceUniforms.uTime;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform vec3 uRipple;\nuniform float uTime;')
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          vec2 rd = vWPos.xz - uRipple.xy;
+          float rr = length(rd);
+          float wave = sin(rr * 5.0 - uTime * 6.0) * 0.6 + sin(rr * 9.0 - uTime * 9.5 + 1.3) * 0.4;
+          float fall = exp(-rr * 0.16) * uRipple.z;
+          vec2 dir = rd / max(rr, 0.001);
+          normal = normalize(normal + (viewMatrix * vec4(dir.x * wave * fall * 0.45, 0.0, dir.y * wave * fall * 0.45, 0.0)).xyz);`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          float foamR = length(vWPos.xz - uRipple.xy);
+          float foam = smoothstep(4.5, 0.5, foamR) * (0.55 + 0.45 * sin(foamR * 7.0 - uTime * 8.0 + sin(vWPos.z * 3.0)));
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.25), clamp(foam, 0.0, 1.0) * 0.7);
+          diffuseColor.a = mix(diffuseColor.a, 1.0, clamp(foam, 0.0, 1.0) * 0.6);`);
+    }
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform vec3 uSkyColor;')
       .replace('#include <opaque_fragment>', `
         float fres = pow(1.0 - clamp(abs(dot(normalize(vViewPosition), normal)), 0.0, 1.0), 3.0);
-        outgoingLight = mix(outgoingLight, uSkyColor, fres * 0.55);
-        diffuseColor.a = mix(diffuseColor.a, 1.0, fres * 0.8);
+        outgoingLight = mix(outgoingLight, uSkyColor * 0.85, fres * 0.38);
+        diffuseColor.a = mix(diffuseColor.a, 1.0, fres * 0.6);
         #include <opaque_fragment>`);
   };
+  m.customProgramCacheKey = () => (rip ? 'water-ripple' : 'water'); // the shared patch differs only by this
   m.userData.waves = map;
   return m;
 }
@@ -120,6 +144,7 @@ export class Water {
     // The pools where streams rest in a hollow.
     const poolMaterial = waterMaterial(0x5f97a6, this.normals, [3, 3], 0.82, { map: this.ripples, wave: 0.4 });
     this.poolMaterial = poolMaterial;
+    this.extra = [];
     for (const p of POOLS) {
       const m = new THREE.Mesh(new THREE.CircleGeometry(p.r + 1.9, 28), poolMaterial);
       m.rotation.x = -Math.PI / 2;
@@ -127,6 +152,13 @@ export class Water {
       m.renderOrder = 1;
       scene.add(m);
     }
+  }
+
+  /** Water with rings spreading from a point (where a fall strikes it). */
+  rippledMaterial(x, z) {
+    const m = waterMaterial(0x5f97a6, this.normals, [3, 3], 0.84, { map: this.ripples, wave: 0.55, ripple: [x, z] });
+    this.extra.push(m);
+    return m;
   }
 
   /** A flat ribbon along a list of [x, y, z] centre points, running downstream. */
@@ -159,7 +191,8 @@ export class Water {
   update(time) {
     this.riverMat.userData.waves.offset.set(time * 0.004, time * 0.011);
     this.streamMaterial.userData.waves.offset.set(Math.sin(time * 0.3) * 0.02, -time * 0.35);
-    this.poolMaterial.userData.waves.offset.set(time * 0.01, time * 0.007);
+    this.poolMaterial.userData.waves.offset.set(time * 0.03, time * 0.021);
+    for (const m of this.extra ?? []) m.userData.waves.offset.set(time * 0.05, -time * 0.035);
     this.riverTex.offset.set(Math.sin(time * 0.05) * 0.2, time * 0.012);
     this.streaks.offset.y = -time * 0.22; // v grows downstream, so a falling offset carries the pattern down with it
   }

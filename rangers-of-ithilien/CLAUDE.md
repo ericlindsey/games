@@ -43,8 +43,9 @@ When a decision is unclear, choose the option that serves these, in this order:
   skills may require keyboard and mouse.
 - **Performance budget**: 60 fps on a laptop, 30 fps on a recent phone. Use
   fog to bound view distance, `InstancedMesh` for vegetation, chunked terrain, and a
-  capped device pixel ratio. Plants have a near and a far form (`setVegetationLod`);
-  ground cover and grass draw only near and shrink away with distance. Check draw
+  capped device pixel ratio. Plants have a near, a middle and a far form, chosen
+  tree by tree by distance (`assignVegetation`); ground cover and grass draw only
+  near and shrink away with distance. Check draw
   calls and triangle count (the `?debug` overlay) when adding content; `high` runs
   about 2 to 2.5 million triangles in the woods.
 
@@ -87,7 +88,8 @@ src/
     surface.js        generated detail textures and leaf atlas; the material patch (triplanar grain, bump, moss, wind, leaf glow)
     rocks.js          fractured rock geometry (boulders, outcrops, rubble, standing stones)
     grass.js          the field of grass blades around the ranger, built in tiles
-  entities/           player.js (ranger + camera rig), enemies.js (spawning and AI), figure.js
+  entities/           player.js (ranger + camera rig), enemies.js (spawning and AI),
+                      figure.js (people, their weapons in hand, sheathed or slung, the quiver's arrows)
   input/input.js      keyboard, mouse and touch -> one input state
   ui/                 hud.js (compass, vitals, tracker, notices), panels.js (dialogue, map, pack, trade, menu)
   systems/
@@ -204,7 +206,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.2.2`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.3.1`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add
@@ -226,7 +228,8 @@ python3 -m http.server 8000     # open http://localhost:8000
    pre-installed Playwright). It fails on any console error or failed request.
    It plays through at `?quality=low` (software rendering cannot click through
    medium or high in time) and then only loads medium and high to see they draw.
-   A full run takes 20 to 40 minutes.
+   A full run takes 20 to 40 minutes; `SMOKE_ONLY=phone` (any part of a suite's
+   name) runs only the matching suites.
 3. For hands-on checking, open `debug.html`: it has its own save and shortcuts
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips

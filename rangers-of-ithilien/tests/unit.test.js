@@ -189,7 +189,8 @@ test('a save round-trips', () => {
   assert.equal(store.load(), null);
   const s = newState();
   s.player = { x: 1234.5, y: 30, z: 2345.5, heading: 1.2 };
-  assert.equal(s.version, 4);
+  assert.equal(s.version, 5);
+  assert.equal(s.settings.fps, false, 'the frame-rate counter starts off');
   s.items = { draught: 2, orcTrinket: 3 }; s.equipped.body = 'mailShirt'; s.equipped.helm = 'leatherCap'; s.silver = 77; s.quests.done = ['f1']; s.health = 61.5; s.picked = ['h3_4'];
   s.honour = 140; s.renown = 4; s.wear = { rangerSword: 0.5 }; s.honed = { rangerBow: 1 }; s.skills = { repair: true }; s.told = ['c9']; s.stats.bands = 2;
   const errand = { id: 'xf0', giver: 'faramir', errand: 'bands', title: 'Watch on the road', offer: '', remind: '', done: '', objective: { type: 'bands', count: 1, base: 2 }, reward: { silver: 8, honour: 14, items: {} } };
@@ -212,6 +213,9 @@ test('bad saves are rejected or repaired, never thrown', () => {
   assert.equal(migrate(null), null);
   assert.equal(migrate('nonsense'), null);
   assert.equal(migrate({ version: SAVE.version + 1 }), null, 'a save from the future is not trusted');
+  const v4 = migrate({ version: 4, player: { x: 700, z: 1000, heading: 1 }, discovered: ['arch'], cleared: ['c5'], silver: 40, settings: { quality: 'medium' } });
+  assert.ok(v4.discovered.includes('arch') && v4.cleared.includes('c5') && v4.silver === 40 && v4.settings.quality === 'medium' && v4.settings.fps === false, 'a v4 save keeps everything, with the counter off');
+  assert.equal(migrate({ version: 5, settings: { fps: true } }).settings.fps, true, 'and the counter setting is kept');
   const old = migrate({ version: 1, player: { x: 3000, z: 6000 }, discovered: ['arch'], cleared: ['c1'], settings: { quality: 'low' } });
   assert.deepEqual(old.player, newState().player, 'a save from the old, larger world starts again at home');
   assert.deepEqual(old.cleared, []);
