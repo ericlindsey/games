@@ -72,7 +72,7 @@ function crown(b, lod, clusters, colors, o = {}) {
     const col = colors[i % colors.length];
     b.kind = SURF.leaf;
     if (lod === 'hi') {
-      b.lump(r * 0.84, x, y, z, lighten(col, 0.72), 1.1, sq, 1.1, o.detail ?? 1, 0.2);
+      b.lump(r * 0.84, x, y, z, lighten(col, 0.86), 1.1, sq, 1.1, o.detail ?? 1, 0.2);
       b.leafShell(x, y, z, r * 1.05, r * sq * 1.08, r * 1.05, Math.round(cards * (o.cardScale?.(r) ?? 1)), size, lighten(col, 1.12), region);
     } else {
       b.lump(r * 1.0, x, y, z, lighten(col, 0.86), 1.1, sq, 1.1, 0, 0.16);
@@ -94,7 +94,7 @@ function skirt(b, lod, y, R, H, color, o = {}) {
   }
   g.computeVertexNormals();
   b.kind = SURF.leaf;
-  b.add(g, lighten(color, lod === 'hi' ? 0.75 : 0.95), new THREE.Matrix4().makeTranslation(0, y + H / 2, 0), true);
+  b.add(g, lighten(color, lod === 'hi' ? 0.85 : 1.0), new THREE.Matrix4().makeTranslation(0, y + H / 2, 0), true);
   if (lod === 'hi') {
     const n = o.cards ?? Math.round(seg * 2.4);
     for (let i = 0; i < n; i++) {
@@ -102,7 +102,7 @@ function skirt(b, lod, y, R, H, color, o = {}) {
       const rr = R * f;
       const yy = y + H * (1 - f) - droop * R * (f * f) * 0.85 + 0.15;
       const s = R * (0.42 + b.rand() * 0.3) + 0.4;
-      b.card(Math.cos(a) * rr, yy, Math.sin(a) * rr, s, s, Math.cos(a) * 0.8, 1, Math.sin(a) * 0.8, lighten(color, 1.25 + b.rand() * 0.25), ATLAS.needle, b.rand() * 6.28, [Math.cos(a), 0.8, Math.sin(a)]);
+      b.card(Math.cos(a) * rr, yy, Math.sin(a) * rr, s, s, Math.cos(a) * 0.8, 1, Math.sin(a) * 0.8, lighten(color, 1.4 + b.rand() * 0.3), ATLAS.needle, b.rand() * 6.28, [Math.cos(a), 0.8, Math.sin(a)]);
     }
   }
   b.kind = 0;
@@ -418,7 +418,7 @@ define('fern', 0, (b) => {
 define('reed', 0, (b) => {
   b.smooth = true;
   for (let i = 0; i < 14; i++) blade(b, i * 1.3, 0.1 + (i % 3) * 0.12, 0.035, 1.3 + (i % 4) * 0.3, 0x8a9a52, 0xa8b066);
-  for (let i = 0; i < 4; i++) { const a = i * 1.7, x = Math.cos(a) * 0.2, z = Math.sin(a) * 0.2; b.cyl(0.035, 0.035, 0.3, x, 1.5 + i * 0.12, z, 0x6b4f33, 5); }
+  for (let i = 0; i < 4; i++) { const a = i * 1.7, x = Math.cos(a) * 0.2, z = Math.sin(a) * 0.2; b.cyl(0.022, 0.024, 0.2, x, 1.5 + i * 0.12, z, 0x6b4f33, 5); }
   b.smooth = false;
 }, COVER_OPTS);
 define('rock', 0.7, (b, lod) => {

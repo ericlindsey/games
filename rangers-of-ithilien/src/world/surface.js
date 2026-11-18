@@ -24,6 +24,7 @@ export const SURF = {
   ground: 9,   // the terrain
   skin: 10,
   metal: 11,
+  cave: 12,    // rock under cover: no moss
 };
 
 // Regions of the leaf atlas (u from, u to). The last quarter is solid white:
@@ -215,6 +216,9 @@ export const surfaceUniforms = {
 };
 export function updateSurfaces(time) { surfaceUniforms.uTime.value = time; }
 
+/** Set once at start from the quality level: `lite` drops the slow mottle and the bump (low quality). */
+export const surfaceSettings = { lite: false };
+
 const VERT_HEAD = /* glsl */`
 attribute float surf;
 varying vec3 vSurfPos;
@@ -312,20 +316,29 @@ const FRAG_COLOR = /* glsl */`
   else if (k == 3.0)  { ch = vec4(0.0, 1.0, 0.0, 0.0); sc = 0.55; con = 0.6;  bmp = 1.2; }
   else if (k == 4.0)  { ch = vec4(0.0, 1.0, 0.0, 0.0); sc = 1.2;  con = 0.15; bmp = 0.0; }
   else if (k == 5.0)  { ch = vec4(1.0, 0.0, 0.0, 0.0); sc = 0.42; con = 0.8;  bmp = 3.0; moss = 1.0; }
-  else if (k == 6.0)  { ch = vec4(0.0, 0.0, 0.0, 1.0); sc = 0.25; con = 0.55; bmp = 2.4; moss = 0.8; }
+  else if (k == 6.0)  { ch = vec4(0.0, 0.0, 0.0, 1.0); sc = 0.25; con = 0.6;  bmp = 2.4; moss = 0.55; }
   else if (k == 7.0)  { ch = vec4(0.0, 0.0, 1.0, 0.0); sc = 2.2;  con = 0.4;  bmp = 0.8; }
   else if (k == 8.0)  { ch = vec4(0.0, 1.0, 0.0, 0.0); sc = 5.0;  con = 0.22; bmp = 0.5; }
   else if (k == 9.0)  { ch = vec4(0.0, 1.0, 0.0, 0.0); sc = 0.45; con = 0.55; bmp = 1.0; }
   else if (k == 10.0) { ch = vec4(0.0, 1.0, 0.0, 0.0); sc = 6.0;  con = 0.05; bmp = 0.1; }
+  else if (k == 12.0) { ch = vec4(1.0, 0.0, 0.0, 0.0); sc = 0.42; con = 0.7;  bmp = 2.6; }
   else if (k == 11.0) { ch = vec4(1.0, 0.0, 0.0, 0.0); sc = 3.0;  con = 0.25; bmp = 0.3; }
   vec4 t = surfTri(vSurfPos * sc, w);
   float d = dot(t, ch);
-  vec4 macro = surfTri(vSurfPos * 0.045, w);
+  #ifdef SURF_LITE
+    vec4 macro = vec4(0.55);
+  #else
+    vec4 macro = surfTri(vSurfPos * 0.045, w);
+  #endif
   if (k == 9.0) {
     // Turf on the flat, stone on the steep, and a slower mottle over both.
     float steep = smoothstep(0.5, 0.78, 1.0 - tn.y);
-    vec4 r = surfTri(vSurfPos * 0.22, w);
-    d = mix(d * 0.7 + 0.5 * 0.3 + (surfTri(vSurfPos * 0.11, w).g - 0.5) * 0.35, r.r, steep);
+    #ifdef SURF_LITE
+      d = mix(d, t.r, steep);
+    #else
+      vec4 r = surfTri(vSurfPos * 0.22, w);
+      d = mix(d * 0.7 + 0.5 * 0.3 + (surfTri(vSurfPos * 0.11, w).g - 0.5) * 0.35, r.r, steep);
+    #endif
     con = mix(0.55, 0.9, steep); bmp = mix(0.8, 3.2, steep);
     diffuseColor.rgb *= mix(vec3(1.0), vec3(0.92, 0.9, 0.86), steep);
   }
@@ -337,7 +350,7 @@ const FRAG_COLOR = /* glsl */`
   diffuseColor.rgb *= 0.92 + 0.16 * macro.r;
   if (moss > 0.0 && uMossAmt > 0.0) {
     float up = tn.y + (macro.g - 0.5) * 0.9 + (d - 0.5) * 0.35;
-    float m = smoothstep(0.45, 0.8, up) * moss * uMossAmt;
+    float m = smoothstep(0.5, 0.85, up) * smoothstep(0.3, 0.6, macro.g + (d - 0.5)) * moss * uMossAmt;
     diffuseColor.rgb = mix(diffuseColor.rgb, uMossColor * (0.75 + 0.5 * t.g), m);
     surfBump *= 1.0 - 0.6 * m;
   }
@@ -352,10 +365,11 @@ if (surfLeaf > 0.0) {
     vec3 vdir = normalize(vSurfPos - cameraPosition);
     float back = pow(max(dot(vdir, uSunDir), 0.0), 3.0);
   #endif
-  totalEmissiveRadiance += diffuseColor.rgb * uSunGlow * (0.07 + 0.55 * back);
+  totalEmissiveRadiance += diffuseColor.rgb * uSunGlow * (0.11 + 0.55 * back);
 }
 `;
 const FRAG_NORMAL = /* glsl */`
+#ifndef SURF_LITE
 {
   float fade = 1.0 - smoothstep(25.0, 70.0, length(vViewPosition));
   if (surfBump > 0.0 && fade > 0.0) {
@@ -363,6 +377,7 @@ const FRAG_NORMAL = /* glsl */`
     normal = surfPerturb(-vViewPosition, normal, dH, faceDirection);
   }
 }
+#endif
 `;
 
 /**
@@ -388,6 +403,7 @@ export function surfaceMaterial(o = {}) {
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, surfaceUniforms);
     if (o.wind) shader.defines = { ...(shader.defines || {}), SURF_WIND: '' };
+    if (surfaceSettings.lite) shader.defines = { ...(shader.defines || {}), SURF_LITE: '' };
     if (o.fade) shader.defines = { ...(shader.defines || {}), SURF_FADE: '' };
     if (o.object) shader.defines = { ...(shader.defines || {}), SURF_OBJECT: '' };
     shader.vertexShader = shader.vertexShader
@@ -400,6 +416,6 @@ export function surfaceMaterial(o = {}) {
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + FRAG_NORMAL)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + FRAG_GLOW);
   };
-  mat.customProgramCacheKey = () => `surf|${o.wind ? 1 : 0}|${o.object ? 1 : 0}|${o.fade ? 1 : 0}`;
+  mat.customProgramCacheKey = () => `surf|${o.wind ? 1 : 0}|${o.object ? 1 : 0}|${o.fade ? 1 : 0}|${surfaceSettings.lite ? 1 : 0}`;
   return mat;
 }

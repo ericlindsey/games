@@ -224,6 +224,9 @@ python3 -m http.server 8000     # open http://localhost:8000
 1. `node --test tests/unit.test.js`
 2. `node tests/smoke.mjs [dir-for-screenshots]` (starts its own server; needs the
    pre-installed Playwright). It fails on any console error or failed request.
+   It plays through at `?quality=low` (software rendering cannot click through
+   medium or high in time) and then only loads medium and high to see they draw.
+   A full run takes 20 to 40 minutes.
 3. For hands-on checking, open `debug.html`: it has its own save and shortcuts
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips

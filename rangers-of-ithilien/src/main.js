@@ -19,7 +19,7 @@ import { buildFarms } from './world/farms.js';
 import { buildRelics } from './world/relics.js';
 import { Motes } from './world/motes.js';
 import { Grass } from './world/grass.js';
-import { updateSurfaces } from './world/surface.js';
+import { updateSurfaces, surfaceSettings } from './world/surface.js';
 import { Herbs } from './world/herbs.js';
 import { Camps } from './world/camps.js';
 import { Player, CameraRig } from './entities/player.js';
@@ -52,6 +52,7 @@ async function boot() {
   const coarse = matchMedia('(pointer: coarse)').matches;
   const qualityName = params.get('quality') ?? state.settings.quality ?? (coarse ? 'medium' : 'high');
   const quality = QUALITY[qualityName] ?? QUALITY.medium;
+  surfaceSettings.lite = !!quality.liteSurfaces;
 
   // ---- renderer ----
   const canvas = $('view');

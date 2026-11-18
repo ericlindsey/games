@@ -10,7 +10,7 @@ import { HA } from './layout.js';
 import { noise2 } from '../util/noise.js';
 import { buildVegetation, setVegetationLod } from './vegetation.js';
 import { setChunkCircles, removeChunkCircles } from './collision.js';
-import { surfaceMaterial, SURF } from './surface.js';
+import { surfaceMaterial, SURF, surfaceSettings } from './surface.js';
 
 const rgb = [0, 0, 0], rgb2 = [0, 0, 0];
 const _c = new THREE.Color();
@@ -101,7 +101,7 @@ export class Ground {
     const hole = this.hole;
     const cutHole = (mat) => {
       const before = mat.onBeforeCompile;
-      mat.customProgramCacheKey = () => 'surf-hole';
+      mat.customProgramCacheKey = () => 'surf-hole' + (surfaceSettings.lite ? '-lite' : '');
       mat.onBeforeCompile = (shader, r) => {
         before.call(mat, shader, r);
         shader.uniforms.uHole = { value: hole };

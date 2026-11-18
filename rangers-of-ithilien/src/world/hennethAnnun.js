@@ -154,7 +154,10 @@ export function buildHennethAnnun(scene, water) {
       _v.copy(_a).add(_b).add(_c).multiplyScalar(1 / 3);
       _col.set(paint(_v, _n));
       const k = 0.93 + rand() * 0.14;
+      const was = builder.kind;
+      if (was === SURF.rock && inside(_v)) builder.kind = SURF.cave; // no moss in the cave
       for (const p of [_a, _b, _c]) builder._push(p.x, p.y, p.z, _n.x, _n.y, _n.z, _col.r * k, _col.g * k, _col.b * k, 0.875, 0.5);
+      builder.kind = was;
     }
   };
   for (const s of rock) addRock(s, paintRock, 0.5);
@@ -171,6 +174,7 @@ export function buildHennethAnnun(scene, water) {
 
   // --- Furnishings of the refuge. ---
   const f = new GeoBuilder(9, 0.06);
+  f.kind = SURF.wood;
   const WOOD = 0x6e5236, DARK_WOOD = 0x4d3a28;
   const tx = fx + 16, tz = fz - 6.5; // table with a map on it
   f.box(3, 0.12, 1.4, tx, floorY + 0.85, tz, WOOD);

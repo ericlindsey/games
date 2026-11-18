@@ -576,7 +576,9 @@ up a band or a host on the road.
 - **Figures** (`entities/figure.js`): rounded bodies with knees, hood, swinging
   cloak; head height unchanged, so aimed shots work as before.
 - **Light**: ACES filmic tone mapping (exposure 1.35; `?exposure=` to try
-  others); phones now start on medium, which has shadows (1024 map).
+  others); phones now start on medium, which has shadows (1024 map). Low quality
+  uses a lighter shader (one grain sample, no bump) for older devices.
+- **Sky**: soft fair-weather cloud drifting east, thinner under the blight.
 - **Water**: waves, sun glint and sky reflection on the river, streams and pools.
 - **Never stuck**: a trunk's push can no longer shove the ranger or an enemy
   into a wall (it could, and then every step counted as blocked). If the ranger

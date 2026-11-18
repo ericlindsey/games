@@ -11,7 +11,7 @@ import { addRock } from './rocks.js';
 import { plantTrees } from './vegetation.js';
 import { rng } from '../util/noise.js';
 
-export const STONE = 0xd6cfba, WORN = 0xb5ae9a, MOSS = 0x8a9a62, DARK = 0x4b484c;
+export const STONE = 0xc9c1aa, WORN = 0xa8a08c, MOSS = 0x7f8f5a, DARK = 0x4b484c;
 const IVY = 0x4f7a34;
 
 const _M = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) =>
@@ -170,6 +170,12 @@ const KINDS = {
       const h = 2 + Math.max(0, Math.sin(a * 1.1 + 1)) * 6.5 + rand() * 1.2;
       const x = l.x + Math.cos(a) * R, z = l.z + Math.sin(a) * R;
       b.box(2.9, h, 1.3, x, y - 0.4, z, i % 4 === 0 ? WORN : STONE, -a + Math.PI / 2);
+      // the top of each stretch is broken back in steps
+      for (let k = 0; k < 2; k++) if (rand() < 0.7) b.box(1.2 + rand() * 0.6, 0.4 + rand() * 0.7, 1.3, x + Math.cos(a + 1.57) * (k - 0.5) * 1.2, y - 0.4 + h, z + Math.sin(a + 1.57) * (k - 0.5) * 1.2, i % 3 ? STONE : WORN, -a + Math.PI / 2);
+      if (rand() < 0.5) { // ivy up the outside
+        const ih = 1.5 + rand() * Math.min(5, h);
+        b.card(x + Math.cos(a) * 0.7, y + ih / 2, z + Math.sin(a) * 0.7, 2.2, ih, Math.cos(a), 0, Math.sin(a), 0x4f7a34, ATLAS.ivy, rand() * 6, [Math.cos(a), 0.4, Math.sin(a)]);
+      }
       addCircle(x, z, 1.25);
     }
     b.cyl(R + 1.2, R + 1.6, 0.3, l.x, y - 0.25, l.z, WORN, 12);
