@@ -615,4 +615,6 @@ test('every module is in the import map, at one release, so caches never mix rel
   assert.equal(versions.size, 1, 'all at the same release');
   assert.ok(html.includes(`css/style.css?v=${[...versions][0]}`), 'and so is the stylesheet');
   assert.ok(html.includes(`import './src/main.js'`), 'the game is started through the map');
+  const { VERSION } = await import('../src/config.js');
+  assert.ok(html.includes(`<p class="version">v${VERSION}</p>`), `the title screen shows v${VERSION}`);
 });

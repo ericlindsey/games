@@ -70,6 +70,18 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(Math.abs(start.x - 1022) < 1 && Math.abs(start.z - 1192) < 1, 'starts in the cave at Henneth Annûn');
   check(Math.abs(start.y - 40) < 0.1 && await page.evaluate(() => roi.refuge.isInside(roi.player.pos)), 'stands on the cave floor, under the rock');
   await shot(page, 'cave');
+  // Nothing built where it stands (rather than about its own origin) may use a swaying
+  // material: the sway grows with height above the origin, so it would swing metres.
+  const swingers = await page.evaluate(() => {
+    const bad = [];
+    roi.player.figure.parent.traverse((o) => {
+      if (!o.isMesh || o.isInstancedMesh || !(o.material?.userData?.surf?.uSway.value > 0)) return;
+      o.geometry.computeBoundingBox();
+      if (o.geometry.boundingBox.max.y > 8) bad.push(o.geometry.boundingBox.max.y.toFixed(0));
+    });
+    return bad;
+  });
+  check(swingers.length === 0, `no plant sways about a far-off origin${swingers.length ? ' (' + swingers.join(', ') + ' m up)' : ''}`);
   const torch = await page.evaluate(() => roi.refuge.torchlight());
   check(torch.on === 1 && torch.burning === torch.of && torch.of === 6, `every torch in the cave is lit at once (${torch.burning} of ${torch.of})`);
 
@@ -285,6 +297,21 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => roi.teleport(860, 1338, 3));
   await page.waitForFunction(() => roi.state.discovered.includes('arch'), null, { timeout: 20000 });
   check(true, 'walking up to a ruin discovers it');
+  // A tree near where it changes form is drawn in both forms, to fade from one to the other.
+  const fade = await page.evaluate(() => {
+    const q = roi.ground.quality, p = roi.player.pos;
+    let both = 0, near = 0;
+    for (const ch of roi.ground.chunks.values()) for (const g of ch.veg) {
+      if (g.sp.cls !== 'tree') continue;
+      const [hi, mid] = g.meshes, has = (m, i) => { for (let k = 0; k < m.count; k++) if (m.instanceMatrix.array[k * 16 + 12] === g.mats[i * 16 + 12] && m.instanceMatrix.array[k * 16 + 14] === g.mats[i * 16 + 14]) return true; return false; };
+      for (let i = 0; i < g.n; i++) {
+        const d = Math.hypot(g.xs[i] - p.x, g.zs[i] - p.z);
+        if (Math.abs(d - q.treeNear) < 2) { near++; if (has(hi, i) && has(mid, i)) both++; }
+      }
+    }
+    return { both, near };
+  });
+  check(fade.near > 0 && fade.both === fade.near, `trees at the change of form are drawn in both forms, to fade between them (${fade.both} of ${fade.near})`);
   check(await page.evaluate(() => roi.camps.sites.length >= 100), 'more than a hundred camps exist');
 
   // Kingsfoil is gathered by walking over it.

@@ -43,9 +43,11 @@ When a decision is unclear, choose the option that serves these, in this order:
   skills may require keyboard and mouse.
 - **Performance budget**: 60 fps on a laptop, 30 fps on a recent phone. Use
   fog to bound view distance, `InstancedMesh` for vegetation, chunked terrain, and a
-  capped device pixel ratio. Plants have a near, a middle and a far form, chosen
-  tree by tree by distance (`assignVegetation`); ground cover and grass draw only
-  near and shrink away with distance. Check draw
+  capped device pixel ratio (lowered by steps while the frame rate sags). Plants
+  have a near, a middle and a far form, chosen tree by tree by distance
+  (`assignVegetation`), fading from one to the next in a dither; ground cover and
+  grass draw only near and shrink away with distance. Anything with a swaying
+  material must be built about its own base, not where it stands in the world. Check draw
   calls and triangle count (the `?debug` overlay) when adding content; `high` runs
   about 2 to 2.5 million triangles in the woods.
 
@@ -207,7 +209,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.3.2`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.3.3`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

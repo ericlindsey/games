@@ -576,7 +576,9 @@ function cliffSkins(rand) {
     }
   }
   const group = new THREE.Group();
-  group.add(mesh, plants.mesh(materials.plant, false));
+  // (not the swaying plant material: that sways by height above the mesh's
+  // origin, which for these, built where they grow, is the whole cliff)
+  group.add(mesh, plants.mesh(materials.still, false));
   void b;
   return group;
 }

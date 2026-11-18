@@ -8,9 +8,9 @@ import { groundColor, canopyColor } from './groundColor.js';
 import { forestDensity } from './forest.js';
 import { HA } from './layout.js';
 import { noise2 } from '../util/noise.js';
-import { buildVegetation, assignVegetation } from './vegetation.js';
+import { buildVegetation, assignVegetation, setLodRanges } from './vegetation.js';
 import { setChunkCircles, removeChunkCircles } from './collision.js';
-import { surfaceMaterial, SURF, surfaceSettings } from './surface.js';
+import { surfaceMaterial, SURF, surfaceSettings, surfaceUniforms } from './surface.js';
 import { materials } from './build.js';
 
 const rgb = [0, 0, 0], rgb2 = [0, 0, 0];
@@ -125,6 +125,7 @@ export class Ground {
     this.chunks = new Map();
     this.hole = new THREE.Vector3(0, 0, 0); // x, z, radius
     this.material = surfaceMaterial({ kind: SURF.ground });
+    setLodRanges(quality);
     // herbs and small stones shrink away toward the edge of where they are shown
     for (const m of [materials.herb, materials.rockCover]) m.userData.surf.uFade.value.set(quality.coverFar - 16, quality.coverFar - 1);
 
@@ -160,6 +161,7 @@ export class Ground {
 
   setQuality(quality) {
     this.quality = quality;
+    setLodRanges(quality);
     for (const key of [...this.chunks.keys()]) this.dropChunk(key);
   }
 
@@ -222,6 +224,7 @@ export class Ground {
    * @returns {number} chunks still waiting to be built
    */
   update(px, pz, budget = 1) {
+    surfaceUniforms.uLodFrom.value.set(px, pz); // plants fade between forms by distance from here
     const want = this.wanted(px, pz);
     let missing = 0, holeR = this.quality.loadRadius;
     for (const wnt of want) {
@@ -232,7 +235,7 @@ export class Ground {
       holeR = Math.min(holeR, wnt.d);
     }
     // every few metres walked, each plant takes the form its distance calls for
-    if (!this.lodAt || Math.hypot(px - this.lodAt.x, pz - this.lodAt.z) > 4) {
+    if (!this.lodAt || Math.hypot(px - this.lodAt.x, pz - this.lodAt.z) > 2.5) {
       this.lodAt = { x: px, z: pz };
       for (const ch of this.chunks.values()) assignVegetation(ch.veg, px, pz, this.quality);
     }

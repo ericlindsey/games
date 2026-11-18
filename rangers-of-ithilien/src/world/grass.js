@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import { WORLD } from '../config.js';
-import { heightAt, streamDistance, WATER_LEVEL } from './terrain.js';
+import { heightAt, slopeAt, streamDistance, WATER_LEVEL } from './terrain.js';
 import { groundColor } from './groundColor.js';
 import { forestDensity } from './forest.js';
 import { regionWeights } from './regions.js';
@@ -65,6 +65,8 @@ export function grassAt(x, z, h) {
   if (streamDistance(x, z) < 2.6) return 0;
   // the wet stone of the basin and the cut at Henneth Annûn
   if (h < HA.plateau - 9 && x < HA.x + 1 && x > HA.gorge.endX && Math.abs(z - (x < HA.basin.minX ? gorgeZ(x) : HA.z)) < 24) return 0;
+  // nor on the walls of the basin and the cut, under their skin of rock
+  if (x < HA.x + 1 && x > HA.gorge.endX - 40 && Math.abs(z - (x < HA.basin.minX ? gorgeZ(x) : HA.z)) < 30 && slopeAt(x, z) > 0.9) return 0;
   let d = 1 - 0.72 * forestDensity(x, z);
   regionWeights(x, z, _w);
   d *= 1 - 0.35 * _w.heath - 0.55 * _w.foothill - 0.5 * _w.fen;

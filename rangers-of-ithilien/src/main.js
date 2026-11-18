@@ -72,6 +72,26 @@ async function boot() {
   };
   addEventListener('resize', resize);
   resize();
+  // The resolution follows the frame rate: when the frame rate sags (the deep
+  // woods on a phone, say) the picture is drawn a little coarser, down to
+  // quality.minPixelRatio, and sharpened again once there is time to spare.
+  const ratioMax = Math.min(devicePixelRatio || 1, quality.pixelRatio);
+  const ratioMin = Math.min(ratioMax, quality.minPixelRatio ?? ratioMax);
+  const sharpness = { ratio: ratioMax, frames: 0, time: 0, slowFor: 0, quickFor: 0 };
+  const pace = (elapsed) => {
+    const sp = sharpness;
+    if (elapsed > 0.25) { sp.frames = sp.time = 0; return; } // a stall (loading, a hidden tab): not the frame rate
+    sp.frames++; sp.time += elapsed;
+    if (sp.time < 1) return;
+    const rate = sp.frames / sp.time;
+    sp.frames = sp.time = 0;
+    sp.slowFor = rate < 40 ? sp.slowFor + 1 : 0;
+    sp.quickFor = rate > 57 ? sp.quickFor + 1 : 0;
+    let next = sp.ratio;
+    if (sp.slowFor >= 2 && sp.ratio > ratioMin) next = Math.max(ratioMin, sp.ratio - 0.25);
+    else if (sp.quickFor >= 10 && sp.ratio < ratioMax) next = Math.min(ratioMax, sp.ratio + 0.25);
+    if (next !== sp.ratio) { sp.ratio = next; sp.slowFor = sp.quickFor = 0; renderer.setPixelRatio(next); resize(); }
+  };
 
   // ---- world ----
   const loading = $('loading');
@@ -503,6 +523,7 @@ async function boot() {
     }
 
     // the frame-rate counter: frames counted over each half second
+    if (started) pace(elapsed);
     fpsCount++; fpsTime += elapsed;
     if (fpsTime >= 0.5) { if (state.settings.fps) $('fps').textContent = `${Math.round(fpsCount / fpsTime)} fps`; fpsCount = 0; fpsTime = 0; }
     slow -= dt;
@@ -519,7 +540,7 @@ async function boot() {
         hud.debug.textContent =
           `fps ${fps.toFixed(0)}  calls ${i.calls}  tris ${(i.triangles / 1000).toFixed(0)}k  chunks ${ground.chunks.size}  foes ${enemies.list.length}\n` +
           `pos ${p.x.toFixed(0)}, ${p.y.toFixed(1)}, ${p.z.toFixed(0)}  tier ${dangerTier(p.x, p.z)}  blight ${blight.toFixed(2)}\n` +
-          `quality ${qualityName}${input.haste ? '  HASTE (G)' : ''}`;
+          `quality ${qualityName}  resolution x${sharpness.ratio}${input.haste ? '  HASTE (G)' : ''}`;
       }
     }
     autosave += dt;
