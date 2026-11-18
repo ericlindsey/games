@@ -671,6 +671,31 @@ up a band or a host on the road.
   streams out mostly from the hips down (bent row by row, `bendCloak`), so it
   stays under them even at a run. The smoke test measures the clearance.
 
+### v0.3a, second round (after playing it on a phone)
+
+- **Nothing floats on the cliffs**: the ferns and tufts on the ledges of the
+  basin and the cut used the swaying plant material, whose sway grows with
+  height above the mesh's origin; built where they grow, that was the whole
+  cliff, so they swung metres through the air. They are still now (the smoke
+  test looks for any such mesh). No grass on the steep walls of the basin and
+  the cut either.
+- **Trees fade from one form to the next** instead of jumping: across a band
+  about 12 m wide at each change, a plant is drawn in both forms, each keeping
+  its share of a fine screen dither that shifts across the band (the `lod`
+  attribute and the uniforms in `surface.js`; `assignVegetation`). Stone keeps
+  one shape near and middle; plants planted by hand (`plantTrees`) never fade.
+- **Medium is lighter**: full trees to 62 m (was 80), shrubs to 40 (was 50), the
+  middle form to 210 / 140 (was 240 / 160), grass to 44 m (was 60), herbs to 42;
+  and only the near form casts shadows (the middle form too on high). In the
+  deep woods that is a few per cent fewer triangles drawn, a fifth of the plant
+  geometry drawn into the shadow map, and about 40 % less grass.
+- **The picture follows the frame rate**: below about 40 fps for two seconds it
+  is drawn a quarter step coarser, down to `minPixelRatio` (1.5 on medium and
+  high, 1 on low); after ten seconds above 57 fps a step finer again. The debug
+  overlay shows the resolution in use. (Headless Chromium has no GPU, so this
+  was checked for behaviour, not for the frame rate gained.)
+- The title screen shows v0.3a (a unit test now holds it to `VERSION`).
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -685,9 +710,9 @@ up a band or a host on the road.
 - Loot bags and a camp's dead are forgotten if you leave and return.
 - The blight changes sky, fog and light but not the colour of ground and plants.
 - Trees appear at the edge of the loaded radius without a fade.
-- Medium plays well on an iPhone 17; high was a little slow there (before the
-  second round, which made far plants cheaper but grass and near trees reach
-  farther). If it is slow, lower `grass`, `treeNear` and `treeMid` in config.js.
+- Medium ran at 30-50 fps on an iPhone, dipping into the 20s in the deep woods,
+  before v0.3a's second round lightened it. If it is still slow, lower `grass`,
+  `treeNear` and `treeMid` in config.js, or `minPixelRatio`.
 - Arms bend only forward (no twist), so the drawing arm reaches forward rather
   than out to the side as a real archer's does.
 - Field walls and houses are axis-aligned. Osgiliath is plain blocks.

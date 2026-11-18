@@ -222,6 +222,13 @@ export const surfaceUniforms = {
   uTorchView: { value: Array.from({ length: TORCHES }, () => new THREE.Vector3()) }, // in view space
   uTorchI: { value: new Array(TORCHES).fill(0) },
   uTorchColor: { value: new THREE.Color(1.0, 0.66, 0.34) },
+  // Plants change form by distance from the ranger (vegetation.js). Across a
+  // band either side of each change both forms are drawn, each in a dither the
+  // other fills, so one fades into the next instead of jumping.
+  uLodFrom: { value: new THREE.Vector2() },     // where the ranger stands (x, z)
+  uLodTree: { value: new THREE.Vector2(1e5, 2e5) },  // great trees: near -> middle, middle -> far
+  uLodShrub: { value: new THREE.Vector2(1e5, 2e5) }, // everything else
+  uLodBand: { value: 6 },                        // half the width of the band, metres
 };
 export function updateSurfaces(time) { surfaceUniforms.uTime.value = time; }
 
@@ -230,6 +237,12 @@ export const surfaceSettings = { lite: false };
 
 const VERT_HEAD = /* glsl */`
 attribute float surf;
+attribute vec2 lod; // a plant's form (1 near, 2 middle, 3 far, 4 near and middle alike; 0 none) and kind (0 tree, 1 shrub)
+varying vec2 vLodKeep;
+uniform vec2 uLodFrom;
+uniform vec2 uLodTree;
+uniform vec2 uLodShrub;
+uniform float uLodBand;
 varying vec3 vSurfPos;
 varying vec3 vSurfNrm;
 varying float vSurfKind;
@@ -290,6 +303,18 @@ const VERT_TAIL = /* glsl */`
   #endif
   vSurfKind = surf < 0.5 ? uDefaultKind : surf;
 }
+// Which share of the dither this form of the plant keeps: near [t0, 1], middle
+// [t1, t0), far [0, t1), where t0 and t1 rise from 0 to 1 across each band.
+vLodKeep = vec2(-1.0, 2.0);
+#ifdef USE_INSTANCING
+if (lod.x > 0.5) {
+  vec2 lodAt = (modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xz;
+  float ld = distance(lodAt, uLodFrom);
+  vec2 lr = lod.y > 0.5 ? uLodShrub : uLodTree;
+  float t0 = smoothstep(lr.x - uLodBand, lr.x + uLodBand, ld), t1 = smoothstep(lr.y - uLodBand, lr.y + uLodBand, ld);
+  vLodKeep = lod.x < 1.5 ? vec2(t0, 2.0) : lod.x < 2.5 ? vec2(t1, t0) : lod.x < 3.5 ? vec2(-1.0, t1) : vec2(t1, 2.0);
+}
+#endif
 `;
 
 const FRAG_HEAD = /* glsl */`
@@ -306,6 +331,7 @@ uniform vec3 uTorchColor;
 varying vec3 vSurfPos;
 varying vec3 vSurfNrm;
 varying float vSurfKind;
+varying vec2 vLodKeep;
 float surfD;      // the grain at this point, about 0.5
 float surfBump;   // how strongly it raises the surface
 float surfLeaf;   // 1 on leaves: they glow a little, more with the sun behind them
@@ -323,6 +349,11 @@ vec3 surfPerturb(vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection)
 }
 `;
 const FRAG_COLOR = /* glsl */`
+{
+  // a plant between two forms: keep only this form's share of a fine screen dither
+  float lodH = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  if (lodH < vLodKeep.x || lodH >= vLodKeep.y) discard;
+}
 {
   float k = floor(vSurfKind + 0.5);
   vec3 tn = normalize(vSurfNrm);

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { hash2 } from '../util/noise.js';
 import { WORLD, CHUNK } from '../config.js';
 import { GeoBuilder, materials, SURF } from './build.js';
-import { ATLAS } from './surface.js';
+import { ATLAS, surfaceUniforms } from './surface.js';
 import { addRock } from './rocks.js';
 import { heightAt, slopeAt, streamDistance } from './terrain.js';
 import { regionWeights } from './regions.js';
@@ -160,13 +160,21 @@ function define(name, trunkR, build, opts = {}) {
     return b.geometry();
   };
   const hi = geo('hi');
-  SPECIES[name] = {
-    // (stone keeps its full shape in the middle distance: a coarser one would
-    // move the moss and the light on it about as the ranger walks)
-    hi, mid: opts.cover || opts.stone ? hi : geo('hi', true), lo: opts.cover ? hi : geo('lo'), geometry: hi, trunk: trunkR,
-    material: opts.material ?? materials.tree, shadow: opts.shadow !== false, cover: !!opts.cover,
-    cls: opts.cover ? 'cover' : GREAT.has(name) ? 'tree' : 'shrub',
+  const cls = opts.cover ? 'cover' : GREAT.has(name) ? 'tree' : 'shrub';
+  // (stone keeps its full shape in the middle distance: a coarser one would
+  // move the moss and the light on it about as the ranger walks)
+  const sameMid = opts.cover || opts.stone;
+  const sp = SPECIES[name] = {
+    hi, mid: sameMid ? hi : geo('hi', true), lo: opts.cover ? hi : geo('lo'), geometry: hi, trunk: trunkR,
+    material: opts.material ?? materials.tree, shadow: opts.shadow !== false, cover: !!opts.cover, sameMid, cls,
   };
+  // Mark each form, so the shader can fade one into the next (surface.js).
+  if (cls !== 'cover') {
+    const mark = (g, form) => { const n = g.attributes.position.count, a = new Float32Array(n * 2); for (let i = 0; i < n; i++) { a[i * 2] = form; a[i * 2 + 1] = cls === 'shrub' ? 1 : 0; } g.setAttribute('lod', new THREE.BufferAttribute(a, 2)); };
+    mark(sp.hi, sameMid ? 4 : 1);
+    if (!sameMid) mark(sp.mid, 2);
+    mark(sp.lo, 3);
+  }
 }
 const GREAT = new Set(['greatOak', 'greatCedar', 'greatFir', 'greatBeech', 'larch', 'cypress', 'stonePine', 'willow']);
 
@@ -672,41 +680,54 @@ export function buildVegetation(cx, cz, quality) {
       m.setColorAt(0, _col.setRGB(1, 1, 1)); // makes the colour buffer
       m.count = 0;
       m.boundingSphere = sphere;
-      m.castShadow = sp.shadow && quality.shadows && k < 2;
+      m.castShadow = sp.shadow && quality.shadows && (k === 0 || (k === 1 && quality.midShadows)); // the middle form only where there is power to spare
       m.receiveShadow = !sp.cover && quality.shadows;
       m.userData.species = name;
       meshes.push(m);
       return m;
     });
-    groups.push({ sp, n, mats, cols, xs, zs, meshes: ms, level: new Int8Array(n).fill(-2) });
+    groups.push({ sp, n, mats, cols, xs, zs, meshes: ms });
   }
   return { meshes, circles, groups };
 }
 
 /**
  * Put each plant in its near, middle or far form by its own distance from
- * (px, pz), with a little slack so a plant on the line does not flicker.
- * Ground cover shows only near. Ranges come from the quality setting.
+ * (px, pz). Near each change of form it is put in both, and the shader shows
+ * each in a share of a dither that shifts across the band (surface.js), so one
+ * form fades into the other. Plants are sorted again every few metres walked,
+ * so the slack keeps the shader's band (reckoned from where the ranger is now)
+ * inside the one sorted for. Ground cover shows only near. Ranges come from
+ * the quality setting.
  */
+const LOD_BAND = 6, LOD_SLACK = LOD_BAND + 3.5; // (sorted again every 2.5 m walked: terrainMesh.js)
+export function setLodRanges(q) {
+  surfaceUniforms.uLodTree.value.set(q.treeNear, q.treeMid);
+  surfaceUniforms.uLodShrub.value.set(q.shrubNear, q.shrubMid);
+  surfaceUniforms.uLodBand.value = LOD_BAND;
+}
 export function assignVegetation(groups, px, pz, q) {
+  const S = LOD_SLACK;
   for (const g of groups) {
-    const cls = g.sp.cls;
+    const cls = g.sp.cls, same = g.sp.sameMid;
     const r0 = cls === 'tree' ? q.treeNear : cls === 'cover' ? q.coverFar : q.shrubNear;
     const r1 = cls === 'tree' ? q.treeMid : cls === 'cover' ? -1 : q.shrubMid;
     const counts = [0, 0, 0];
     const arrays = g.meshes.map((m) => m.instanceMatrix.array), colours = g.meshes.map((m) => m.instanceColor.array);
-    for (let i = 0; i < g.n; i++) {
-      const d = Math.hypot(g.xs[i] - px, g.zs[i] - pz), prev = g.level[i];
-      let lv = d < r0 ? 0 : r1 < 0 ? -1 : d < r1 ? 1 : 2;
-      if (prev >= 0 && lv !== prev && (lv === -1 || lv > prev)) { // going coarser: only once well past the line
-        const edge = prev === 0 ? r0 : r1;
-        if (d < edge + 8) lv = prev;
-      }
-      g.level[i] = lv;
-      if (lv < 0) continue;
+    const put = (lv, i) => {
       const k = counts[lv]++;
       arrays[lv].set(g.mats.subarray(i * 16, i * 16 + 16), k * 16);
       colours[lv].set(g.cols.subarray(i * 3, i * 3 + 3), k * 3);
+    };
+    for (let i = 0; i < g.n; i++) {
+      const d = Math.hypot(g.xs[i] - px, g.zs[i] - pz);
+      if (r1 < 0) { if (d < r0) put(0, i); continue; }
+      if (same) { if (d < r1 + S) put(0, i); } // stone: one shape near and middle
+      else {
+        if (d < r0 + S) put(0, i);
+        if (d > r0 - S && d < r1 + S) put(1, i);
+      }
+      if (d > r1 - S) put(2, i);
     }
     g.meshes.forEach((m, k) => {
       m.count = counts[k];
@@ -720,7 +741,9 @@ export function assignVegetation(groups, px, pz, q) {
 /** Hand-placed trees of one species (for set pieces). items: [{x, z, scale}] */
 export function plantTrees(name, items, shadows = true) {
   const sp = SPECIES[name];
-  const mesh = new THREE.InstancedMesh(sp.geometry, sp.material, items.length);
+  const geo = sp.geometry.clone(); // always in full: no fading into another form
+  geo.deleteAttribute('lod');
+  const mesh = new THREE.InstancedMesh(geo, sp.material, items.length);
   const circles = [];
   items.forEach((it, i) => {
     _p.set(it.x, heightAt(it.x, it.z) - 0.15, it.z);
