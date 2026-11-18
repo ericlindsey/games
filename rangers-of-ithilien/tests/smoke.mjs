@@ -93,7 +93,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
 
   // Take Éowyn's first task too: both show, each on its own line.
   await page.evaluate(() => roi.teleport(roi.refuge.eowyn.x + 1.6, roi.refuge.eowyn.z - 0.6, 1, 40));
-  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('owyn'), null, { timeout: 20000 });
+  await page.waitForFunction(() => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes('owyn'), null, { timeout: 20000 });
   await page.keyboard.press('KeyE');
   await page.waitForSelector('#dialogue:not([hidden])');
   await page.click('#dialogue-options button:first-child');
@@ -104,7 +104,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
 
   // Mablung keeps the stores.
   await page.evaluate(() => { roi.state.silver = 40; roi.teleport(roi.refuge.mablung.x - 1.6, roi.refuge.mablung.z + 0.6, 1.5, 40); });
-  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('Mablung'), null, { timeout: 20000 });
+  await page.waitForFunction(() => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes('Mablung'), null, { timeout: 20000 });
   await page.keyboard.press('KeyE');
   await page.waitForSelector('#dialogue:not([hidden])');
   await page.click('#dialogue-options button:first-child');
@@ -139,7 +139,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.isHidden('#pack'), 'the pack closes');
 
   // Faramir looks the Prince of Ithilien; boulders lie all round the pool, clear of the ways through.
-  await page.evaluate(() => { const f = roi.refuge.faramir; roi.teleport(f.x + 2.4 * Math.sin(f.heading), f.z + 2.4 * Math.cos(f.heading), f.heading + Math.PI, 40); roi.rig.pitch = -0.05; roi.rig.wantDist = 2.2; });
+  await page.evaluate(() => { const f = roi.refuge.faramir; roi.teleport(f.x + 2.6 * Math.sin(f.heading), f.z + 2.6 * Math.cos(f.heading), f.heading + Math.PI, 40); roi.rig.pitch = -0.08; roi.rig.wantDist = 0; }); // first person, face to face
   await page.waitForTimeout(800);
   await shot(page, 'faramir');
   await page.evaluate(() => { roi.rig.wantDist = 6; });
@@ -439,7 +439,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
 
   // Hand the task in.
   await page.evaluate(() => roi.teleport(roi.refuge.faramir.x + 1.4, roi.refuge.faramir.z + 1.3, -2, 40));
-  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('Faramir'), null, { timeout: 20000 });
+  await page.waitForFunction(() => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes('Faramir'), null, { timeout: 20000 });
   await page.keyboard.press('KeyE');
   await page.waitForSelector('#dialogue:not([hidden])');
   check((await page.textContent('#dialogue-options button:first-child')).includes('It is done'), 'Faramir can be told it is done');
@@ -620,7 +620,7 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
 
   // Speak with Éowyn by tapping the prompt.
   await page.evaluate(() => roi.teleport(roi.refuge.eowyn.x + 1.6, roi.refuge.eowyn.z - 0.6, 1, 40));
-  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('owyn'), null, { timeout: 20000 });
+  await page.waitForFunction(() => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes('owyn'), null, { timeout: 20000 });
   await page.tap('#prompt');
   await page.waitForSelector('#dialogue:not([hidden])');
   check(true, 'tapping the prompt opens dialogue');
