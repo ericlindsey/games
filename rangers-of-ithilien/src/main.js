@@ -490,7 +490,7 @@ async function boot() {
     atmosphere.update(camera, player.pos, blight, dt, shade, inside);
     motes.update(time, camera, player.pos.y, inside ? 0 : shade * (1 - blight));
     water.update(time);
-    refuge.update(time, player.pos);
+    refuge.update(time, player.pos, camera);
 
     for (const n of npcs) {
       // turn to face the ranger when they come close

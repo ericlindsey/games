@@ -4,7 +4,7 @@
 import { fbm, noise2, smoothstep, lerp } from '../util/noise.js';
 import { WORLD } from '../config.js';
 import {
-  HA, bankX, ANDUIN_WIDTH, haradRoadX, southRoadZ, CAIR_ANDROS, LANDMARKS, gorgeZ,
+  HA, bankX, ANDUIN_WIDTH, haradRoadX, southRoadZ, CAIR_ANDROS, LANDMARKS, gorgeZ, poolQ, stairTop,
 } from './layout.js';
 import { fenWeight } from './regions.js';
 
@@ -225,7 +225,7 @@ function buildStreams() {
   const g = HA.gorge, cutEnd = g.endX - 20;
   const cut = [];
   // It starts in the pool itself, so the water runs out of the pool into the cut with no lip between.
-  for (let x = HA.pool.x - HA.pool.r * 0.6; x >= cutEnd; x -= 5) {
+  for (let x = HA.pool.x - HA.pool.rx * 0.6; x >= cutEnd; x -= 5) {
     const bed = HA.floor - g.fall * Math.max(0, HA.basin.minX - x) - 0.6;
     // Along the slot the valley above it is cut only to the shelf's stream level;
     // where the slot ends, the valley comes down to the water and opens out.
@@ -303,11 +303,6 @@ function poolProfile(p, d) {
   if (d < 3) return p.bed + 0.9 * smoothstep(0, 3, d);
   return p.bed + 0.9 + 0.28 * (d - 3);
 }
-/** True inside the water of a pool (used to keep the stream ribbon out of it). */
-export function inPool(x, z) {
-  for (const p of POOLS) if (Math.hypot(x - p.x, z - p.z) < p.r + 0.8) return true;
-  return false;
-}
 
 // Segments of every stream, in a grid, for finding the nearest stream to a point.
 const SCELL = 32;
@@ -366,6 +361,19 @@ export function streamDistance(x, z) {
 }
 
 /**
+ * Where the south wall of the basin starts to rise (from HA.z), given the height
+ * `top` of the ground it is cut from. The wall comes in to the stair: its face
+ * meets the outer edge of each tread just above the tread, so the stair lies
+ * against the wall all the way up, with no gap between.
+ */
+function southWallEdge(x, top) {
+  const s = HA.stair, b = HA.basin;
+  const need = Math.min(0.95, Math.max(0.002, (stairTop(x) - HA.floor + 0.1) / Math.max(1, top - HA.floor)));
+  const t = 0.5 - Math.sin(Math.asin(1 - 2 * need) / 3); // where the wall's smoothstep reaches `need`
+  return s.z1 + 0.1 - b.wall * t;
+}
+
+/**
  * The hidden pool and the cut at Henneth Annûn: a basin walled by cliffs just
  * west of the fall, drained by a deep narrow gorge. The gorge floor falls
  * gently to x = 650, where the traced stream takes over with the same bed, so
@@ -376,12 +384,12 @@ function cutHenneth(x, z, h) {
   const dz = Math.abs(z - (x < HA.basin.minX ? gorgeZ(x) : HA.z));
   const b = HA.basin, g = HA.gorge;
   if (x > b.minX - b.wall) {
-    const edge = b.halfZ + (z > HA.z ? b.southSetBack : 0);
+    const edge = z > HA.z ? southWallEdge(x, h) : b.halfZ;
     const w = (1 - smoothstep(edge, edge + b.wall, dz)) * smoothstep(b.minX - b.wall, b.minX, x);
-    const rp = Math.hypot(x - HA.pool.x, z - HA.pool.z);
-    h = lerp(h, HA.floor - 1.2 * (1 - smoothstep(HA.pool.r * 0.6, HA.pool.r, rp)), w);
+    // the pool: deep in the middle and right up to the foot of the fall, shelving at its edge
+    h = lerp(h, HA.floor - 1.2 * (1 - smoothstep(0.72, 1, poolQ(x, z))), w);
   }
-  if (x < HA.pool.x - HA.pool.r * 0.4) { // the cut's floor, and the stream's channel running from the pool down it
+  if (x < HA.pool.x - HA.pool.rx * 0.4) { // the cut's floor, and the stream's channel running from the pool down it
     let floor = HA.floor - g.fall * Math.max(0, b.minX - x);
     floor -= 0.6 * (1 - smoothstep(1.6, 2.6, Math.abs(z - (gorgeZ(x) + g.channelOffset)))); // the stream's bed
     // the slot fades out over the last stretch, where the open valley begins

@@ -4,11 +4,19 @@ import * as THREE from 'three';
 import { WORLD } from '../config.js';
 import { makeNoiseTexture } from './build.js';
 import { surfaceUniforms } from './surface.js';
-import { WATER_LEVEL, STREAMS, POOLS, inPool, heightAt } from './terrain.js';
+import { WATER_LEVEL, STREAMS, POOLS, heightAt } from './terrain.js';
+import { HA } from './layout.js';
 
 export const STREAM_DEPTH = 0.45;
 const nearPool = (x, z) => POOLS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 4);
 const HALF_WIDTH = 2.6;
+/** How far each pool's sheet of water reaches beyond its edge (a pool's radius, or the oval at Henneth Annûn). */
+export const POOL_PAD = 1.9, HA_POOL_PAD = 0.5;
+/** True inside the sheet of water drawn for a pool: a stream's ribbon stops exactly at its edge. */
+function inPoolWater(x, z) {
+  for (const p of POOLS) if (Math.hypot(x - p.x, z - p.z) < p.r + POOL_PAD) return true;
+  return Math.hypot((x - HA.pool.x) / (HA.pool.rx + HA_POOL_PAD), (z - HA.pool.z) / (HA.pool.rz + HA_POOL_PAD)) < 1;
+}
 
 /** A tileable normal map of small waves, from a sum of periodic noises. */
 function waveNormals(size = 256) {
@@ -114,8 +122,11 @@ export class Water {
     this.streamMaterial = waterMaterial(0x7fb4c2, this.normals, [0.6, 0.3], 0.74, { map: this.streaks, side: THREE.DoubleSide, wave: 0.8 });
     for (const st of STREAMS) {
       const pts = [];
-      let level = Infinity;
-      const flush = () => { if (pts.length > 3) scene.add(this.ribbon(pts)); pts.length = 0; };
+      let level = Infinity, clipStart = false;
+      const flush = (clipEnd) => {
+        if (pts.length > 3) scene.add(this.ribbon(pts, HALF_WIDTH, { start: clipStart, end: clipEnd }));
+        pts.length = 0; clipStart = false;
+      };
       let prev = null, prevIn = false;
       for (const p of st.points) {
         // Lie on the bed; where another stream's deeper valley has taken the
@@ -123,22 +134,25 @@ export class Water {
         // A pool's bowl is deeper than its bed on purpose: do not sink into it.
         level = Math.min(level, p.bed, st.home === 'cut' || nearPool(p.x, p.z) ? Infinity : heightAt(p.x, p.z));
         if (level + STREAM_DEPTH < WATER_LEVEL + 0.08) break; // it has reached the Great River
-        const isIn = inPool(p.x, p.z);
+        const isIn = inPoolWater(p.x, p.z);
         if (prev && isIn !== prevIn) {
-          // Crossing a pool's edge: end (or begin) the stream just inside it, so
-          // the two waters meet without the stream lying across the pool.
+          // Crossing the edge of a pool's water: end (or begin) the stream right
+          // on it, so the two waters meet edge to edge, neither lying over the other.
           let a = prev, b = p;
-          for (let k = 0; k < 12; k++) {
+          for (let k = 0; k < 16; k++) {
             const m = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
-            if (inPool(m.x, m.z) === prevIn) a = m; else b = m;
+            if (inPoolWater(m.x, m.z) === prevIn) a = m; else b = m;
           }
-          pts.push(b.x, level + STREAM_DEPTH, b.z);
-          if (isIn) flush();
+          const e = isIn ? a : b; // the point on the edge, on the stream's side of it
+          // (a point of the course right beside the edge would only kink the end)
+          if (isIn && pts.length >= 6 && Math.hypot(pts[pts.length - 3] - e.x, pts[pts.length - 1] - e.z) < 0.6) pts.length -= 3;
+          pts.push(e.x, level + STREAM_DEPTH, e.z);
+          if (isIn) flush(true); else clipStart = true;
         }
-        if (!isIn) pts.push(p.x, level + STREAM_DEPTH, p.z);
+        if (!isIn && !(clipStart && pts.length === 3 && Math.hypot(pts[0] - p.x, pts[2] - p.z) < 0.6)) pts.push(p.x, level + STREAM_DEPTH, p.z);
         prev = p; prevIn = isIn;
       }
-      flush();
+      flush(false);
     }
 
     // The pools where streams rest in a hollow.
@@ -146,7 +160,7 @@ export class Water {
     this.poolMaterial = poolMaterial;
     this.extra = [];
     for (const p of POOLS) {
-      const m = new THREE.Mesh(new THREE.CircleGeometry(p.r + 1.9, 28), poolMaterial);
+      const m = new THREE.Mesh(new THREE.CircleGeometry(p.r + POOL_PAD, 28), poolMaterial);
       m.rotation.x = -Math.PI / 2;
       m.position.set(p.x, p.bed + STREAM_DEPTH, p.z);
       m.renderOrder = 1;
@@ -161,8 +175,13 @@ export class Water {
     return m;
   }
 
-  /** A flat ribbon along a list of [x, y, z] centre points, running downstream. */
-  ribbon(pts, halfWidth = HALF_WIDTH) {
+  /**
+   * A flat ribbon along a list of [x, y, z] centre points, running downstream.
+   * `clip.start` / `clip.end`: that end lies on the edge of a pool's water, so its
+   * corners are slid along the stream onto that edge too (it is curved; the
+   * ribbon's end is straight across).
+   */
+  ribbon(pts, halfWidth = HALF_WIDTH, clip = {}) {
     const n = pts.length / 3;
     const pos = new Float32Array(n * 6), uv = new Float32Array(n * 4), idx = [];
     let dist = 0;
@@ -175,6 +194,18 @@ export class Water {
       const t = Math.hypot(tx, tz) || 1;
       tx /= t; tz /= t;
       pos.set([x - tz * halfWidth, y, z + tx * halfWidth, x + tz * halfWidth, y, z - tx * halfWidth], i * 6);
+      if ((i === 0 && clip.start) || (i === n - 1 && clip.end)) {
+        for (const k of [0, 3]) {
+          // find where this corner's line along the stream crosses the edge
+          const cx = pos[i * 6 + k], cz = pos[i * 6 + k + 2], inAt = (u) => inPoolWater(cx + tx * u, cz + tz * u);
+          let lo = -4, hi = 4;
+          const inLo = inAt(lo);
+          if (inLo === inAt(hi)) continue;
+          for (let it = 0; it < 16; it++) { const m = (lo + hi) / 2; if (inAt(m) === inLo) lo = m; else hi = m; }
+          const u = (lo + hi) / 2;
+          pos[i * 6 + k] = cx + tx * u; pos[i * 6 + k + 2] = cz + tz * u;
+        }
+      }
       uv.set([0, dist / 10, 1, dist / 10], i * 4);
       if (i > 0) { const k = (i - 1) * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
     }
@@ -190,10 +221,10 @@ export class Water {
 
   update(time) {
     this.riverMat.userData.waves.offset.set(time * 0.004, time * 0.011);
-    this.streamMaterial.userData.waves.offset.set(Math.sin(time * 0.3) * 0.02, -time * 0.35);
+    this.streamMaterial.userData.waves.offset.set(Math.sin(time * 0.3) * 0.02, -time * 0.16);
     this.poolMaterial.userData.waves.offset.set(time * 0.03, time * 0.021);
     for (const m of this.extra ?? []) m.userData.waves.offset.set(time * 0.05, -time * 0.035);
     this.riverTex.offset.set(Math.sin(time * 0.05) * 0.2, time * 0.012);
-    this.streaks.offset.y = -time * 0.22; // v grows downstream, so a falling offset carries the pattern down with it
+    this.streaks.offset.y = -time * 0.1; // v grows downstream, so a falling offset carries the pattern down with it
   }
 }

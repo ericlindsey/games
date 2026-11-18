@@ -5,15 +5,15 @@
 // Local coordinates below: X east from the cliff face, Z south from the stream.
 
 import * as THREE from 'three';
-import { HA, gorgeZ } from './layout.js';
+import { HA, gorgeZ, stairTop } from './layout.js';
 import { heightAt } from './terrain.js';
 import { addSolid, addCircle, addHollow } from './collision.js';
 import { GeoBuilder, rockDisplace, makeNoiseTexture, materials, SURF } from './build.js';
-import { ATLAS } from './surface.js';
+import { ATLAS, surfaceUniforms, TORCHES } from './surface.js';
 const lighten = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
 import { addRock, fbm3, noise3 } from './rocks.js';
 import { rng } from '../util/noise.js';
-import { STREAM_DEPTH } from './water.js';
+import { STREAM_DEPTH, HA_POOL_PAD } from './water.js';
 
 const _v = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 const _n = new THREE.Vector3(), _col = new THREE.Color();
@@ -50,11 +50,11 @@ export function buildHennethAnnun(scene, water) {
 
   const box = (x0, x1, z0, z1, bottom, top, extra) =>
     ({ minX: fx + x0, maxX: fx + x1, minZ: fz + z0, maxZ: fz + z1, bottom, top, ...extra });
-  // The top of the rock: just under the forest floor, so where the terrain mesh
-  // is cut away for the cliff there is rock to see, not a gap; never lower than
-  // the stream bed over the fall.
-  // (well under it away from the cliff, so the finer rock never pokes through the coarser turf)
-  const rockTop = (x, z) => Math.max(topY, heightAt(Math.max(x, fx + 2.5), z) - (x < fx + 4.5 ? 0.15 : 1.0));
+  // The top of the rock: just under the forest floor (and under the turf laid
+  // over the cliff's slot in terrainMesh.js, whose lip hangs over its edge);
+  // never lower than the stream bed over the fall. Well under it away from the
+  // cliff, so the finer rock never pokes through the coarser turf.
+  const rockTop = (x, z) => Math.max(topY, heightAt(Math.max(x, fx + 0.01), z) - (x < fx + 4.5 ? 0.3 : 1.0));
   const ROCK_TOP_MAX = HA.plateau + 6;
   const top = { topMax: ROCK_TOP_MAX };
   const rock = [
@@ -90,12 +90,12 @@ export function buildHennethAnnun(scene, water) {
     const x1 = Math.min(x + 1, pass.hole - 1.2), under = passTop(fx + x1) + 3.4;
     if (under < groundLo - 0.6) rock.push(box(x, x1, pass.z0, pass.z1, under, groundLo - 0.15));
   }
-  // The stair: a ramp of worn steps along the south wall of the basin, from
-  // the floor of the cut up to the hidden door.
-  const stairX0 = HA.basin.minX + 3 - fx, stairX1 = -2, stairZ0 = 11.3, stairZ1 = 14.2;
-  const stairTop = (x) => HA.floor + (floorY - HA.floor) * Math.min(1, Math.max(0, (x - fx - stairX0) / (stairX1 - stairX0)));
+  // The stair: a ramp of worn steps along the foot of the south wall of the
+  // basin, from the floor beside the pool up to the hidden door. The wall comes
+  // in to meet it (terrain.js), and its outer edge runs on a little under the wall.
+  const stairX0 = HA.stair.x0 - fx, stairX1 = HA.stair.x1 - fx, stairZ0 = HA.stair.z0, stairZ1 = HA.stair.z1;
   const stair = [
-    box(stairX0, 0, stairZ0, stairZ1, base, stairTop, { topMax: floorY }),
+    box(stairX0, 0, stairZ0, stairZ1 + 0.3, base, stairTop, { topMax: floorY }),
     box(pass.x0, pass.x1, pass.z0, pass.z1, base, passTop, { topMax: exitY }),   // and the flight in the rock
     // the ledge, with a low parapet
     box(ledge.x0, ledge.notch, -9, ledge.z1, floorY - 1.4, floorY),
@@ -112,19 +112,22 @@ export function buildHennethAnnun(scene, water) {
 
   // --- Rock: every solid drawn as a box with its faces roughened. ---
   const rand = rng(77);
-  // Torches on the walls. Their light is laid into the colour of the rock round
-  // them (warm, falling off with distance); one real light sits at the torch
-  // nearest the ranger, so whatever moves near a torch is lit by it.
+  // Torches on the walls, all burning at once. Each lights what is round it
+  // (the torchlight in surface.js, which every surface and figure takes); a
+  // little of their warmth is also laid into the colour of the rock near them.
   const torches = [[10, -8.3], [25, -8.3], [14, 8.3], [27.5, 8.3], [5, 13.6], [13, 13.75]];
+  if (torches.length !== TORCHES) throw new Error('the torchlight is reckoned for ' + TORCHES + ' torches');
   const torchPts = torches.map(([dx, dz]) => new THREE.Vector3(fx + dx, floorY + 2.55, fz + dz));
+  // where each torch's light comes from: a little off the wall, into the room
+  const lightPts = torchPts.map((t) => new THREE.Vector3(t.x + (t.x < fx + 6 ? 0.6 : 0), t.y - 0.1, t.z - Math.sign(t.z - fz) * 0.6));
   const warm = new THREE.Color(1.0, 0.62, 0.3);
   const bakeTorchlight = (b) => {
     for (let i = 0; i < b.p.length; i += 3) {
       const x = b.p[i], y = b.p[i + 1], z = b.p[i + 2];
       if (x < fx - 1 || x > fx + R.x1 || Math.abs(z - fz) > 22 || y < floorY - 1 || y > ceilY + 2) continue;
       let glow = 0;
-      for (const t of torchPts) { const d2 = (x - t.x) ** 2 + (y - t.y) ** 2 + (z - t.z) ** 2; glow += 1.5 / (1 + d2 / 4); }
-      glow = Math.min(2.2, glow);
+      for (const t of torchPts) { const d2 = (x - t.x) ** 2 + (y - t.y) ** 2 + (z - t.z) ** 2; glow += 0.8 / (1 + d2 / 4); }
+      glow = Math.min(1.1, glow);
       b.c[i] *= 1 + glow * warm.r; b.c[i + 1] *= 1 + glow * warm.g; b.c[i + 2] *= 1 + glow * warm.b;
     }
   };
@@ -152,7 +155,8 @@ export function buildHennethAnnun(scene, water) {
     v.x += f - bed; v.z += f * 0.8 - bed * 0.6; v.y += f * 0.3;
     return v;
   };
-  const addRock = (s, paint, amp) => {
+  // (not addRock: that name is the boulder builder from rocks.js, used below)
+  const addBlock = (s, paint, amp) => {
     const topMax = s.topMax ?? s.top;
     const w = s.maxX - s.minX, h = topMax - s.bottom, d = s.maxZ - s.minZ;
     const geo = new THREE.BoxGeometry(w, h, d, segs(w), segs(h), segs(d)).toNonIndexed();
@@ -185,9 +189,9 @@ export function buildHennethAnnun(scene, water) {
       builder.kind = was;
     }
   };
-  for (const s of rock) addRock(s, paintRock, 0.5);
+  for (const s of rock) addBlock(s, paintRock, 0.5);
   builder.kind = SURF.cave; // the stair and the ledge: bare cut rock, no moss
-  for (const s of stair) addRock(s, paintStair, 0.08);
+  for (const s of stair) addBlock(s, paintStair, 0.08);
   // Treads, so the two flights read as stairs.
   const treads = new GeoBuilder(21, 0.08);
   treads.kind = SURF.cave;
@@ -246,10 +250,7 @@ export function buildHennethAnnun(scene, water) {
     flames.add(fl);
   }
   scene.add(flames);
-  const lamp = new THREE.PointLight(0xffa850, 34, 16, 1.6);
-  lamp.position.copy(torchPts[0]).add(new THREE.Vector3(0, -0.2, 0));
-  scene.add(lamp);
-  let lampAt = 0;
+  const caveMid = new THREE.Vector3(fx + 16, floorY + 2, fz);
 
   // --- Water: the fall, the pool, the mist. (The stream itself is in water.js.) ---
   const waterY = topY + 0.1 + STREAM_DEPTH;
@@ -274,11 +275,12 @@ export function buildHennethAnnun(scene, water) {
     scene.add(m);
   });
 
-  const pool = new THREE.Mesh(
-    new THREE.CircleGeometry(HA.pool.r + 0.5, 24),
+  const pool = new THREE.Mesh( // an oval, running in under the cliff: the fall drops into it
+    new THREE.CircleGeometry(1, 40),
     water.rippledMaterial(fx - 1.9, fz),
   );
   pool.rotation.x = -Math.PI / 2;
+  pool.scale.set(HA.pool.rx + HA_POOL_PAD, HA.pool.rz + HA_POOL_PAD, 1);
   pool.position.set(HA.pool.x, poolY, HA.pool.z);
   pool.renderOrder = 1;
   scene.add(pool);
@@ -327,13 +329,42 @@ export function buildHennethAnnun(scene, water) {
     const x = b.minX + 2 + rand() * 26, z = fz - b.halfZ + 1.2 + rand() * 2.5;
     addRock(rocks, x, heightAt(x, z) - 0.15, z, 1.0 + rand() * 1.8, 0x6f6a5e, rockSeed++, { detail: 2, sy: 0.6, cuts: 6 });
   }
-  for (let i = 0; i < 22; i++) { // boulders fallen round the pool, clear of the stair, the way out and the fall
-    const a = (i / 22) * Math.PI * 2 + rand() * 0.25, r = HA.pool.r + 0.6 + rand() * 2.2;
-    const x = HA.pool.x + Math.cos(a) * r, z = HA.pool.z + Math.sin(a) * r;
-    if (z > fz + 10 || x > fx - 3 || (x < b.minX + 9 && Math.abs(z - fz) < 6) || x < b.minX + 1 || Math.abs(z - fz) > b.halfZ - 0.8) continue;
-    const sz = 0.7 + rand() * 1.8;
-    addRock(rocks, x, heightAt(x, z) - 0.2, z, sz, rand() < 0.5 ? 0x6f6a5e : 0x7d776a, rockSeed++, { detail: 2, sy: 0.55 + rand() * 0.3, cuts: 7 });
-    if (sz > 1.2) addCircle(x, z, sz * 0.38);
+  // Boulders and stones all round the pool, of the same grey, mossy stone as
+  // those in the woods: big ones with smaller ones fallen beside them, some
+  // standing in the shallows; clear of where the fall strikes, of the foot of
+  // the stair, and of the way out down the cut.
+  const pr = rng(9091), P = HA.pool, st = HA.stair;
+  const STONE = [0x8a867c, 0x8f8a7e, 0x8d8879, 0x7f7c6c, 0x86827a];
+  const placed = [];
+  const keepClear = (x, z, r) =>
+    (x > fx - 5 && Math.abs(z - fz) < 4.5 + r) ||                       // where the fall strikes
+    (x < st.x0 + 6 && z > fz + st.z0 - 3.5 - r) ||                       // the foot of the stair
+    (x < P.x - P.rx + 3 && z > fz - 3.5 - r && z < fz + 5 + r) ||        // the way out down the cut
+    z > fz + st.z0 - 0.15 - r * 0.45 ||                                   // the stair itself (stones may lean on its side)
+    x < b.minX + 0.6 + r * 0.4 || z < fz - b.halfZ - 0.6 + r * 0.3 || x > fx - r * 0.3 ||
+    placed.some((q) => Math.hypot(q[0] - x, q[1] - z) < (q[2] + r) * 0.42);
+  const stone = (x, z, size, o) => {
+    if (keepClear(x, z, size * 0.5)) return false;
+    placed.push([x, z, size]);
+    const lo = Math.min(heightAt(x, z), heightAt(x + size * 0.3, z), heightAt(x - size * 0.3, z), heightAt(x, z + size * 0.3), heightAt(x, z - size * 0.3));
+    addRock(rocks, x, lo - size * 0.08, z, size, STONE[Math.floor(pr() * STONE.length)], rockSeed++, { detail: size > 2.2 ? 3 : size > 0.8 ? 2 : 1, sy: 0.5 + pr() * 0.35, sx: 0.8 + pr() * 0.4, cuts: 6 + Math.floor(pr() * 3), strata: pr() < 0.4 ? pr() : 0, flatTop: pr() < 0.3, ...o });
+    if (size > 1.1) addCircle(x, z, size * 0.36);
+    return true;
+  };
+  for (let i = 0; i < 150; i++) { // round the shore, from the shallows out to the walls
+    const a = pr() * Math.PI * 2, q = 0.74 + pr() * 0.6;
+    const x = P.x + Math.cos(a) * P.rx * q, z = P.z + Math.sin(a) * P.rz * q;
+    const big = pr() < 0.45, size = big ? 2.0 + pr() * 2.4 : 0.6 + pr() * 1.3;
+    if (stone(x, z, size) && big) { // and smaller ones fallen beside the big ones
+      for (let k = 0; k < 3; k++) {
+        const b2 = pr() * 6.283, d = size * (0.55 + pr() * 0.4);
+        stone(x + Math.cos(b2) * d, z + Math.sin(b2) * d, size * (0.25 + pr() * 0.3));
+      }
+    }
+  }
+  for (let i = 0; i < 70; i++) { // pebbles and cobbles along the water's edge
+    const a = pr() * Math.PI * 2, q = 0.9 + pr() * 0.25;
+    stone(P.x + Math.cos(a) * P.rx * q, P.z + Math.sin(a) * P.rz * q, 0.2 + pr() * 0.35, { detail: 1, cuts: 4 });
   }
   for (let x = HA.gorge.endX + 30; x < b.minX - 6; x += 7 + rand() * 9) { // and blocks fallen into the cut, against its walls
     const side = rand() < 0.5 ? -1 : 1, sz = 0.9 + rand() * 1.5;
@@ -384,16 +415,23 @@ export function buildHennethAnnun(scene, water) {
     /** The upper flight: from the landing by the cave door up to the forest. */
     /** The hidden stair: from the hall, east and up through the rock to the hole in the forest floor. */
     hiddenStair: { startX: fx + pass.x0 - 2, z: passZ, exitX: ht.exitX, exitY },
+    /** The boulders and stones round the pool: { x, z, size }. */
+    stones: placed.map(([x, z, size]) => ({ x, z, size })),
+    /** How the cave's torchlight stands: how strongly it is on here, and how many torches burn. */
+    torchlight: () => ({ on: surfaceUniforms.uTorchOn.value, burning: surfaceUniforms.uTorchI.value.filter((v) => v > 0).length, of: TORCHES }),
     /** The ledge beside the fall, looking out over the pool. */
     ledge: { x: fx + (ledge.x0 + 0.45) / 2, z: fz + (ledge.z0 + ledge.z1) / 2 },
     isInside: (p) => inPassage(p) || (p.x > fx && p.x < fx + R.x1 && Math.abs(p.z - fz) < 22 && p.y < topY - 0.3),
-    update(time, who) {
-      if (who) { // the real light goes to the torch nearest the ranger, stepping off the wall toward the room
-        let best = lampAt, bd = Infinity;
-        torchPts.forEach((t, i) => { const d = t.distanceToSquared(who); if (d < bd) { bd = d; best = i; } });
-        if (best !== lampAt) { lampAt = best; }
-        const t = torchPts[lampAt];
-        lamp.position.lerp(_v.set(t.x + (t.x < fx + 6 ? 0.6 : 0), t.y - 0.1, t.z - Math.sign(t.z - fz) * 0.6), 0.2);
+    update(time, who, camera) {
+      // Torchlight, near the cave only: each torch flickers on its own.
+      const tu = surfaceUniforms;
+      const on = camera ? 1 - THREE.MathUtils.smoothstep(camera.position.distanceTo(caveMid), 45, 60) : 0;
+      tu.uTorchOn.value = on;
+      if (on > 0) {
+        lightPts.forEach((p, i) => {
+          tu.uTorchView.value[i].copy(p).applyMatrix4(camera.matrixWorldInverse);
+          tu.uTorchI.value[i] = 24 * (1 + 0.12 * Math.sin(time * 7.3 + i * 1.7) + 0.08 * Math.sin(time * 13.1 + i * 2.9));
+        });
       }
       fallTex[0].offset.y = time * 0.9;
       fallTex[1].offset.y = time * 1.3;
@@ -406,7 +444,6 @@ export function buildHennethAnnun(scene, water) {
       }
       mistGeo.attributes.position.needsUpdate = true;
       flames.children.forEach((fl, i) => fl.scale.setScalar(0.9 + 0.18 * Math.sin(time * 9 + i * 2.1)));
-      lamp.intensity = 34 + 5 * Math.sin(time * 7.3) + 3 * Math.sin(time * 13.1);
     },
   };
 }
@@ -431,7 +468,9 @@ function cliffSkins(rand) {
     stations.forEach((st, si) => {
       const u = si * 0.8 + seed * 50;
       // walk into the rock to find the top of the wall
-      const y0 = heightAt(st.x, st.z);
+      // (where people walk on a stair beside the wall, the skin starts at its treads)
+      const y0 = st.walk === undefined ? heightAt(st.x, st.z) : Math.max(heightAt(st.x, st.z), st.walk - 0.25);
+      const clear = st.walk === undefined ? 0.6 : st.walk - y0 + 2.1;
       let top = y0, reach = 0;
       for (let d = 0.5; d <= st.span; d += 0.5) {
         const h = heightAt(st.x + st.dx * d, st.z + st.dz * d);
@@ -447,7 +486,7 @@ function cliffSkins(rand) {
           let lo = 0, hi = reach;
           for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (heightAt(st.x + st.dx * m, st.z + st.dz * m) < y) lo = m; else hi = m; }
           const t = k / n, above = y - y0;
-          const ramp = Math.min(1, Math.max(0, (above - 0.6) / 2.2)) * Math.min(1, Math.max(0, (top - y) / 1.2));
+          const ramp = Math.min(1, Math.max(0, (above - clear) / 2.2)) * Math.min(1, Math.max(0, (top - y) / 1.2));
           const px = st.x + st.dx * lo, pz = st.z + st.dz * lo;
           const n1 = fbm3(px * 0.22, y * 0.22, pz * 0.22, 3, seed);
           const fine = fbm3(px * 1.3, y * 1.3, pz * 1.3, 2, seed + 5);
@@ -490,10 +529,13 @@ function cliffSkins(rand) {
   const north = [], south = [], westN = [], westS = [];
   for (let x = B.minX - 3; x <= HA.x + 0.5; x += 0.8) {
     north.push({ x, z: HA.z - B.halfZ + 0.5, dx: 0, dz: -1, span: B.wall + 3 });
-    south.push({ x, z: HA.z + B.halfZ + B.southSetBack - 0.5, dx: 0, dz: 1, span: B.wall + 3 });
+    // the south wall rises from the stair's outer edge: from the treads up it is
+    // flush with the stair, standing proud only above head height
+    const onStair = x > HA.stair.x0 - 0.5;
+    south.push({ x, z: HA.z + HA.stair.z1 - 0.3, dx: 0, dz: 1, span: B.wall + 4, walk: onStair ? stairTop(x) : undefined });
   }
   for (let z = HA.z - B.halfZ - 2; z <= HA.z - g.halfTop - 1; z += 0.8) westN.push({ x: B.minX + 0.5, z, dx: -1, dz: 0, span: B.wall + 3 });
-  for (let z = HA.z + g.halfTop + 1; z <= HA.z + B.halfZ + B.southSetBack + 2; z += 0.8) westS.push({ x: B.minX + 0.5, z, dx: -1, dz: 0, span: B.wall + 3 });
+  for (let z = HA.z + g.halfTop + 1; z <= HA.z + HA.stair.z1 + 2; z += 0.8) westS.push({ x: B.minX + 0.5, z, dx: -1, dz: 0, span: B.wall + 3 });
   wall(north, 1); wall(south, 2); wall(westN, 3); wall(westS, 4);
   // the cut, both sides, down to where it opens out
   const cutN = [], cutS = [];

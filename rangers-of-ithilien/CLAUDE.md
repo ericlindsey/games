@@ -85,11 +85,12 @@ src/
     relics.js         builds the lesser ruins and the waymarks on paths
     herbs.js          draws kingsfoil and the seed plants; gathering
     build.js          GeoBuilder (parts with a surface kind, smooth or faceted, leaf cards) and the shared materials
-    surface.js        generated detail textures and leaf atlas; the material patch (triplanar grain, bump, moss, wind, leaf glow)
+    surface.js        generated detail textures and leaf atlas; the material patch (triplanar grain, bump, moss, wind, leaf glow, the cave's torchlight)
     rocks.js          fractured rock geometry (boulders, outcrops, rubble, standing stones)
     grass.js          the field of grass blades around the ranger, built in tiles
   entities/           player.js (ranger + camera rig), enemies.js (spawning and AI),
-                      figure.js (people, their weapons in hand, sheathed or slung, the quiver's arrows)
+                      figure.js (people, their weapons in hand, sheathed or slung, the quiver's arrows;
+                      what is carried on the back rides over the cloak, which bends from the hips)
   input/input.js      keyboard, mouse and touch -> one input state
   ui/                 hud.js (compass, vitals, tracker, notices), panels.js (dialogue, map, pack, trade, menu)
   systems/
@@ -206,7 +207,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.3.1`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.3.2`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

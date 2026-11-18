@@ -70,6 +70,8 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(Math.abs(start.x - 1022) < 1 && Math.abs(start.z - 1192) < 1, 'starts in the cave at Henneth Annûn');
   check(Math.abs(start.y - 40) < 0.1 && await page.evaluate(() => roi.refuge.isInside(roi.player.pos)), 'stands on the cave floor, under the rock');
   await shot(page, 'cave');
+  const torch = await page.evaluate(() => roi.refuge.torchlight());
+  check(torch.on === 1 && torch.burning === torch.of && torch.of === 6, `every torch in the cave is lit at once (${torch.burning} of ${torch.of})`);
 
   check((await page.textContent('#weapon')).includes('24 arrows'), 'the HUD shows weapon and arrows');
 
@@ -136,6 +138,16 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.keyboard.press('KeyI');
   check(await page.isHidden('#pack'), 'the pack closes');
 
+  // Faramir looks the Prince of Ithilien; boulders lie all round the pool, clear of the ways through.
+  await page.evaluate(() => { const f = roi.refuge.faramir; roi.teleport(f.x + 2.4 * Math.sin(f.heading), f.z + 2.4 * Math.cos(f.heading), f.heading + Math.PI, 40); roi.rig.pitch = -0.05; roi.rig.wantDist = 2.2; });
+  await page.waitForTimeout(800);
+  await shot(page, 'faramir');
+  await page.evaluate(() => { roi.rig.wantDist = 6; });
+  const stones = await page.evaluate(() => roi.refuge.stones);
+  check(stones.length >= 60, `boulders and stones lie round the pool (${stones.length})`);
+  check(stones.every((s) => Math.hypot(s.x - 973, s.z - 1202.3) > 3 && Math.hypot(s.x - 970, s.z - 1194) > 3),
+    'none of them at the foot of the stair or on the way out down the cut');
+
   // The hidden stair: from the floor of the cut, up along the basin wall and in at the door.
   await page.evaluate(() => { roi.teleport(973, 1202.3, Math.PI / 2, 31); roi.rig.yaw = Math.PI / 2; });
   const foot = await pos(page);
@@ -197,6 +209,40 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(out, `the cut leads out downstream (reached x ${exit.x.toFixed(0)})`);
   check(await page.evaluate((p) => roi.heightAt(p.x, p.z + 25) - p.y < 9 && !roi.refuge.isInside(roi.player.pos), exit), 'and the banks there are low enough to climb');
   await shot(page, 'cut-exit');
+
+  // Running, the cloak streams out behind, but the quiver and the slung bow stay over it.
+  const underCloak = () => page.evaluate(() => {
+    const f = roi.player.figure, V = f.position.constructor;
+    f.updateMatrixWorld(true);
+    const inv = f.matrixWorld.clone().invert();
+    const local = (mesh) => { const a = mesh.geometry.attributes.position, out = []; for (let i = 0; i < a.count; i++) out.push(new V().fromBufferAttribute(a, i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv)); return out; };
+    const cloak = local(f.limbs.cloak.children[0]);
+    const gear = f.slungBow.parent.children.filter((m) => m.isMesh && m.visible).flatMap(local);
+    // the cloak's surface behind each point carried on the back, where there is cloak behind it
+    let worst = Infinity, n = 0;
+    for (const g of gear) {
+      for (let i = 0; i < cloak.length; i += 3) {
+        const [a, b, c] = [cloak[i], cloak[i + 1], cloak[i + 2]];
+        const d = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+        if (Math.abs(d) < 1e-9) continue;
+        const u = ((b.y - c.y) * (g.x - c.x) + (c.x - b.x) * (g.y - c.y)) / d, v = ((c.y - a.y) * (g.x - c.x) + (a.x - c.x) * (g.y - c.y)) / d, w = 1 - u - v;
+        if (u < 0 || v < 0 || w < 0) continue;
+        const z = u * a.z + v * b.z + w * c.z;
+        if (z > 0) continue; // the cloak is on the back (-z)
+        worst = Math.min(worst, z - g.z); n++;
+      }
+    }
+    return { worst, n };
+  });
+  const standing = await underCloak();
+  await page.evaluate(() => { roi.rig.yaw = -Math.PI / 2; });
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(2500);
+  const running = await underCloak();
+  const speed = await page.evaluate(() => roi.player.speed);
+  await page.keyboard.up('KeyW');
+  check(standing.n > 50 && standing.worst > 0, `standing, the quiver and bow lie over the cloak (clear by ${(standing.worst * 100).toFixed(1)} cm)`);
+  check(speed > 4 && running.n > 50 && running.worst > 0, `running, they stay over it as it streams back (clear by ${(running.worst * 100).toFixed(1)} cm)`);
 
   // Walk, on the lawns of Cormallen where nothing is in the way.
   await page.evaluate(() => roi.teleport(337, 1195, 0));
