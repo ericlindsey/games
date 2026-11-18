@@ -228,7 +228,8 @@ python3 -m http.server 8000     # open http://localhost:8000
    pre-installed Playwright). It fails on any console error or failed request.
    It plays through at `?quality=low` (software rendering cannot click through
    medium or high in time) and then only loads medium and high to see they draw.
-   A full run takes 20 to 40 minutes.
+   A full run takes 20 to 40 minutes; `SMOKE_ONLY=phone` (any part of a suite's
+   name) runs only the matching suites.
 3. For hands-on checking, open `debug.html`: it has its own save and shortcuts
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips

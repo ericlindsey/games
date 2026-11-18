@@ -1,5 +1,6 @@
 // Browser smoke test. Serves the game folder, then drives it in headless Chromium
 // on a desktop and a phone profile. Run: node tests/smoke.mjs [screenshot-dir]
+// (SMOKE_ONLY=<part of a suite's name> runs only the suites that match.)
 // Headless rendering is software-only, so this checks behaviour, not frame rate.
 
 import { createRequire } from 'node:module';
@@ -37,6 +38,7 @@ const shot = async (page, name) => { if (shots) await page.screenshot({ path: jo
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 
 async function run(label, contextOptions, body) {
+  if (process.env.SMOKE_ONLY && !label.includes(process.env.SMOKE_ONLY)) return; // SMOKE_ONLY=phone runs only the phone suites
   console.log(`\n== ${label} ==`);
   const ctx = await browser.newContext(contextOptions);
   const page = await ctx.newPage();
@@ -622,15 +624,15 @@ await run('testing page', { viewport: { width: 1280, height: 720 } }, async (pag
   await page.waitForURL(/dev/);
   await page.goto(page.url() + '&quality=low'); // the redirect, then the same page at a quality software rendering can click through
   await page.waitForFunction(() => window.roi?.ready, null, { timeout: 180000 });
-  await page.click('#begin');
-  await page.waitForSelector('#dev');
+  await page.click('#begin', { timeout: 180000 });
+  await page.waitForSelector('#dev', { timeout: 180000 });
   check(true, 'debug.html opens the game with the testing panel');
-  await page.click('#dev [data-a="kit"]');
+  await page.click('#dev [data-a="kit"]', { timeout: 180000 });
   check(await page.evaluate(() => roi.state.equipped.sword === 'guardBlade' && roi.state.equipped.body === 'citadelMail'), 'it can hand out and equip gear');
-  await page.click('#dev [data-a="ren+"]');
+  await page.click('#dev [data-a="ren+"]', { timeout: 180000 });
   check(await page.evaluate(() => roi.state.renown === 1), 'and set renown');
-  await page.click('#dev [data-a="mapgo"]');
-  await page.waitForSelector('#map:not([hidden])');
+  await page.click('#dev [data-a="mapgo"]', { timeout: 180000 });
+  await page.waitForSelector('#map:not([hidden])', { timeout: 180000 });
   const box = await page.locator('#map-canvas').boundingBox();
   await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.6);
   await page.waitForFunction(() => Math.abs(roi.player.pos.x - 800) < 30 && Math.abs(roi.player.pos.z - 2400) < 40, null, { timeout: 30000 });
