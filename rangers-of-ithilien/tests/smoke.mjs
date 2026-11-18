@@ -32,7 +32,7 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
 const pos = (page) => page.evaluate(() => ({ x: roi.player.pos.x, y: roi.player.pos.y, z: roi.player.pos.z }));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const ready = (page) => page.waitForFunction(() => window.roi?.ready, null, { timeout: 180000 });
-const shot = async (page, name) => { if (shots) await page.screenshot({ path: join(shots, name + '.png') }); };
+const shot = async (page, name) => { if (shots) await page.screenshot({ path: join(shots, name + '.png'), timeout: 300000 }); };
 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 
@@ -139,7 +139,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   const foot = await pos(page);
   check(Math.abs(foot.y - 31) < 1.2, 'the foot of the stair is on the floor of the basin');
   await page.keyboard.down('KeyW');
-  await page.waitForFunction(() => roi.player.pos.x > 1004, null, { timeout: 90000 });
+  await page.waitForFunction(() => roi.player.pos.x > 1004, null, { timeout: 240000 });
   await page.keyboard.up('KeyW');
   const door = await pos(page);
   check(Math.abs(door.y - 40) < 0.1, `the stair climbs to the cave door (y ${door.y.toFixed(1)})`);
@@ -150,7 +150,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => { const st = roi.refuge.hiddenStair; roi.teleport(st.startX, st.z, Math.PI / 2, 40); roi.rig.yaw = Math.PI / 2; });
   check(Math.abs((await pos(page)).y - 40) < 0.3, 'the hidden stair starts level with the hall');
   await page.keyboard.down('KeyW');
-  const climbed = await page.waitForFunction(() => roi.player.pos.x > roi.refuge.hiddenStair.exitX + 6, null, { timeout: 90000 }).then(() => true, () => false);
+  const climbed = await page.waitForFunction(() => roi.player.pos.x > roi.refuge.hiddenStair.exitX + 6, null, { timeout: 240000 }).then(() => true, () => false);
   await page.keyboard.up('KeyW');
   const up = await pos(page);
   check(climbed && Math.abs(up.y - (await page.evaluate((p) => roi.heightAt(p.x, p.z), up))) < 0.05 && up.y > 48,
@@ -188,7 +188,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     }, 16);
   });
   await page.keyboard.down('KeyW');
-  const out = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - courseEnd.x, roi.player.pos.z - courseEnd.z) < 6, null, { timeout: 90000 }).then(() => true, () => false);
+  const out = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - courseEnd.x, roi.player.pos.z - courseEnd.z) < 6, null, { timeout: 240000 }).then(() => true, () => false);
   await page.keyboard.up('KeyW');
   await page.evaluate(() => { clearInterval(steer); roi.input.haste = false; });
   const exit = await pos(page);
@@ -205,6 +205,16 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   const b = await pos(page);
   check(b.z > a.z + 1.5, `holding W walks forward (moved ${dist(a, b).toFixed(1)} m)`);
   check(Math.abs(b.y - (await page.evaluate((b) => roi.heightAt(b.x, b.z), b))) < 0.05, 'feet follow the ground');
+  await page.waitForFunction(() => [...roi.grass.tiles.values()].filter((t) => t.mesh).length >= 4, null, { timeout: 30000 }).then(() => check(true, 'grass grows about the ranger on the lawns'), () => check(false, 'grass grows about the ranger on the lawns'));
+
+  // Set down inside a wall (a ruin's), the ranger is freed at once onto open ground.
+  const unwalled = await page.evaluate(() => {
+    const r = roi.relics.find((q) => q.kind === 'chapel');
+    roi.teleport(r.x + 4, r.z - 2, 0, roi.heightAt(r.x + 4, r.z - 2));
+    const p = roi.player.pos;
+    return { inWall: roi.blocked(r.x + 4, r.z - 2, roi.heightAt(r.x + 4, r.z - 2), 0.4), free: !roi.blocked(p.x, p.z, p.y, 0.4), moved: Math.hypot(p.x - r.x - 4, p.z - r.z + 2) };
+  });
+  check(unwalled.inWall && unwalled.free && unwalled.moved < 3, `set down inside a wall, the ranger is freed close by (${unwalled.moved.toFixed(1)} m)`);
 
   // The river and the edges of the world stop the ranger.
   await page.evaluate(() => { roi.teleport(150, 2300, -Math.PI / 2); roi.input.haste = true; });
@@ -233,6 +243,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 13, c.z, -Math.PI / 2); roi.rig.yaw = -Math.PI / 2; });
   await page.waitForFunction(() => roi.enemies.list.length >= 2, null, { timeout: 30000 });
   check(true, 'enemies stand at an uncleared camp');
+  check(await page.evaluate(() => roi.enemies.list.every((e) => !roi.blocked(e.x, e.z, e.y, 0.4))), 'none of them stands inside a wall or rock');
   await page.waitForFunction(() => roi.enemies.list.some((e) => e.alerted), null, { timeout: 30000 });
   check(true, 'they notice the ranger');
   check(/seen you|roused/.test(await page.textContent('#callout')), 'and the HUD says so');
@@ -241,7 +252,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(drewBlood, 'the sword wounds them');
   const wasHurt = await page.waitForFunction(() => roi.state.health < 100, null, { timeout: 60000 }).then(() => true, () => false);
   check(wasHurt, 'and they wound the ranger');
-  await page.waitForFunction(() => roi.state.stats.kills >= 1 || roi.state.health < 30, null, { timeout: 90000 });
+  await page.waitForFunction(() => roi.state.stats.kills >= 1 || roi.state.health < 30, null, { timeout: 240000 });
   await page.keyboard.up('KeyF');
   check(await page.evaluate(() => roi.state.stats.kills >= 1), 'an enemy can be killed with the sword');
   check(/(Orc|archer|Uruk|Southron|Captain) felled/.test(await page.textContent('#callout')), 'and the HUD names the fallen');
@@ -499,7 +510,9 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
 });
 
 await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => {
-  await page.goto(base);
+  // Low quality: headless rendering is in software, and a medium frame takes too long to tap through.
+  // (A phone starts on medium; that quality is loaded on its own below.)
+  await page.goto(base + '?quality=low');
   await page.waitForSelector('#begin:not([hidden])', { timeout: 180000 });
   await page.tap('#begin');
   await ready(page);
@@ -590,6 +603,8 @@ await run('phone upright (touch)', { ...devices['iPhone 13'] }, async (page) => 
 
 await run('testing page', { viewport: { width: 1280, height: 720 } }, async (page) => {
   await page.goto(base + 'debug.html');
+  await page.waitForURL(/dev/);
+  await page.goto(page.url() + '&quality=low'); // the redirect, then the same page at a quality software rendering can click through
   await page.waitForFunction(() => window.roi?.ready, null, { timeout: 180000 });
   await page.click('#begin');
   await page.waitForSelector('#dev');
@@ -608,6 +623,19 @@ await run('testing page', { viewport: { width: 1280, height: 720 } }, async (pag
   await page.evaluate(() => roi.save());
   check(await page.evaluate(() => localStorage.getItem('rangers-of-ithilien.save') === null && localStorage.getItem('rangers-of-ithilien.save.dev') !== null), 'the testing page keeps its own save and leaves the real one alone');
 });
+
+// The richer qualities: they load, draw, grow grass and raise no errors. (Too slow in
+// software rendering to play through; how they look is checked by screenshots.)
+for (const q of ['medium', 'high']) {
+  await run(`quality ${q}`, { viewport: { width: 960, height: 540 } }, async (page) => {
+    await page.goto(base + `?quality=${q}&autostart`);
+    await ready(page);
+    await page.evaluate(() => roi.teleport(1100, 1420, Math.PI));
+    const drew = await page.waitForFunction(() => roi.renderer.info.render.triangles > 100000 && [...roi.grass.tiles.values()].some((t) => t.mesh), null, { timeout: 600000 }).then(() => true, () => false);
+    check(drew, `on ${q} the woods draw in full, with grass`);
+    await shot(page, `quality-${q}`);
+  });
+}
 
 await browser.close();
 server.close();

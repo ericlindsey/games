@@ -18,6 +18,8 @@ import { buildRuins } from './world/ruins.js';
 import { buildFarms } from './world/farms.js';
 import { buildRelics } from './world/relics.js';
 import { Motes } from './world/motes.js';
+import { Grass } from './world/grass.js';
+import { updateSurfaces, surfaceSettings } from './world/surface.js';
 import { Herbs } from './world/herbs.js';
 import { Camps } from './world/camps.js';
 import { Player, CameraRig } from './entities/player.js';
@@ -48,8 +50,9 @@ async function boot() {
   const state = saved ?? newState();
 
   const coarse = matchMedia('(pointer: coarse)').matches;
-  const qualityName = params.get('quality') ?? state.settings.quality ?? (coarse ? 'low' : 'high');
+  const qualityName = params.get('quality') ?? state.settings.quality ?? (coarse ? 'medium' : 'high');
   const quality = QUALITY[qualityName] ?? QUALITY.medium;
+  surfaceSettings.lite = !!quality.liteSurfaces;
 
   // ---- renderer ----
   const canvas = $('view');
@@ -57,6 +60,9 @@ async function boot() {
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, quality.pixelRatio));
   renderer.shadowMap.enabled = quality.shadows;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Filmic tone mapping: bright sun without blown-out greens, deep but readable shade.
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = Number(params.get('exposure') ?? 1.35);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 12000);
   const resize = () => {
@@ -83,6 +89,7 @@ async function boot() {
   buildFarms(scene, quality.shadows);
   buildRelics(scene, quality.shadows);
   const motes = new Motes(scene, quality.motes);
+  const grass = new Grass(scene, quality);
   const herbs = new Herbs(scene, state.picked);
   const camps = new Camps(scene, (id) => state.cleared.includes(id));
 
@@ -109,6 +116,7 @@ async function boot() {
 
   await say('Planting the woods…');
   while (ground.update(player.pos.x, player.pos.z, 3) > 0) await nextFrame();
+  grass.update(player.pos.x, player.pos.z, 1e3);
 
   // ---- interface ----
   const input = new Input(canvas);
@@ -462,6 +470,8 @@ async function boot() {
     if (input.enabled && (input.move.x || input.move.y)) hud.hideHint();
 
     ground.update(player.pos.x, player.pos.z, 1);
+    grass.update(player.pos.x, player.pos.z, 2);
+    updateSurfaces(time);
     camps.update(dt, time, player.pos.x, player.pos.z);
     herbs.update(time);
     camera.updateMatrixWorld();
@@ -511,13 +521,15 @@ async function boot() {
 
   // For tests and for poking at the world from the console.
   const api = {
-    ready: true, state, player, rig, input, camps, ground, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
+    ready: true, state, player, rig, input, camps, ground, grass, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
     landmarks: LANDMARKS, sites: SITES, relics: RELICS,
     teleport(x, z, yaw = player.yaw, y = undefined) {
       player.place(x, z, yaw, y);
       rig.yaw = yaw;
       while (ground.update(x, z, 4) > 0) { /* build everything in range now */ }
+      grass.update(x, z, 1e3);
     },
+    blocked: (x, z, y, r) => blockedBySolid(x, z, y, r),
     hud, map, pack, trade, refreshHud, goHome, openPanel, store, trunkAt, haradRoadX, travelTo, travelPlaces, streams: STREAMS,
   };
   window.roi = api;

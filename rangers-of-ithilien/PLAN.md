@@ -1,8 +1,9 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.2 in progress.** The land, the enemy, fighting, gear, tasks and trade are built and
-have had three rounds of playtest. Next: Milestone 5 (sound, day and night) and the
-gaps listed at the end of section 10.
+Status: **v0.3: visual polish.** The land, the enemy, fighting, gear, tasks and trade are built and
+have had three rounds of playtest; v0.3 reworks how all of it looks (section 4, and
+"v0.3" in section 10). Next: playtest the new look on a phone, then Milestone 5
+(sound, day and night) and the gaps listed at the end of section 10.
 
 ---
 
@@ -143,19 +144,37 @@ about 95 m around it.
 ## 4. Look and feel
 
 Target mood: a late-90s forest MMO zone and an early-2000s open-world RPG, with
-small serene ruins. Concretely:
+small serene ruins, drawn with what a modern phone GPU can do. Stylised, not
+photo-real: shapes are still simple and made in code, but they carry texture,
+light and movement. Concretely (v0.3):
 
-- **Low-poly, stylised, procedural (default).** Flat-shaded geometry with vertex
-  colours. Trees are simple trunks and layered canopies; rocks are faceted.
-- **Fog is the art director.** Warm distance haze that hides the far clip and
-  makes landmarks emerge gradually. Colour shifts by region (golden in the central
-  woods, grey-green in the south, pale on the heath).
-- **Low sun.** Fixed late-afternoon light in M1, with the sun in the west so that
-  it shines through the falls into the cave.
-- **Muted natural palette**: moss, bark, lichen stone, pale gold light. Ruins in
-  weathered white stone, half-swallowed by ivy and roots.
-- **Characters** are simple low-poly figures (hooded green-and-brown ranger;
-  Faramir and Éowyn distinguishable by colour and silhouette).
+- **Grain on everything.** Each surface has a kind (bark, leaves, rock, masonry,
+  timber, cloth, skin, metal, turf) and gets a matching grain from small
+  textures generated at load, projected from three sides so no model needs
+  texture coordinates. The grain also raises the surface (bump), so stone and
+  bark catch the low sun. Moss gathers on the tops of rock and old stone.
+- **Leafy trees.** Canopies are soft masses wrapped in cut-out cards of leaves or
+  needles, which make the outline ragged; firs are drooping skirts of boughs.
+  Leaves glow a little, more with the sun behind them. Trees sway in the wind.
+  Near trees are drawn in full, far ones in a lighter form.
+- **Grass that moves**, thick in glades and old fields, thin under the trees, gone
+  from roads and paths, shrinking away at the edge of the field. Ferns have
+  fronds, flowers have petals.
+- **Stone that looks like stone.** Rocks are split along fracture planes, with
+  flat broken faces and darker hollows. The walls of the pool and the cut at
+  Henneth Annûn are skinned with layered, blocky rock; outcrops break the turf on
+  the shelf above. Ruins are ashlar in courses with broken tops and ivy, fluted
+  columns with bases and capitals, arches of wedge-shaped stones, chipped rubble.
+- **Fog is the art director**, as before: warm distance haze; golden in the
+  central woods, grey-green in the south, pale on the heath.
+- **Low sun**, fixed late afternoon, in the west. Filmic tone mapping (ACES) keeps
+  the sunlit greens from blowing out and the shade readable. Shadows on medium and
+  high; phones start on medium.
+- **Water** catches the light: small moving waves, a glint of the sun, the sky's
+  colour where it is seen at a slant.
+- **Characters** are rounded and tapering rather than boxes: knees that bend, a
+  real hood, a cloak that swings, a bow slung across the back. Faramir, Éowyn
+  and the enemy kinds stay distinguishable by colour and silhouette.
 - **UI**: parchment-and-ink panels, a serif typeface, sparse HUD.
 
 Everything is generated in code. No downloaded models, textures, or audio.
@@ -316,7 +335,7 @@ more animation, tuning.
 | Question | Decision |
 |----------|----------|
 | Camera | Third person, zoom in to first person. |
-| Visual style | Modern clean low-poly, flat shaded, vertex colours. |
+| Visual style | v0.1-0.2: clean low-poly, flat shaded. From v0.3: stylised but rich: generated grain and bump on every surface, leaf cards, grass, filmic light, rounded figures. |
 | World size | 2 × 4 km (reduced from 3.2 × 6.4 after playtest). |
 | Forest | Dense and tall, closing overhead; a once-farmed land going back to woods. |
 | Camps | A hundred or more. |
@@ -530,6 +549,43 @@ up a band or a host on the road.
 - Loot picked up (trophies for an errand, kingsfoil-like goods) updates the task
   tracker at once; before, the count waited for something else to refresh it.
 
+### v0.3: visual polish
+
+- **Materials** (`world/surface.js`): one Lambert material family with a patch:
+  triplanar grain from a generated RGBA texture (rock, leaf/turf, bark, masonry
+  channels), bump from the grain, moss on upward faces, wind sway for plants,
+  a glow on leaves against the sun, and shrinking with distance for small
+  things. `GeoBuilder` writes a surface kind per vertex and real normals, so a
+  part can be smooth (canopies, figures, columns) or faceted (cut stone).
+- **Terrain**: 2 m grid near the ranger on medium and high (was 4 m), turf grain
+  on the flat and rock grain on the steep.
+- **Vegetation** (`world/vegetation.js`): every species rebuilt with a near and
+  a far form; new: young broadleaf saplings, bramble with roses, a second
+  boulder, scree. Understory is denser (up to about half again as many) and
+  ground cover is on a 3.2 m grid (was 4 m). Rocks and boulders are fractured
+  stone (`world/rocks.js`).
+- **Grass** (`world/grass.js`): 24 m tiles of instanced clumps within 22 / 38 / 50 m
+  (low / medium / high), density from forest, fields, lawns, paths, roads, camps.
+- **Henneth Annûn**: the cave rock is finer and layered; rock skins over the
+  walls of the pool and the whole cut; fractured boulders on the rim, scree in
+  the cut, outcrops on the shelf. The stair and door keep their exact shape.
+- **Ruins and farms**: ashlar walls with broken tops, fallen blocks and ivy;
+  fluted columns with torus bases, echinus and abacus; arches of wedge stones;
+  weathered standing stones; chipped rubble. Footprints and colliders are
+  unchanged.
+- **Figures** (`entities/figure.js`): rounded bodies with knees, hood, swinging
+  cloak; head height unchanged, so aimed shots work as before.
+- **Light**: ACES filmic tone mapping (exposure 1.35; `?exposure=` to try
+  others); phones now start on medium, which has shadows (1024 map). Low quality
+  uses a lighter shader (one grain sample, no bump) for older devices.
+- **Sky**: soft fair-weather cloud drifting east, thinner under the blight.
+- **Water**: waves, sun glint and sky reflection on the river, streams and pools.
+- **Never stuck**: a trunk's push can no longer shove the ranger or an enemy
+  into a wall (it could, and then every step counted as blocked). If the ranger
+  is ever inside a solid, they are freed at once to where they last stood clear,
+  or the nearest open spot. Enemies are set down clear of walls, rocks and
+  trunks when a camp's company appears.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -543,6 +599,11 @@ up a band or a host on the road.
 - No blocking or dodging move. No stealth beyond walking. No sound.
 - Loot bags and a camp's dead are forgotten if you leave and return.
 - The blight changes sky, fog and light but not the colour of ground and plants.
-- Trees appear at the edge of the loaded radius without a fade.
+- Trees appear at the edge of the loaded radius without a fade. The near/far
+  swap of plants happens a chunk (160 m) at a time and may show as a change of
+  detail at about 80 m; worth watching on a phone.
+- The v0.3 look has not yet been tried on a real phone: frame rate on medium is
+  a guess. If it is slow, lower `grass`, `lodNear` and `terrainSegments` for
+  medium in config.js first.
 - Field walls and houses are axis-aligned. Osgiliath is plain blocks.
 - Nothing yet happens when every camp is cleared beyond Faramir's last words.

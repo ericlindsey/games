@@ -8,8 +8,9 @@ import { groundColor, canopyColor } from './groundColor.js';
 import { forestDensity } from './forest.js';
 import { HA } from './layout.js';
 import { noise2 } from '../util/noise.js';
-import { buildVegetation } from './vegetation.js';
+import { buildVegetation, setVegetationLod } from './vegetation.js';
 import { setChunkCircles, removeChunkCircles } from './collision.js';
+import { surfaceMaterial, SURF, surfaceSettings } from './surface.js';
 
 const rgb = [0, 0, 0], rgb2 = [0, 0, 0];
 const _c = new THREE.Color();
@@ -92,14 +93,17 @@ export class Ground {
     this.quality = quality;
     this.chunks = new Map();
     this.hole = new THREE.Vector3(0, 0, 0); // x, z, radius
-    this.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.material = surfaceMaterial({ kind: SURF.ground });
 
     // Backdrop: the whole land, coarse, with the roof of the far forest above it.
     const b = WORLD.backdrop, step = 32;
     const nx = (b.maxX - b.minX) / step, nz = (b.maxZ - b.minZ) / step;
     const hole = this.hole;
     const cutHole = (mat) => {
-      mat.onBeforeCompile = (shader) => {
+      const before = mat.onBeforeCompile;
+      mat.customProgramCacheKey = () => 'surf-hole' + (surfaceSettings.lite ? '-lite' : '');
+      mat.onBeforeCompile = (shader, r) => {
+        before.call(mat, shader, r);
         shader.uniforms.uHole = { value: hole };
         shader.vertexShader = shader.vertexShader
           .replace('#include <common>', '#include <common>\nvarying vec2 vXZ;')
@@ -112,11 +116,11 @@ export class Ground {
     };
     this.backdrop = new THREE.Mesh(
       gridGeometry(b.minX, b.minZ, nx, nz, step, (x, z) => heightAt(x, z) - 1.5, paintFarGround),
-      cutHole(new THREE.MeshLambertMaterial({ vertexColors: true })),
+      cutHole(surfaceMaterial({ kind: SURF.ground })),
     );
     this.canopy = new THREE.Mesh(
       gridGeometry(0, 0, WORLD.width / 20, WORLD.length / 20, 20, canopyHeight, paintCanopy),
-      cutHole(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true })),
+      cutHole(surfaceMaterial({ kind: SURF.leaf, side: THREE.DoubleSide })),
     );
     scene.add(this.backdrop, this.canopy);
   }
@@ -126,18 +130,28 @@ export class Ground {
     for (const key of [...this.chunks.keys()]) this.dropChunk(key);
   }
 
-  buildChunk(cx, cz) {
+  /** Near chunks draw their plants in full; farther ones in a lighter form. */
+  lodFor(cx, cz, px, pz, current) {
+    const size = CHUNK.size;
+    const dx = Math.max(cx * size - px, 0, px - (cx + 1) * size);
+    const dz = Math.max(cz * size - pz, 0, pz - (cz + 1) * size);
+    const d = Math.hypot(dx, dz), near = this.quality.lodNear ?? 70;
+    if (current === 'hi') return d > near + 20 ? 'lo' : 'hi';
+    return d < near ? 'hi' : 'lo';
+  }
+
+  buildChunk(cx, cz, lod = 'hi') {
     const key = cx + ',' + cz;
-    const size = CHUNK.size, n = CHUNK.segments;
+    const size = CHUNK.size, n = this.quality.terrainSegments ?? CHUNK.segments;
     const group = new THREE.Group();
     const mesh = new THREE.Mesh(gridGeometry(cx * size, cz * size, n, n, size / n, heightAt, paintGround, inRockSlot), this.material);
     mesh.receiveShadow = true;
     group.add(mesh);
-    const veg = buildVegetation(cx, cz, this.quality);
+    const veg = buildVegetation(cx, cz, this.quality, lod);
     for (const m of veg.meshes) group.add(m);
     setChunkCircles(key, veg.circles);
     this.scene.add(group);
-    this.chunks.set(key, { group, cx, cz });
+    this.chunks.set(key, { group, cx, cz, lod, veg: veg.meshes });
   }
 
   dropChunk(key) {
@@ -179,12 +193,14 @@ export class Ground {
     for (const wnt of want) {
       const key = wnt.cx + ',' + wnt.cz;
       if (this.chunks.has(key)) continue;
-      if (budget > 0) { this.buildChunk(wnt.cx, wnt.cz); budget--; continue; }
+      if (budget > 0) { this.buildChunk(wnt.cx, wnt.cz, this.lodFor(wnt.cx, wnt.cz, px, pz)); budget--; continue; }
       missing++;
       holeR = Math.min(holeR, wnt.d);
     }
     const dropR = this.quality.loadRadius + CHUNK.size * 1.5;
     for (const [key, ch] of this.chunks) {
+      const lod = this.lodFor(ch.cx, ch.cz, px, pz, ch.lod);
+      if (lod !== ch.lod) { ch.lod = lod; setVegetationLod(ch.veg, lod, this.quality.shadows); }
       const dx = (ch.cx + 0.5) * CHUNK.size - px, dz = (ch.cz + 0.5) * CHUNK.size - pz;
       if (Math.hypot(dx, dz) > dropR + CHUNK.size) this.dropChunk(key);
     }

@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { CAMPS } from './campSites.js';
 import { heightAt } from './terrain.js';
 import { addCircle } from './collision.js';
-import { GeoBuilder } from './build.js';
+import { GeoBuilder, SURF, materials } from './build.js';
+import { addRock } from './rocks.js';
 import { rng } from '../util/noise.js';
 
 const HIDES = [0xb08a5a, 0x9a4a32, 0xc2a070, 0x8a6a4a], CHAR = 0x26221f, RAG = 0xb3261e, BONE = 0xd8d2c0, STAKE = 0x4d3d2c, ROCK = 0x7d776c;
@@ -22,27 +23,31 @@ export class Camps {
       const at = (x, z) => heightAt(x, z);
       const occupied = new GeoBuilder(Math.round(c.x), 0.1);
       const always = new GeoBuilder(Math.round(c.z), 0.1);
+      occupied.kind = always.kind = SURF.wood;
       let fx = c.x, fz = c.z; // where the fire is
 
       if (c.kind === 'mine') {
         // An old digging in the hillside: a heap of rock with a black mouth, shored
         // with timber. They lair inside and keep their fire out front.
         const a = rand() * 6.28, mx = c.x + Math.cos(a) * 7, mz = c.z + Math.sin(a) * 7, my = at(mx, mz);
-        always.blob(6.5, mx, my + 1.2, mz, ROCK, 1.15, 0.75, 1.15, 1);
-        always.blob(4.2, mx + Math.cos(a + 1.4) * 5, my + 0.6, mz + Math.sin(a + 1.4) * 5, 0x8a8478, 1, 0.7, 1);
-        always.blob(3.6, mx + Math.cos(a - 1.3) * 5, my + 0.4, mz + Math.sin(a - 1.3) * 5, 0x6f7a55, 1, 0.6, 1);
+        addRock(always, mx, my - 1.2, mz, 13, ROCK, Math.round(c.x), { detail: 3, sy: 0.62, sx: 1.1, cuts: 8, strata: 0.7 });
+        addRock(always, mx + Math.cos(a + 1.4) * 5, my - 0.8, mz + Math.sin(a + 1.4) * 5, 8, 0x8a8478, Math.round(c.z), { detail: 2, sy: 0.6, cuts: 7 });
+        addRock(always, mx + Math.cos(a - 1.3) * 5, my - 0.8, mz + Math.sin(a - 1.3) * 5, 7, 0x7f8270, Math.round(c.x + c.z), { detail: 2, sy: 0.55, cuts: 7 });
         addCircle(mx, mz, 6);
         const ex = c.x + Math.cos(a) * 2.2, ez = c.z + Math.sin(a) * 2.2, ey = at(ex, ez); // the mouth, facing the fire
         always.box(2.6, 2.6, 2.6, ex + Math.cos(a) * 1.6, ey - 0.1, ez + Math.sin(a) * 1.6, 0x0c0b0a, -a);
         for (const s of [-1, 1]) always.box(0.3, 2.9, 0.3, ex - Math.sin(a) * 1.45 * s, ey - 0.1, ez + Math.cos(a) * 1.45 * s, 0x5a4530);
         always.box(0.35, 0.35, 3.4, ex, ey + 2.7, ez, 0x5a4530, -a);
-        always.blob(1.6, c.x - Math.cos(a) * 5, at(c.x - Math.cos(a) * 5, c.z - Math.sin(a) * 5) + 0.2, c.z - Math.sin(a) * 5, 0x8a8070, 1.4, 0.4, 1); // spoil heap
+        for (let k = 0; k < 7; k++) { // the spoil heap
+          const sx = c.x - Math.cos(a) * 5 + (rand() - 0.5) * 3, sz = c.z - Math.sin(a) * 5 + (rand() - 0.5) * 3;
+          addRock(always, sx, at(sx, sz) - 0.15, sz, 0.5 + rand() * 0.8, 0x8a8070, k + Math.round(c.x), { detail: 1, sy: 0.6, cuts: 5 });
+        }
         fx = c.x - Math.cos(a) * 1.5; fz = c.z - Math.sin(a) * 1.5;
       }
       const y = at(fx, fz);
       for (let i = 0; i < 9; i++) { // fire ring
         const a = (i / 9) * Math.PI * 2;
-        always.blob(0.32, fx + Math.cos(a) * 1.15, y + 0.1, fz + Math.sin(a) * 1.15, 0x77726a, 1, 0.7, 1);
+        addRock(always, fx + Math.cos(a) * 1.15, at(fx + Math.cos(a) * 1.15, fz + Math.sin(a) * 1.15) - 0.08, fz + Math.sin(a) * 1.15, 0.55, 0x77726a, i + 7, { detail: 0, sy: 0.6, cuts: 4 });
       }
       always.box(1.5, 0.2, 0.25, fx, y, fz, CHAR, 0.6);
       always.box(1.5, 0.2, 0.25, fx, y + 0.1, fz, CHAR, 2.2);
@@ -54,7 +59,9 @@ export class Camps {
         const sx = c.x + Math.cos(a) * d, sz = c.z + Math.sin(a) * d, big = 1.2 + rand() * 0.5;
         const m = new THREE.Matrix4().makeRotationY(a).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2)).scale(new THREE.Vector3(big, big, big));
         m.setPosition(sx, at(sx, sz) + 0.75 * big, sz);
-        occupied.add(new THREE.CylinderGeometry(1.5, 1.5, 3.2, 3), HIDES[Math.floor(rand() * HIDES.length)], m);
+        occupied.kind = SURF.cloth;
+        occupied.add(new THREE.CylinderGeometry(1.5, 1.5, 3.2, 3, 2), HIDES[Math.floor(rand() * HIDES.length)], m);
+        occupied.kind = SURF.wood;
       }
       const px = c.x + 3, pz = c.z - 3.5, py = at(px, pz);
       if (c.size > 1) { // a standard, red on a tall pole
@@ -77,7 +84,7 @@ export class Camps {
           let off = (((a - gate) % 2.094) + 2.094) % 2.094; off = Math.min(off, 2.094 - off);
           if (off < 2.2 / R || rand() < 0.06) continue;
           const sx = c.x + Math.cos(a) * R, sz = c.z + Math.sin(a) * R, sy = at(sx, sz);
-          always.cyl(0, 0.17, 2.5 + rand() * 0.6, sx, sy - 0.2, sz, STAKE, 4, (rand() - 0.5) * 0.2, (rand() - 0.5) * 0.2);
+          always.cyl(0, 0.17, 2.5 + rand() * 0.6, sx, sy - 0.2, sz, STAKE, 6, (rand() - 0.5) * 0.2, (rand() - 0.5) * 0.2);
           addCircle(sx, sz, 0.42, 'stake'); // stops the ranger; the camp's own company slips between
         }
         if (c.size === 4) { // and a watch-platform over a war-camp
@@ -96,7 +103,7 @@ export class Camps {
 
       const site = {
         ...c, y, fire: { x: fx, y, z: fz },
-        occupied: occupied.mesh(), cleared: cleared.mesh(),
+        occupied: occupied.mesh(materials.wood), cleared: cleared.mesh(materials.wood),
         strength: isCleared(c.id) ? 0 : 1, // 1 = blighted, eases to 0 once cleared
         isCleared: isCleared(c.id),
       };
@@ -106,7 +113,7 @@ export class Camps {
       site.flame = flame;
       site.occupied.visible = !site.isCleared;
       site.cleared.visible = site.isCleared;
-      scene.add(always.mesh(), site.occupied, site.cleared);
+      scene.add(always.mesh(materials.wood), site.occupied, site.cleared);
       return site;
     });
     this.byId = Object.fromEntries(this.sites.map((s) => [s.id, s]));

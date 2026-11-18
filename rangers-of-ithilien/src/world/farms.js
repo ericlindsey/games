@@ -4,7 +4,9 @@
 import { SITES } from './oldworks.js';
 import { heightAt } from './terrain.js';
 import { addSolid, addCircle } from './collision.js';
-import { GeoBuilder } from './build.js';
+import { GeoBuilder, SURF, materials } from './build.js';
+import { wall as ashlar, rubble } from './ruins.js';
+import { addRock } from './rocks.js';
 import { rng } from '../util/noise.js';
 
 const WALL = [0xa9a394, 0x8f8a7c, 0x9c9686, 0x7d8f5a];   // field stone, some mossed
@@ -12,7 +14,7 @@ const HOUSE = [0xcbc4b0, 0xb5ae9a, 0xc2bba6];
 
 /** A straight run of wall as a blocking box. */
 function solidWall(b, x, z, w, d, y, h, color) {
-  b.box(w, h + 0.5, d, x, y - 0.5, z, color);
+  ashlar(b, x, z, y + 0.3, w, h, d, color, false); // laid stone with a broken top, sometimes ivy
   addSolid({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, bottom: y - 2, top: y + h });
 }
 
@@ -41,11 +43,7 @@ function house(b, rand, hs) {
     const g = sides[long ? 2 + Math.floor(rand() * 2) : Math.floor(rand() * 2)];
     if (g.ew) b.box(g.len * 0.55, 1.8, t, g.x, y + 2.6, g.z, color()); else b.box(t, 1.8, g.len * 0.55, g.x, y + 2.6, g.z, color());
   }
-  for (let i = 0; i < 6; i++) { // fallen stone, inside and out
-    const s = 0.3 + rand() * 0.5;
-    const rx = hs.x + (rand() - 0.5) * (hs.w + 4), rz = hs.z + (rand() - 0.5) * (hs.d + 4);
-    b.box(s * 1.5, s * 0.7, s, rx, heightAt(rx, rz) - 0.1, rz, rand() < 0.35 ? WALL[3] : HOUSE[1], rand() * 3, (rand() - 0.5) * 0.4);
-  }
+  rubble(b, rand, hs.x, hs.z, 6, Math.max(hs.w, hs.d) + 4); // fallen stone, inside and out
 }
 
 /** Dry-stone wall along one edge of a field: standing, tumbled, or gone. */
@@ -70,11 +68,11 @@ function fieldEdge(b, rand, xa, za, xb, zb) {
       }
     } else {
       // tumbled: a low spread of stone you can step over
-      const h = 0.2 + rand() * 0.25;
-      b.box(ew ? seg : 1.3, h + 0.3, ew ? 1.3 : seg, x, y - 0.3, z, color, (rand() - 0.5) * 0.12);
-      for (let k = 0; k < 2; k++) {
-        const s = 0.25 + rand() * 0.3;
-        b.box(s * 1.4, s, s, x + (rand() - 0.5) * 3, y - 0.05, z + (rand() - 0.5) * 3, WALL[1], rand() * 3);
+      const n = Math.max(3, Math.round(seg * 1.2));
+      for (let k = 0; k < n; k++) {
+        const f2 = (k + 0.5) / n - 0.5, s = 0.5 + rand() * 0.5;
+        const sx = ew ? x + f2 * seg : x + (rand() - 0.5) * 0.9, sz = ew ? z + (rand() - 0.5) * 0.9 : z + f2 * seg;
+        addRock(b, sx, heightAt(sx, sz) - 0.15, sz, s, k % 3 ? color : WALL[1], Math.floor(rand() * 1e5), { detail: 0, sy: 0.6, cuts: 6, rough: 0.12 });
       }
     }
   }
@@ -91,6 +89,7 @@ export function buildFarms(scene, shadows) {
   for (const site of SITES) {
     const rand = rng(Math.round(site.x * 13 + site.z * 7));
     const b = new GeoBuilder(Math.round(site.x + site.z), 0.09);
+    b.kind = SURF.masonry;
     for (const hs of site.houses) house(b, rand, hs);
     for (const f of site.fields) {
       fieldEdge(b, rand, f.minX, f.minZ, f.maxX, f.minZ);
@@ -124,6 +123,6 @@ export function buildFarms(scene, shadows) {
     } else if (rand() < 0.5) {
       well(b, site.x + (rand() < 0.5 ? -7 : 7), site.z + 6);
     }
-    scene.add(b.mesh(undefined, shadows));
+    scene.add(b.mesh(materials.stone, shadows));
   }
 }

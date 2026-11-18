@@ -2,6 +2,7 @@
 // the land and clears as camps are broken up.
 
 import * as THREE from 'three';
+import { surfaceUniforms } from './surface.js';
 
 const hex = (h) => new THREE.Color(h);
 const CLEAR = {
@@ -25,7 +26,7 @@ export class Atmosphere {
     this.blight = 0;
 
     this.sun = new THREE.DirectionalLight(CLEAR.sun, CLEAR.sunPower);
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(quality.shadowMap || 1024, quality.shadowMap || 1024);
     const sc = this.sun.shadow.camera;
     sc.left = sc.bottom = -110; sc.right = sc.top = 110; sc.near = 10; sc.far = 700;
     this.sun.shadow.bias = -0.0006;
@@ -40,7 +41,7 @@ export class Atmosphere {
 
     this.uniforms = {
       top: { value: CLEAR.top.clone() }, horizon: { value: CLEAR.horizon.clone() },
-      sunDir: { value: SUN_DIR }, sunCol: { value: CLEAR.sun.clone() }, sunAmt: { value: 1 },
+      sunDir: { value: SUN_DIR }, sunCol: { value: CLEAR.sun.clone() }, sunAmt: { value: 1 }, time: { value: 0 }, cloudAmt: { value: 1 },
     };
     this.sky = new THREE.Mesh(
       new THREE.SphereGeometry(5000, 24, 12),
@@ -48,12 +49,24 @@ export class Atmosphere {
         uniforms: this.uniforms, side: THREE.BackSide, depthWrite: false, fog: false,
         vertexShader: `varying vec3 vDir;
           void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 sunCol; uniform float sunAmt;
+        fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 sunCol; uniform float sunAmt; uniform float time; uniform float cloudAmt;
           varying vec3 vDir;
+          float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+          float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += vn(p) * a; p = p * 2.03 + 7.1; a *= 0.5; } return s; }
           void main() {
             vec3 d = normalize(vDir);
             vec3 c = mix(horizon, top, smoothstep(0.0, 0.55, d.y));
             float s = max(dot(d, sunDir), 0.0);
+            // high, soft fair-weather cloud, thinning toward the horizon and drifting east
+            if (d.y > 0.0) {
+              vec2 uv = d.xz / (d.y + 0.12) * 1.6 + vec2(time * 0.004, time * 0.0015);
+              float n = fbm(uv);
+              float cl = smoothstep(0.5, 0.78, n) * smoothstep(0.0, 0.28, d.y) * cloudAmt;
+              vec3 lit = mix(horizon * 1.05, vec3(1.0, 0.97, 0.92), 0.6) + sunCol * pow(s, 6.0) * 0.5;
+              c = mix(c, lit * (0.85 + 0.25 * (n - 0.5)), cl * 0.85);
+            }
             c += sunCol * sunAmt * (pow(s, 5.0) * 0.22 + pow(s, 80.0) * 0.5 + smoothstep(0.9990, 0.9994, s) * 3.0);
             gl_FragColor = vec4(c, 1.0);
             #include <colorspace_fragment>
@@ -63,6 +76,7 @@ export class Atmosphere {
     this.sky.renderOrder = -10;
     this.sky.frustumCulled = false;
     scene.add(this.sky);
+    surfaceUniforms.uSunDir.value.copy(SUN_DIR);
     this.setQuality(quality);
   }
 
@@ -87,10 +101,14 @@ export class Atmosphere {
     u.top.value.lerpColors(CLEAR.top, BLIGHT.top, t);
     u.horizon.value.lerpColors(CLEAR.horizon, BLIGHT.horizon, t);
     u.sunAmt.value = 1 - 0.8 * t;
+    u.time.value += dt;
+    u.cloudAmt.value = 1 - 0.5 * t;
     this.fog.color.copy(u.horizon.value).lerp(SHADE.fog, sh * 0.75);
     this.fog.near = L(L(CLEAR.fogNear, BLIGHT.fogNear, t), SHADE.fogNear, sh);
     this.fog.far = this.quality.fogFar * L(L(CLEAR.fogFar, BLIGHT.fogFar, t), SHADE.fogFar, sh);
     this.sun.color.lerpColors(CLEAR.sun, BLIGHT.sun, t);
+    surfaceUniforms.uSkyColor.value.copy(u.horizon.value).lerp(u.top.value, 0.25).multiplyScalar(dim);
+    surfaceUniforms.uSunGlow.value.copy(this.sun.color).multiplyScalar((1 - 0.6 * t) * dim);
     // With real shadows the trees already block the sun; without them, dim it by hand.
     this.sun.intensity = L(CLEAR.sunPower, BLIGHT.sunPower, t) * dim * (this.quality.shadows ? 1 - 0.15 * sh : L(1, SHADE.sun, sh));
     this.hemi.color.lerpColors(CLEAR.hemiSky, BLIGHT.hemiSky, t).lerp(SHADE.hemiSky, sh * 0.6);

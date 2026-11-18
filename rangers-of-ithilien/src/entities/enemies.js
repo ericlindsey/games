@@ -9,7 +9,7 @@ import { HA } from '../world/layout.js';
 import { CAMPS } from '../world/campSites.js';
 import { heightAt } from '../world/terrain.js';
 import { groundAt, blockedBySolid, resolveCircles } from '../world/collision.js';
-import { makeFigure, animateFigure, LOOKS } from './figure.js';
+import { makeFigure, animateFigure, LOOKS, figureMaterial } from './figure.js';
 import { ENEMY_TYPES, rosterFor, patrolRoster } from '../data/enemies.js';
 import { enemyStrength } from '../systems/renown.js';
 import { haradRoadX } from '../world/layout.js';
@@ -66,10 +66,12 @@ export class Enemies {
       const def = ENEMY_TYPES[type];
       const a = (i / roster.length) * Math.PI * 2 + rand() * 0.8, r = 2.6 + rand() * (2 + camp.size * 1.3);
       // a camp's company stands about its fire; a band on the road walks in file
-      const x = camp.patrol ? haradRoadX(camp.z - camp.patrol.dir * i * 1.8) + (i % 2 ? 1.2 : -1.2) : camp.x + Math.cos(a) * r;
-      const z = camp.patrol ? camp.z - camp.patrol.dir * i * 1.8 : camp.z + Math.sin(a) * r;
+      let x = camp.patrol ? haradRoadX(camp.z - camp.patrol.dir * i * 1.8) + (i % 2 ? 1.2 : -1.2) : camp.x + Math.cos(a) * r;
+      let z = camp.patrol ? camp.z - camp.patrol.dir * i * 1.8 : camp.z + Math.sin(a) * r;
+      const spot = this.clearSpot(x, z);
+      x = spot.x; z = spot.z;
       const fig = makeFigure(LOOKS[type]);
-      const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+      const material = figureMaterial();
       fig.traverse((o) => { if (o.isMesh) { o.material = material; o.castShadow = true; } });
       fig.scale.setScalar(def.scale);
       const bar = new THREE.Sprite(this.barMaterial);
@@ -87,6 +89,22 @@ export class Enemies {
         vy: 0, air: false, check: { t: 0, x, z }, stuckFor: 0,
       });
     });
+  }
+
+  /** The nearest spot to (x, z) that is clear of walls, rocks and trunks, so no one stands inside them. */
+  clearSpot(x, z) {
+    for (let ring = 0; ring <= 16; ring++) {
+      const d = ring * 0.4, n = ring ? 6 + ring * 2 : 1;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
+        const y = groundAt(px, pz, heightAt(px, pz) + 0.5);
+        if (blockedBySolid(px, pz, y, 0.45)) continue;
+        const probe = { x: px, z: pz };
+        resolveCircles(probe, 0.45, 'stake');
+        if (Math.hypot(probe.x - px, probe.z - pz) < 0.01) return { x: px, z: pz };
+      }
+    }
+    return { x, z };
   }
 
   remove(e) {
@@ -174,7 +192,11 @@ export class Enemies {
     const x0 = e.x, z0 = e.z;
     if (ok(nx, e.z)) e.x = nx;
     if (ok(e.x, nz)) e.z = nz;
+    const sx = e.x, sz = e.z;
     resolveCircles(e, 0.4, 'stake');
+    if ((e.x !== sx || e.z !== sz) && blockedBySolid(e.x, e.z, e.y, 0.4)) { // a trunk must not push them into a wall
+      if (!blockedBySolid(sx, sz, e.y, 0.4)) { e.x = sx; e.z = sz; } else { e.x = x0; e.z = z0; }
+    }
     if (!e.air) e.y = groundAt(e.x, e.z, e.y);
     return Math.hypot(e.x - x0, e.z - z0) > 1e-4;
   }
