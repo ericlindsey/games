@@ -335,6 +335,11 @@ at Henneth Annûn using renown earned from tasks, enemy tiers matched to danger.
 **M5. Atmosphere.** Sound and music, day/night, weather, more ruins and secrets,
 more animation, tuning.
 
+**M6. Provinces, captains and settlement. (designed, see section 11)** The land is
+split into eight provinces, each held by a captain. Freeing a province brings
+settlers from Gondor. The tasks are rebuilt around the provinces, and Faramir's
+story is expanded into three acts.
+
 ## 8. Risks
 
 - **The cave.** Getting collision and the see-through waterfall to feel right may
@@ -365,6 +370,13 @@ more animation, tuning.
 | Player | A fixed, unnamed ranger for now. |
 | Tone | Upbeat: the war is won. Occupied land is grey and sour; cleared land turns bright and healthy again. |
 | Sharing | Personal project, not for publication. |
+| Provinces (M6) | Eight, laid over the terrain regions (which stay, for plants and look). The far north stays one province: it is open, and smoke is seen a long way off. |
+| Freeing a province | Its captain dead **and** 75% of its camps broken. The rest are remnants. |
+| Retaken camps | While a province's captain lives, broken camps near the hold are sometimes retaken. Never after. |
+| Settlements | Rest (full health), save, quick travel, trade. Villagers give tasks, seed tasks among them. |
+| Healing | No slow self-healing. Health comes from food and draughts, and rest at Henneth Annûn or a settlement. |
+| Finale | Every province freed and settled. Every camp is an extra last goal after it. |
+| Plants | One or two found only in each province, plus shared ones. Every plant grows back: one picked means one grows somewhere else in the same province. |
 
 ## 10. What is built
 
@@ -739,3 +751,160 @@ up a band or a host on the road.
   than out to the side as a real archer's does.
 - Field walls and houses are axis-aligned. Osgiliath is plain blocks.
 - Nothing yet happens when every camp is cleared beyond Faramir's last words.
+
+## 11. M6: provinces, captains and settlement (design)
+
+Agreed in principle; the details below are a first draft to refine as each step
+is built. The decisions are in section 9.
+
+### 11.1 Why provinces
+
+The five terrain regions (`world/regions.js`) are kinds of country, not places to
+free: the Home Woods holds 89 of 194 camps and two stockades, the Heather Slopes
+has no ruins or plants, and every stockade and war-camp lies south of the falls.
+Provinces are a new layer, drawn over the regions, sized so each is a job of
+work. Numbers from the current world (bands north to south, heather east of the
+Harad Road):
+
+| Province (working name) | Danger | Camps | Captains now | Ruins + farms/villages |
+|---|---|---|---|---|
+| The Fen-edge and Heath (far north) | 1 | 45 | 0 | 6 + 9 |
+| The Falls (round Henneth Annûn, Cair Andros) | 1 | 36 | 0 | 10 + 7 |
+| Cormallen Woods | 2 | 34 | 0 | 11 + 8 |
+| The Middle Woods | 2 | 24 | 2 | 8 + 9 |
+| The Old Bridge country | 3 | 22 | 5 + 2 war-camps | 11 + 8 |
+| The Cross-roads and the Morgul Vale | 4 | 18 | 6 + 3 war-camps | 9 + 11 |
+| The Upper Heather (east of the road) | 3 | 9 | 2 | 0 |
+| The Lower Heather (east of the road) | 4 | 6 | 5 | 0 |
+
+To fix: the three northern provinces need a hold each (promote one camp); the two
+heather provinces need a few old places and plants of their own.
+
+### 11.2 Captains
+
+- Every province has a **hold** (a stockade) and a named **captain**. Where there
+  are several stockades and war-camps, the strongest is the hold and the others
+  are lieutenants.
+- **Outlying camps feed the hold**: each camp still standing in the province adds
+  a guard to it. The captain can be rushed, but clearing the province first
+  makes the fight fair.
+- A captain is a boss, not a big orc: a few readable moves (a charge, a horn that
+  calls the nearest band, falling back behind the stakes at half health). It
+  drops its company's token and one piece of gear.
+- **Retaking**: while a captain lives, a broken camp near the hold is sometimes
+  retaken (Faramir warns of it). Once the captain falls, never again.
+
+### 11.3 Freeing and settling
+
+Freed = captain dead and 75% of the province's camps broken. Then:
+
+| Stage | When | What changes |
+|---|---|---|
+| 0 Occupied | at the start | as now |
+| 1 Outpost | province freed | Gondor banner on the old hold; two guards; no more retaking or road bands there |
+| 2 First settlers | Éowyn's province tasks done | the chosen farm or village re-roofed, smoke, settlers, a tilled field; rest, save, travel |
+| 3 Settled | settlers' first wants met | fields sown with the seed brought, a trader, the well in use |
+
+Each province settles one site, chosen in Éowyn's tasks: a village where there is
+one, otherwise a farmstead. With self-healing gone, the Falls must be the first
+province most players free, so its settlement comes early.
+
+### 11.4 Plants
+
+Kingsfoil grows everywhere. Each province has one or two plants of its own and
+shares others with its neighbours. A first list (real plants, our own choice):
+
+| Province | Only here | Shared |
+|---|---|---|
+| Fen-edge and Heath | bog myrtle, cotton-grass | thyme |
+| The Falls | meadowsweet | thyme, bay |
+| Cormallen Woods | wood sorrel | bay, poppy |
+| The Middle Woods | wild garlic | bay, poppy |
+| The Old Bridge country | wild vine | poppy, olive |
+| The Cross-roads and the Morgul Vale | rosemary | olive |
+| The Upper Heather | gorse | juniper |
+| The Lower Heather | wild sage | juniper |
+
+**Regrowth**: a picked plant grows again somewhere else in the same province
+after a while. Deterministic: herbSites makes a pool of candidate spots several
+times larger than what stands, and the save keeps which spots are picked and
+when. A province always has about the same number of each plant standing.
+
+### 11.5 Tasks
+
+- **Faramir's story** (11.6) is the spine, gated by provinces freed rather than
+  by camp counts (no more 30, 60, 100).
+- **Faramir's arc in each province** (about four steps): find the hold, break
+  *k* camps there, bring *k* of the captain's company tokens (they drop only in
+  that province), break the hold.
+- **Éowyn's arc in each province** (about four steps): find *k* old places there,
+  find the site for the settlers, bring *k* of the province's own plant, then the
+  settlers' first wants.
+- **Settlers** in a settled province give tasks of their own: seed, herbs, a
+  remnant camp near the village.
+- **Errands** stay, scoped to a province: the one being worked on before it is
+  freed, settlers' requests after. Their sizes scale with the province's danger,
+  not with how many errands have been done.
+- Text: an opening and closing written by hand for each province and captain;
+  the steps between from templates, as errands are now.
+- Code: per-province tallies of what was picked up and where
+  (`state.stats.got[province][item]`), and new objectives `clearIn`, `gatherIn`,
+  `seekIn`, `captain`, `freed`, `settled`. Save version 5.
+
+### 11.6 Faramir's story (draft, not yet agreed)
+
+The war is won but the remnants in Ithilien are being drawn together. A new hand
+is gathering them from the Morgul Vale: an Uruk war-chief the others call **the
+Marshal** (working title; our own invention, not from the books). Each captain
+answers to him, so each hold broken tells a little more. Three acts, gated by
+the number of provinces freed.
+
+**Act I: the home country** (from the start)
+1. *The nearest fire*: kept as the first lesson.
+2. *The Falls*: free the home province; its captain is the first boss.
+3. *A mark on the captain*: the captain carried a token no one knows. Faramir
+   asks Éowyn and Mablung; it is the first word of the Marshal.
+4. *The landing at Cair Andros*: settlers are crossing the river. Clear the shore
+   so they can land; they settle in the Falls.
+5. *Smoke on the heath*: free the far north. Open country, smoke seen far off; a
+   quick province, a pause before the harder woods.
+
+**Act II: the middle country** (two provinces freed)
+6. *The road under the mountains*: find the Harad Road. The bands on it carry
+   arms south.
+7. *What the bands carry*: break bands until one carries orders. They name a
+   gathering at the Cross-roads.
+8. *Cormallen Woods* and *the Middle Woods*: freed by their own arcs.
+9. *The gorse*: free the Upper Heather.
+10. *The Cross-roads*: not a visit but a fight. The remnants gather round the
+    old king; break the host and set his crown of flowers right. The orders found
+    there point to the Marshal in the Morgul Vale.
+
+**Act III: the south** (five provinces freed)
+11. *The Old Bridge*: secure it so the King's builders can cross; free its country.
+12. *The broken city*: hold the eastern landing at Osgiliath for the masons.
+    Faramir's own beat: he was born to defend it.
+13. *The Marshal's lieutenants*: the war-camps.
+14. *The Lower Heather*.
+15. *The mouth of the Vale*: with his lieutenants gone the Marshal comes out to
+    meet you where the Vale opens. The Vale itself stays shut; it is not ours to
+    enter.
+16. *The garden of Gondor*: every province freed and settled. A gathering at
+    Cormallen, Faramir and Éowyn both there.
+
+**After**: *The last fires*, every camp, with Faramir's map; the King's gift.
+
+Open: whether the Marshal is wanted at all (versus captains with no one above
+them); whether Faramir and a few rangers fight beside you at the Cross-roads and
+at the Vale (needs companions, which do not exist yet); whether Osgiliath's
+landing becomes a ninth settlement.
+
+### 11.7 Build order
+
+Each step ends playable.
+1. Provinces as data; borders and status on the map; progress in the quest log.
+2. Captains: a hold in every province, the captain enemy, outer camps feeding the hold, retaking.
+3. Plants: the new plants, regrowth by province.
+4. Tasks: province arcs, new objectives, Faramir's story; save version 5.
+5. Settlement: rebuilt farms and villages, settlers, rest, travel, trade; remove self-healing.
+6. Errands scoped to provinces; settlers' tasks.
