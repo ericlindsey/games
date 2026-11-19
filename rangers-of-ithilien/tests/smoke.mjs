@@ -297,6 +297,21 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => roi.teleport(860, 1338, 3));
   await page.waitForFunction(() => roi.state.discovered.includes('arch'), null, { timeout: 20000 });
   check(true, 'walking up to a ruin discovers it');
+  // A tree near where it changes form is drawn in both forms, to fade from one to the other.
+  const fade = await page.evaluate(() => {
+    const q = roi.ground.quality, p = roi.player.pos;
+    let both = 0, near = 0;
+    for (const ch of roi.ground.chunks.values()) for (const g of ch.veg) {
+      if (g.sp.cls !== 'tree') continue;
+      const [hi, mid] = g.meshes, has = (m, i) => { for (let k = 0; k < m.count; k++) if (m.instanceMatrix.array[k * 16 + 12] === g.mats[i * 16 + 12] && m.instanceMatrix.array[k * 16 + 14] === g.mats[i * 16 + 14]) return true; return false; };
+      for (let i = 0; i < g.n; i++) {
+        const d = Math.hypot(g.xs[i] - p.x, g.zs[i] - p.z);
+        if (Math.abs(d - q.treeNear) < 3) { near++; if (has(hi, i) && has(mid, i)) both++; }
+      }
+    }
+    return { both, near };
+  });
+  check(fade.near > 0 && fade.both === fade.near, `trees at the change of form are drawn in both forms, to fade between them (${fade.both} of ${fade.near})`);
   // The deep woods are old forest: fewer, far taller great trees and little growing under them;
   // the home woods keep their riot of younger growth.
   const forest = await page.evaluate(() => {
@@ -318,21 +333,6 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(forest.deep.under < forest.deep.great * 0.7 && forest.deep.giants > forest.deep.great * 0.4,
     `the deep woods are old forest: ${forest.deep.great} great trees (${forest.deep.giants} of them giants), ${forest.deep.under} lesser`);
   check(forest.home.under > forest.home.great && forest.home.giants === 0, `the home woods keep their young growth (${forest.home.great} great trees, ${forest.home.under} lesser)`);
-  // A tree near where it changes form is drawn in both forms, to fade from one to the other.
-  const fade = await page.evaluate(() => {
-    const q = roi.ground.quality, p = roi.player.pos;
-    let both = 0, near = 0;
-    for (const ch of roi.ground.chunks.values()) for (const g of ch.veg) {
-      if (g.sp.cls !== 'tree') continue;
-      const [hi, mid] = g.meshes, has = (m, i) => { for (let k = 0; k < m.count; k++) if (m.instanceMatrix.array[k * 16 + 12] === g.mats[i * 16 + 12] && m.instanceMatrix.array[k * 16 + 14] === g.mats[i * 16 + 14]) return true; return false; };
-      for (let i = 0; i < g.n; i++) {
-        const d = Math.hypot(g.xs[i] - p.x, g.zs[i] - p.z);
-        if (Math.abs(d - q.treeNear) < 2) { near++; if (has(hi, i) && has(mid, i)) both++; }
-      }
-    }
-    return { both, near };
-  });
-  check(fade.near > 0 && fade.both === fade.near, `trees at the change of form are drawn in both forms, to fade between them (${fade.both} of ${fade.near})`);
   check(await page.evaluate(() => roi.camps.sites.length >= 100), 'more than a hundred camps exist');
 
   // Kingsfoil is gathered by walking over it.
