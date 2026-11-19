@@ -297,6 +297,27 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => roi.teleport(860, 1338, 3));
   await page.waitForFunction(() => roi.state.discovered.includes('arch'), null, { timeout: 20000 });
   check(true, 'walking up to a ruin discovers it');
+  // The deep woods are old forest: fewer, far taller great trees and little growing under them;
+  // the home woods keep their riot of younger growth.
+  const forest = await page.evaluate(() => {
+    const census = (x, z) => {
+      roi.teleport(x, z, 0);
+      let great = 0, under = 0, giants = 0;
+      for (const ch of roi.ground.chunks.values()) for (const g of ch.veg) {
+        if (g.sp.cls === 'cover' || g.sp.sameMid || ['log', 'stump'].includes(g.meshes[0].userData.species)) continue;
+        for (let i = 0; i < g.n; i++) {
+          if (Math.hypot(g.xs[i] - x, g.zs[i] - z) > 120) continue;
+          if (g.sp.cls === 'tree') { great++; const m = g.mats; if (m[i * 16 + 5] > Math.hypot(m[i * 16], m[i * 16 + 2]) * 1.08) giants++; } // giants: drawn taller than wide
+          else under++;
+        }
+      }
+      return { great, under, giants };
+    };
+    return { deep: census(700, 3000), home: census(1100, 1600) };
+  });
+  check(forest.deep.under < forest.deep.great * 0.7 && forest.deep.giants > forest.deep.great * 0.4,
+    `the deep woods are old forest: ${forest.deep.great} great trees (${forest.deep.giants} of them giants), ${forest.deep.under} lesser`);
+  check(forest.home.under > forest.home.great && forest.home.giants === 0, `the home woods keep their young growth (${forest.home.great} great trees, ${forest.home.under} lesser)`);
   // A tree near where it changes form is drawn in both forms, to fade from one to the other.
   const fade = await page.evaluate(() => {
     const q = roi.ground.quality, p = roi.player.pos;

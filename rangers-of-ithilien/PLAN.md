@@ -1,8 +1,8 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.3a: visual fixes at Henneth Annûn and on the people.** The land, the enemy, fighting, gear, tasks and trade are built and
+Status: **v0.3b: the deep woods as old forest; shadows and small plants that come in gently.** The land, the enemy, fighting, gear, tasks and trade are built and
 have had three rounds of playtest; v0.3 reworks how all of it looks (section 4, and
-"v0.3" in section 10); v0.3a fixes what a further look turned up there. Next: playtest the new look on a phone, then Milestone 5
+"v0.3" in section 10); v0.3a fixes what a further look turned up there; v0.3b makes the deep woods old forest. Next: playtest the new look on a phone, then Milestone 5
 (sound, day and night) and the gaps listed at the end of section 10.
 
 ---
@@ -108,7 +108,11 @@ Ithilien is a garden gone wild, "a dishevelled dryad loveliness".
 - **Anduin shore:** willows, beeches, reeds; the lawns of Cormallen.
 - **Northern heath:** stone pines over heather and broom; open.
 - **Home woods (centre):** small woods with wide glades among them.
-- **Deep woods (south):** oak and beech, canopy nearly closed, ferns below.
+- **Deep woods (south):** old forest. Fewer great trees than in the home woods,
+  but giants (up to about a third taller and broader in the trunk), oak and
+  beech most, their canopy closed high overhead; little grows under them but a
+  few young firs and hazels, fallen trunks, stumps, mossy stones and ferns, so
+  you can see a long way between the trunks.
 - **Heather slopes (east of the Harad Road):** heather and gorse above head
   height, with winding ways between. Almost no trees.
 
@@ -695,6 +699,24 @@ up a band or a host on the road.
   overlay shows the resolution in use. (Headless Chromium has no GPU, so this
   was checked for behaviour, not for the frame rate gained.)
 - The title screen shows v0.3a (a unit test now holds it to `VERSION`).
+
+### v0.3b (after another phone playtest)
+
+- **The deep woods are old forest**: about 40 % fewer great trees, but giants
+  (drawn up to a third taller, a sixth broader in the trunk; the far forest
+  roof over them stands higher to match), and about a quarter of the understory,
+  mostly fallen trunks, stumps and stones; grass thinned to ferns and leaf
+  litter. You can see far between the trunks. In the deep woods on medium that
+  is about a fifth fewer triangles drawn, and far fewer overlapping leaf cards.
+  The home woods keep their riot of younger growth. (The smoke test counts both.)
+- **Shadows come in gently**: the middle form of the trees casts shadows again
+  on every quality (v0.3a's second round had dropped it on medium, which made
+  shadows appear suddenly about 70 m off, for little gain), and all shadows fade
+  out toward the edge of the sun's shadow map instead of ending at a line.
+- **Small plants and grass are not seen growing**: herbs, flowers and small
+  bushes show within 60 m on medium (was 42; 40 low, 72 high) and grow in over
+  the last third of that; the fine grass blades reach 32 m (was 20) and the
+  broader clumps 62 m (was 44), each fading over twice the distance it did.
 
 ### Known gaps to pick up
 

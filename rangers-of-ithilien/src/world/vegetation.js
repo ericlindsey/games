@@ -517,7 +517,8 @@ const CANOPY = {
 };
 const UNDER = {
   central: [['bay', 0.18], ['olive', 0.14], ['hazel', 0.15], ['juniper', 0.09], ['tamarisk', 0.07], ['youngFir', 0.07], ['sapling', 0.09], ['bramble', 0.08], ['log', 0.05], ['stump', 0.03], ['boulder', 0.03], ['boulder2', 0.02]],
-  south: [['hazel', 0.22], ['bay', 0.2], ['youngFir', 0.12], ['sapling', 0.1], ['bramble', 0.1], ['juniper', 0.06], ['log', 0.1], ['stump', 0.04], ['boulder', 0.04], ['boulder2', 0.02]],
+  // the deep woods are old forest: little grows under the giants but a few young firs and hazels, and what has fallen
+  south: [['hazel', 0.12], ['bay', 0.07], ['youngFir', 0.14], ['sapling', 0.05], ['bramble', 0.04], ['log', 0.26], ['stump', 0.12], ['boulder', 0.12], ['boulder2', 0.08]],
   heath: [['juniper', 0.45], ['olive', 0.25], ['tamarisk', 0.15], ['boulder2', 0.15]],
   river: [['tamarisk', 0.35], ['hazel', 0.25], ['bay', 0.25], ['sapling', 0.15]],
   foothill: [['juniper', 0.5], ['olive', 0.3], ['boulder2', 0.2]],
@@ -552,10 +553,11 @@ const _up = new THREE.Vector3(0, 1, 0), _col = new THREE.Color();
  * @returns {{ meshes: THREE.InstancedMesh[], circles: {x:number,z:number,r:number}[] }}
  */
 export function buildVegetation(cx, cz, quality) {
-  const lists = {}; // species -> [x, y, z, rot, scale, tint r, g, b]
+  const lists = {}; // species -> [x, y, z, rot, scale, tint r, g, b, tall]
   const circles = [];
-  const put = (name, x, y, z, rot, scale, r, g, b) => {
-    (lists[name] ||= []).push(x, y, z, rot, scale, r, g, b);
+  // `tall`: how much taller than its width a plant is drawn (the giants of the deep woods)
+  const put = (name, x, y, z, rot, scale, r, g, b, tall = 1) => {
+    (lists[name] ||= []).push(x, y, z, rot, scale, r, g, b, tall);
     const sp = SPECIES[name];
     if (sp.trunk && (!name.endsWith('ock') || scale > 1.3)) circles.push({ x, z, r: sp.trunk * scale, big: GREAT.has(name) });
   };
@@ -579,11 +581,15 @@ export function buildVegetation(cx, cz, quality) {
       if (h < 0.8 || h > 150 || slopeAt(x, z) > 0.5) continue;
       regionWeights(x, z, w);
       if (w.foothill > 0.5 && H(gx, gz, 4) > 0.12) continue;
+      // The deep woods are old forest: fewer great trees, but giants, far taller
+      // and broader in the trunk, with clear ground and long sight between them.
+      const old = w.south;
+      if (old > 0 && H(gx, gz, 40) < 0.42 * old) continue;
       let name = pick(CANOPY[pickRegion(H(gx, gz, 4))], H(gx, gz, 5));
       if (w.lawn > 0.4) name = 'greatBeech';
       if (w.fen > 0.4 || h < 1.8) name = 'willow';
-      const t = 0.84 + 0.26 * H(gx, gz, 6);
-      put(name, x, h - 0.2, z, H(gx, gz, 7) * 6.283, 0.9 + 0.5 * H(gx, gz, 8), t, t * (0.97 + 0.06 * H(gx, gz, 9)), t * 0.95);
+      const t = 0.84 + 0.26 * H(gx, gz, 6), sc = (0.9 + 0.5 * H(gx, gz, 8)) * (1 + 0.15 * old);
+      put(name, x, h - 0.2, z, H(gx, gz, 7) * 6.283, sc, t, t * (0.97 + 0.06 * H(gx, gz, 9)), t * 0.95, 1 + 0.26 * old * (0.6 + 0.4 * H(gx, gz, 41)));
     }
   }
 
@@ -602,6 +608,7 @@ export function buildVegetation(cx, cz, quality) {
       if (h < 1.2 || h > 150 || slopeAt(x, z) > 0.6) continue;
       regionWeights(x, z, w);
       if (w.fen > 0.5 || w.lawn > 0.6) continue;
+      if (w.south > 0 && H(gx, gz, 42) < 0.72 * w.south) continue; // little grows under the giants
       const name = pick(UNDER[pickRegion(H(gx, gz, 13))], H(gx, gz, 14));
       const t = 0.85 + 0.25 * H(gx, gz, 15);
       put(name, x, h - 0.1, z, H(gx, gz, 16) * 6.283, 0.8 + 0.7 * H(gx, gz, 17), t, t, t * 0.95);
@@ -659,20 +666,20 @@ export function buildVegetation(cx, cz, quality) {
   // is settled by distance from the ranger (assignVegetation), tree by tree.
   const meshes = [], groups = [];
   for (const name in lists) {
-    const a = lists[name], n = a.length / 8, sp = SPECIES[name];
+    const a = lists[name], n = a.length / 9, sp = SPECIES[name];
     const mats = new Float32Array(n * 16), cols = new Float32Array(n * 3), xs = new Float32Array(n), zs = new Float32Array(n);
     let cx0 = 0, cz0 = 0;
     for (let i = 0; i < n; i++) {
-      const o = i * 8;
+      const o = i * 9;
       _p.set(a[o], a[o + 1], a[o + 2]);
       _q.setFromAxisAngle(_up, a[o + 3]);
-      _s.setScalar(a[o + 4]);
+      _s.set(a[o + 4], a[o + 4] * a[o + 8], a[o + 4]);
       _m.compose(_p, _q, _s).toArray(mats, i * 16);
       cols[i * 3] = a[o + 5]; cols[i * 3 + 1] = a[o + 6]; cols[i * 3 + 2] = a[o + 7];
       xs[i] = a[o]; zs[i] = a[o + 2]; cx0 += a[o] / n; cz0 += a[o + 2] / n;
     }
     let rad = 0, cy = 0;
-    for (let i = 0; i < n; i++) { rad = Math.max(rad, Math.hypot(xs[i] - cx0, zs[i] - cz0)); cy += a[i * 8 + 1] / n; }
+    for (let i = 0; i < n; i++) { rad = Math.max(rad, Math.hypot(xs[i] - cx0, zs[i] - cz0)); cy += a[i * 9 + 1] / n; }
     const sphere = new THREE.Sphere(new THREE.Vector3(cx0, cy + 15, cz0), rad + 40);
     const forms = sp.cls === 'cover' ? ['hi'] : ['hi', 'mid', 'lo'];
     const ms = forms.map((f, k) => {
@@ -680,7 +687,7 @@ export function buildVegetation(cx, cz, quality) {
       m.setColorAt(0, _col.setRGB(1, 1, 1)); // makes the colour buffer
       m.count = 0;
       m.boundingSphere = sphere;
-      m.castShadow = sp.shadow && quality.shadows && (k === 0 || (k === 1 && quality.midShadows)); // the middle form only where there is power to spare
+      m.castShadow = sp.shadow && quality.shadows && k < 2;
       m.receiveShadow = !sp.cover && quality.shadows;
       m.userData.species = name;
       meshes.push(m);

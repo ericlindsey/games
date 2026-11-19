@@ -448,6 +448,15 @@ const FRAG_NORMAL = /* glsl */`
 #endif
 `;
 
+// Shadows fade out toward the edge of the sun's shadow map (110 m round the
+// ranger), so they come in gently as you walk, never all at once.
+const SHADOW_RETURN = 'return mix( 1.0, shadow, shadowIntensity );';
+if (!THREE.ShaderChunk.shadowmap_pars_fragment.includes(SHADOW_RETURN)) throw new Error('three.js shadow chunk has changed: update SHADOW_PARS in surface.js');
+const SHADOW_PARS = THREE.ShaderChunk.shadowmap_pars_fragment.replace(SHADOW_RETURN, `{
+    vec2 shadowEdge = min(shadowCoord.xy, 1.0 - shadowCoord.xy);
+    return mix( 1.0, shadow, shadowIntensity * smoothstep(0.0, 0.14, min(shadowEdge.x, shadowEdge.y)) );
+  }`);
+
 /**
  * A Lambert material with surface detail.
  * @param {object} o kind (default SURF kind), cards (leaf atlas + alpha test),
@@ -480,6 +489,7 @@ export function surfaceMaterial(o = {}) {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_SWAY)
       .replace('#include <project_vertex>', '#include <project_vertex>\n' + VERT_TAIL);
     shader.fragmentShader = shader.fragmentShader
+      .replace('#include <shadowmap_pars_fragment>', SHADOW_PARS)
       .replace('#include <common>', '#include <common>\n' + FRAG_HEAD)
       .replace('#include <color_fragment>', '#include <color_fragment>\n' + FRAG_COLOR)
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + FRAG_NORMAL)

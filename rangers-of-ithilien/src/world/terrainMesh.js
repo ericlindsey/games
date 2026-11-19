@@ -6,6 +6,8 @@ import { WORLD, CHUNK } from '../config.js';
 import { heightAt } from './terrain.js';
 import { groundColor, canopyColor } from './groundColor.js';
 import { forestDensity } from './forest.js';
+import { regionWeights } from './regions.js';
+const _w = {};
 import { HA } from './layout.js';
 import { noise2 } from '../util/noise.js';
 import { buildVegetation, assignVegetation, setLodRanges } from './vegetation.js';
@@ -115,7 +117,8 @@ function canopyHeight(x, z) {
   const h = heightAt(x, z);
   const d = farForest(x, z, h);
   if (d < 0.25) return h - 12;
-  return h + 14 + d * 12 + noise2(x / 45, z / 45, 77) * 5;
+  regionWeights(x, z, _w);
+  return h + 14 + d * 12 + _w.south * 12 + noise2(x / 45, z / 45, 77) * 5; // the old forest of the south stands higher
 }
 
 export class Ground {
@@ -127,7 +130,7 @@ export class Ground {
     this.material = surfaceMaterial({ kind: SURF.ground });
     setLodRanges(quality);
     // herbs and small stones shrink away toward the edge of where they are shown
-    for (const m of [materials.herb, materials.rockCover]) m.userData.surf.uFade.value.set(quality.coverFar - 16, quality.coverFar - 1);
+    for (const m of [materials.herb, materials.rockCover]) m.userData.surf.uFade.value.set(quality.coverFar * 0.68, quality.coverFar - 1);
 
     // Backdrop: the whole land, coarse, with the roof of the far forest above it.
     const b = WORLD.backdrop, step = 32;

@@ -69,7 +69,7 @@ export function grassAt(x, z, h) {
   if (x < HA.x + 1 && x > HA.gorge.endX - 40 && Math.abs(z - (x < HA.basin.minX ? gorgeZ(x) : HA.z)) < 30 && slopeAt(x, z) > 0.9) return 0;
   let d = 1 - 0.72 * forestDensity(x, z);
   regionWeights(x, z, _w);
-  d *= 1 - 0.35 * _w.heath - 0.55 * _w.foothill - 0.5 * _w.fen;
+  d *= 1 - 0.35 * _w.heath - 0.55 * _w.foothill - 0.5 * _w.fen - 0.6 * _w.south; // (the old forest's floor is ferns and leaf litter)
   if (inField(x, z) || _w.lawn > 0.3) d = Math.max(d, 0.95);
   d *= 1 - Math.min(1, pathWear(x, z) * 1.3);
   if (campNear(x, z, 9)) d *= 0.25;
@@ -94,9 +94,10 @@ export class Grass {
     this.spacing = q.grassSpacing ?? 0.7;
     this.shadows = q.shadows;
     const fn = this.near.material.userData.surf, ff = this.far.material.userData.surf;
-    fn.uFade.value.set(this.nearR - 8, this.nearR);
-    ff.uFadeIn.value.set(this.nearR - 10, this.nearR - 2);
-    ff.uFade.value.set(Math.max(4, this.radius - 18), this.radius - 2);
+    // (each fade spread wide, so nothing is seen growing out of the ground)
+    fn.uFade.value.set(this.nearR - 14, this.nearR);
+    ff.uFadeIn.value.set(this.nearR - 16, this.nearR - 2);
+    ff.uFade.value.set(Math.max(4, this.radius - 24), this.radius - 2);
     for (const key of [...this.tiles.keys()]) this.drop(key);
   }
 

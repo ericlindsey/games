@@ -147,7 +147,8 @@ Rules of thumb:
   half taken back by forest. Great trees "planted long ago" stand 25-38 m tall over
   a riot of younger growth; old field walls, roofless houses and rows of planted
   trees show through. Woods with wide glades in the north, closing to deep forest
-  in the south. Herbs and flowers everywhere.
+  in the south: old forest, giants taller still over clear, fern-grown ground, so
+  you see far between the trunks. Herbs and flowers everywhere.
 - East of the Harad Road the country is tall heather and gorse, over head height,
   with winding ways between.
 - The land rises from the river in the west to the mountains in the east. Streams
@@ -209,7 +210,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.3.3`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.3.4`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add
