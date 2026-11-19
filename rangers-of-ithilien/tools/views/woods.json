@@ -1,0 +1,8 @@
+[
+ { "name": "deep-woods", "ranger": [700, 3000, 0], "follow": [0, 2.0, -4.5] },
+ { "name": "deep-woods-east", "ranger": [900, 2700, 1.6], "follow": [-4.5, 2.0, 0] },
+ { "name": "deep-woods-south", "ranger": [1150, 3300, 3.1], "follow": [0, 2.2, 4.5] },
+ { "name": "giants", "ranger": [1150, 3305, 3.1], "from": [1135, 50.5, 3340], "at": [1150, 66, 3285], "fov": 75 },
+ { "name": "home-woods", "ranger": [1100, 1600, 3.1], "follow": [0, 2.2, 6] },
+ { "name": "cormallen", "ranger": [335, 1195, 1.57], "follow": [-6, 2.5, 1] }
+]

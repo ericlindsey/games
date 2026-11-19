@@ -809,6 +809,12 @@ up a band or a host on the road.
 - Arms bend only forward (no twist), so the drawing arm reaches forward rather
   than out to the side as a real archer's does.
 - Field walls and houses are axis-aligned. Osgiliath is plain blocks.
+- **The old farms are the costliest thing drawn** in many places: 52 meshes, one
+  per farmstead or hamlet, each 100-400 m across with its fields' walls (so they
+  are seldom culled), 14k-30k triangles each, about 700k in all, with no lighter
+  distant form; about 500k of them were in view from the pool at Henneth Annûn
+  on medium (`tools/perf.mjs`). A far form, or splitting them by terrain chunk,
+  would be the next big saving.
 - Nothing yet happens when every camp is cleared beyond Faramir's last words.
 
 ## 11. M6: provinces, captains and settlement (design)
