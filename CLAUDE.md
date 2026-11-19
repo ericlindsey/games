@@ -44,4 +44,10 @@ errors, and look at a screenshot. Each game's CLAUDE.md lists its own checks.
 ## Git
 
 - Small, focused commits with a message that says what changed and why.
-- Do not open pull requests unless asked.
+- When a substantial change is ready to test (it runs, the checks in the game's
+  CLAUDE.md have been done, and its docs are current), push it and open a pull
+  request without waiting to be asked. Put what changed, how it was checked, and
+  how to try it in the description. If a pull request for the branch is already
+  open, push to it and update its description instead of opening another.
+- Do not watch CI or pull request comments: this repo does not use them. The
+  owner tests the pull request and reports problems in the conversation.

@@ -74,6 +74,7 @@ export const ITEMS = {
 
   // ---- to eat and drink ----
   draught: { name: 'Healing draught', kind: 'heal', heal: 60, value: 22, text: 'Kingsfoil steeped by Éowyn. Restores a good deal.' },
+  orcBread: { name: 'Orc bread', kind: 'heal', heal: 10, value: 1, text: 'Grey, hard and sour, and best not asked about. It keeps them going; it will keep you going, a little.' },
   waybread: { name: 'Waybread', kind: 'heal', heal: 22, value: 7, text: 'Rangers’ fare. Better than it tastes.' },
   salve: { name: 'Salve of the Houses of Healing', kind: 'heal', heal: 100, value: 55, text: 'Made in Minas Tirith. Closes any wound that is not mortal.' },
 

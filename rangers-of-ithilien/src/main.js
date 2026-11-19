@@ -352,9 +352,17 @@ async function boot() {
       };
       extra.push({ label: 'May I see your map?', to: 'map' });
     }
-    if (id === 'eowyn' && state.quests.done.includes('e1') && inv.count(state, 'athelas') >= 2) {
-      nodes.brew = { text: 'Give them here. … There: steeped, strained, and stoppered. Drink it when you must, not before.', options: [{ label: 'Thank you.' }] };
-      extra.push({ label: 'Will you steep these? (2 kingsfoil)', to: 'brew', do: () => { inv.removeItem(state, 'athelas', 2); inv.addItem(state, 'draught'); refreshHud(); save(); } });
+    const pairs = Math.floor(inv.count(state, 'athelas') / 2); // two plants to a draught; an odd one is kept
+    if (id === 'eowyn' && state.quests.done.includes('e1') && pairs > 0) {
+      nodes.brew = {
+        text: pairs === 1 ? 'Give them here. \u2026 There: steeped, strained, and stoppered. Drink it when you must, not before.'
+          : `All of them? Then sit; this takes a while. \u2026 There: ${pairs} draughts, steeped, strained and stoppered. Drink them when you must, not before.`,
+        options: [{ label: 'Thank you.' }],
+      };
+      extra.push({
+        label: `Will you steep these? (${pairs * 2} kingsfoil for ${pairs === 1 ? 'a draught' : pairs + ' draughts'})`, to: 'brew',
+        do: () => { inv.removeItem(state, 'athelas', pairs * 2); inv.addItem(state, 'draught', pairs); refreshHud(); save(); },
+      });
     }
     nodes.hello = { ...base.nodes.hello, options: [...extra, ...base.nodes.hello.options] };
     return { ...base, nodes };
@@ -372,7 +380,16 @@ async function boot() {
         return { label: `Speak with ${who.name}`, use: () => { openPanel(); dialogue.start(speakerFor(n.id), { cleared: state.cleared, discovered: state.discovered, ruinIds }); } };
       }
     }
+    if (refuge.beds.some((b) => Math.hypot(p.x - b.x, p.z - b.z) < 1.4)) return { label: 'Rest a while', use: rest };
     return null;
+  };
+  /** Lie down on the mats in the cave: an hour's sleep, and the ranger rises whole. */
+  const rest = () => {
+    if (state.health >= 100) { hud.toast('', 'You are not weary. There is work to do.'); return; }
+    state.health = 100;
+    hud.setHealth(state.health);
+    hud.toast('You rest', 'An hour on the mats, with the falls loud outside the window. You rise whole.');
+    save();
   };
 
   const found = (id, title, blurb) => {

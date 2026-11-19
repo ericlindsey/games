@@ -11,12 +11,15 @@
 //   clearCount    { count }             so many camps broken in all ('all' for every one)
 //   clearWhere    { where, count }      so many broken among camps matching: 'stockade' | 'heather' | 'warcamp'
 //   clearSince    { where, count, base } so many more broken (since the task was taken) among camps matching
-//                                        'stockade' (stockades and war-camps) or a region name
+//                                        'stockade' (stockades and war-camps) or 'province:<id>'
 //   bands         { count, base }       so many bands beaten on the road since it was taken
 //   discover      { ids }               all of these places found
 //   discoverCount { set, count }        so many found among: 'ruins' | 'villages' | 'places'
 //   seek          { set, count, base }  so many more found among a set: 'kind:<relic kind>' | 'farms' |
-//                                        'villages' | 'region:<region name>'
+//                                        'villages' | 'province:<id>'
+//                 (a `where` or `set` ending '@<province id>' counts only what lies in that province;
+//                  'region:<name>' is still read for errands taken before there were provinces)
+//   freed         { province }          that province freed: its hold and three in four of its camps
 //   gather        { item, count }       so many carried (handed over on return)
 //   gatherAll     { items, count }      so many of each carried (handed over on return)
 //   all           { of: [...] }         every one of these
@@ -42,7 +45,23 @@ export const QUESTS = [
     reward: { silver: 25, items: { leatherGreaves: 1 }, honour: 30 },
   },
   {
-    id: 'f3', giver: 'faramir', requires: ['f2'], title: 'The road under the mountains',
+    id: 'f14', giver: 'faramir', requires: ['f2'], title: 'The Window Woods',
+    offer: 'Five camps is a beginning. But they are not leaderless out there. In these woods, between the river and the road, whoever leads them keeps the strongest camp of all: their hold. Break it, and enough of the rest that they give the woods up for lost. Then the Window Woods are ours, from Cair Andros to the Harad Road.',
+    remind: 'Free the Window Woods: break their hold, and three camps in four with it. Your pack will show you how it stands.',
+    done: 'Then the Window Woods are free. I walked down to the river this morning and met no one but a fox. Take these; the north will be harder on you than you think.',
+    objective: { type: 'freed', province: 'henneth' },
+    reward: { silver: 35, items: { draught: 2 }, honour: 45 },
+  },
+  {
+    id: 'f15', giver: 'faramir', requires: ['f14'], title: 'Smoke on the heath',
+    offer: 'North of the woods the land opens out into heath, all the way to the fens. They camp there because they think no one goes so far. But a fire on open heath is seen for miles; you will not lack for marks. Free Forlad as you freed the Window Woods.',
+    remind: 'Free Forlad, the North Plain: its hold, and three camps in four. Look for their smoke.',
+    done: 'Forlad too. That is the whole of the north, and I can send word over the river that the land is safe to walk. Arrows, for the road east; you will need them.',
+    objective: { type: 'freed', province: 'forlad' },
+    reward: { silver: 40, arrows: 30, honour: 55 },
+  },
+  {
+    id: 'f3', giver: 'faramir', requires: ['f15'], title: 'The road under the mountains',
     offer: 'East of us the old road runs south from the Black Gate. Beyond it the heather stands higher than a man, and things hide in it. Find the road, and break one camp on the far side. Keep to the ways between the bushes.',
     remind: 'Find the Harad Road, and break a camp in the heather beyond it.',
     done: 'So the heather can be won too. I was not sure of it. Arrows, and silver for Mablung’s table.',
@@ -50,7 +69,7 @@ export const QUESTS = [
     reward: { silver: 30, arrows: 20, honour: 35 },
   },
   {
-    id: 'f4', giver: 'faramir', requires: ['f2'], title: 'The stockade',
+    id: 'f4', giver: 'faramir', requires: ['f15'], title: 'The stockade',
     offer: 'Some of them have done more than light a fire. Our scouts have seen camps ringed with sharpened stakes, and a captain in each who keeps the others from running. Break one such, captain and all.',
     remind: 'A camp with a stockade and a captain. They lie well out from here. Go armed, and go mended.',
     done: 'A captain down. The rest will hear of it, and sleep the worse. This came up from Pelargir with the last of the ships. It is broad in the blade; it will not break on Uruk iron.',
@@ -243,10 +262,10 @@ export const ERRANDS = {
         remind: `The camp ${p.where}. It is marked on your map.`,
         done: 'Good. I shall tell the scout; she will be glad she came back to report it.',
       }),
-      captain: () => ({
+      captain: (p) => ({
         title: 'Another captain',
-        offer: 'There is a captain still holding a stockade together out there. Break it, and him.',
-        remind: 'A stockade or a war-camp broken, captain and all.',
+        offer: `There is a captain still holding a stockade together in ${p.where}. Break it, and him.`,
+        remind: `A stockade or a war-camp in ${p.where} broken, captain and all.`,
         done: 'One captain fewer. Well done.',
       }),
     },
@@ -276,8 +295,8 @@ export const ERRANDS = {
       }),
       kind: (p) => ({
         title: p.title,
-        offer: `I have read of ${p.kindPlural} in Ithilien and I have not got one on my map that you have not seen already. Find me another.`,
-        remind: `Another of the ${p.kindPlural}, one not yet on my map.`,
+        offer: `I have read of ${p.kindPlural} in Ithilien, and there should be one in ${p.where} that is not yet on my map. Find it for me.`,
+        remind: `One of the ${p.kindPlural}, in ${p.where}, not yet on my map.`,
         done: 'Another for the map! Tell me how it lies. … Thank you.',
       }),
       area: (p) => ({
@@ -288,8 +307,8 @@ export const ERRANDS = {
       }),
       site: (p) => ({
         title: p.kind === 'hamlet' ? 'A lost village' : 'An old farmstead',
-        offer: p.kind === 'hamlet' ? 'There is another village I have a name for and no place. Find me one more village.' : 'I want to know where the farms were, so the settlers know where the good land is. Find me an old farmstead I have not got.',
-        remind: p.kind === 'hamlet' ? 'Another ruined village.' : 'Another old farmstead.',
+        offer: p.kind === 'hamlet' ? `There is another village I have a name for and no place. It should lie somewhere in ${p.where}. Find it for me.` : `I want to know where the farms were in ${p.where}, so the settlers know where the good land is. Find me an old farmstead I have not got.`,
+        remind: p.kind === 'hamlet' ? `Another ruined village, in ${p.where}.` : `Another old farmstead, in ${p.where}.`,
         done: 'Thank you. It goes on the map, and in the book for the settlers.',
       }),
     },

@@ -41,6 +41,11 @@ export const PROVINCES = [
     blurb: 'The Cross-roads, the eastern shore of Osgiliath, and the mouth of the Morgul Vale.' },
 ];
 export const provinceById = Object.fromEntries(PROVINCES.map((p) => [p.id, p]));
+/**
+ * The order Faramir means them to be won in (PLAN.md 11.6): the home country,
+ * then the middle, then the south. The tasks look to the first one not yet free.
+ */
+export const CAMPAIGN = ['henneth', 'forlad', 'gorse', 'bridgelands', 'ithil', 'southwood', 'ash', 'morgul'];
 /** "Forlad, the North Plain", or just the name when it is already English. */
 export const fullName = (p) => (p.title ? `${p.name}, ${p.title}` : p.name);
 

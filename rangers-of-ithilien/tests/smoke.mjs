@@ -609,6 +609,22 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     roi.refreshHud();
   });
 
+  // Wounds stay until mended: they do not close by themselves, but an hour on the
+  // mats in the cave makes the ranger whole. And Éowyn steeps all the kingsfoil at once.
+  await page.evaluate(() => { roi.enemies.reset(); roi.goHome('Home.'); roi.state.health = 50; roi.combat.sinceHurt = 99; window.p0 = roi.state.stats.playSeconds; });
+  await page.waitForFunction(() => roi.state.stats.playSeconds - p0 >= 2, null, { timeout: 300000 });
+  check(await page.evaluate(() => roi.state.health === 50), 'wounds do not mend by themselves');
+  await page.evaluate(() => { const b = roi.refuge.beds[2]; roi.teleport(b.x, b.z, 0, 40); });
+  await page.waitForFunction(() => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes('Rest a while'), null, { timeout: 120000 });
+  await page.keyboard.press('KeyE');
+  check(await page.waitForFunction(() => roi.state.health === 100, null, { timeout: 60000 }).then(() => true, () => false), 'resting on a mat in the cave makes the ranger whole');
+  await page.evaluate(() => { if (!roi.state.quests.done.includes('e1')) roi.state.quests.done.push('e1'); roi.state.items.athelas = 7; roi.state.items.draught = 0; });
+  await talkTo('eowyn');
+  await choose('6 kingsfoil for 3 draughts');
+  check(await page.evaluate(() => roi.state.items.athelas === 1 && roi.state.items.draught === 3), 'Éowyn steeps all the kingsfoil at once, two to a draught');
+  await choose('Thank you');
+  if (await page.isVisible('#dialogue')) await page.keyboard.press('Escape');
+
   // Provinces: the place line names them, crossing a border is told, breaking a
   // hold with three in four of its camps frees one, and the pack and map show it.
   await page.evaluate(() => { roi.enemies.reset(); roi.teleport(700, 1000, 0); });
