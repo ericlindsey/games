@@ -734,6 +734,32 @@ up a band or a host on the road.
   the last third of that; the fine grass blades reach 32 m (was 20) and the
   broader clumps 62 m (was 44), each fading over twice the distance it did.
 
+### v0.4.0: provinces (M6, step 1)
+
+- **Eight provinces** (`world/provinces.js`, pure), bordered by the streams that
+  cross the whole land, the Harad Road, and a strip along the southern road
+  (section 11.1). `provinceAt(x, z)` reads a table of each border stream, so it
+  is cheap enough for every frame.
+- **Each has a hold**: its strongest camp. A province is **freed** when its hold
+  is broken and three in four of its camps (`systems/provinces.js`, worked out
+  from `state.cleared` like the tasks; nothing new is saved).
+- **The place line** names the province instead of the terrain region (the
+  terrain names stay in `regions.js` for plants and look). Crossing a border, after
+  a second on the far side, a notice gives its name, a line about it, and how it
+  stands.
+- **Breaking camps tells you** when a hold falls ("N more camps and X is free"),
+  when only the hold is left, and when a province is freed.
+- **The map** draws the borders (a red dash-dot), the provinces' names with how
+  many camps of the needed number are broken, a green wash over freed ones, and
+  each hold as a square once found (red standing, green broken).
+- **The pack** has a section, The land, with each province's state and a bar
+  toward freeing it.
+- `PLACES` (every old place, now with its province) moved from `systems/quests.js`
+  to `systems/provinces.js`; quests.js re-exports it.
+- Testing page: pick a province to go to its hold or free it.
+- Removed nothing yet: self-healing stays until settlements give a place to rest
+  (step 5).
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -766,20 +792,35 @@ is built. The decisions are in section 9.
 The five terrain regions (`world/regions.js`) are kinds of country, not places to
 free: the Home Woods holds 89 of 194 camps and two stockades, the Heather Slopes
 has no ruins or plants, and every stockade and war-camp lies south of the falls.
-Provinces are a new layer, drawn over the regions, sized so each is a job of
-work. Numbers from the current world (bands north to south, heather east of the
-Harad Road):
+Provinces are a new layer (`world/provinces.js`), drawn over the regions.
 
-| Province | Where | Danger | Camps | Captains now | Ruins + farms/villages |
-|---|---|---|---|---|---|
-| **Forlad**, the North Plain | far north: heath and fen-edge | 1 | 45 | 0 | 6 + 9 |
-| **Eryn Henneth**, the Window Woods | round Henneth Annûn and Cair Andros | 1 | 36 | 0 | 10 + 7 |
-| **The Cormallen Woods** | about the Field of Cormallen | 2 | 34 | 0 | 11 + 8 |
-| **Eryn Ithil**, the Moonwood | the middle woods | 2 | 24 | 2 | 8 + 9 |
-| **The Bridgelands** | the Old Bridge country | 3 | 22 | 5 + 2 war-camps | 11 + 8 |
-| **The Morgul Marches** | the Cross-roads and the mouth of the Vale | 4 | 18 | 6 + 3 war-camps | 9 + 11 |
-| **The Gorse Fells** | the upper heather, east of the road | 3 | 9 | 2 | 0 |
-| **The Ash Fells** | the lower heather, east of the road | 4 | 6 | 5 | 0 |
+**Borders follow the land.** West of the Harad Road, the five streams that run the
+whole way from the mountains to the Anduin (crossing the middle of the land at
+about z 740, 1520, 2180, 2990 and 3330) cut the woods into bands. East of the
+road the heather is two fells, split where the third of those streams comes down.
+A strip 200 m deep along the southern road belongs to the Morgul Marches, so the
+Cross-roads, Osgiliath's shore and the mouth of the Vale lie together. Each
+province's **hold** is its strongest camp, nearest the middle of its camps.
+
+| Province | Landmarks | Camps | Stockades + war-camps | Old places |
+|---|---|---|---|---|
+| **Forlad**, the North Plain | the Northern Fens | 51 | 0 | 19 |
+| **Eryn Henneth**, the Window Woods | Henneth Annûn, Cair Andros, the Field of Cormallen, the Mossy Arch, the Broken Watch | 46 | 0 | 21 |
+| **The Bridgelands** | the Old Bridge, the Fallen Colonnade | 35 | 1 | 24 |
+| **The Gorse Fells** | (heather, east of the road) | 9 | 2 | 0 |
+| **Eryn Ithil**, the Moonwood | the Roofless Shrine, the Stair to Nowhere | 25 | 5 | 22 |
+| **The Southwood** | the Dry Fountain | 9 | 3 + 2 | 10 |
+| **The Ash Fells** | (heather, east of the road) | 5 | 5 | 0 |
+| **The Morgul Marches** | the Cross-roads, Osgiliath, the Morgul Vale | 14 | 4 + 3 | 11 |
+
+(Counts as Node generates the world; Chromium makes 190 camps rather than 194,
+from a float difference in camp placement, so a browser shows a few fewer in the
+north. That is a separate fix.)
+
+Two changes from the first sketch, now the borders follow streams: the Field of
+Cormallen lies by the falls, so it is part of Eryn Henneth and there is no
+"Cormallen Woods"; and the Old Bridge is in the middle of the land, not the
+south. The fifth band is the Southwood instead.
 
 Names: Sindarin where Gondor would keep an old name, English where the books
 would translate one (as with Henneth Annûn and the Window of the Sunset). Forlad
@@ -787,8 +828,9 @@ would translate one (as with Henneth Annûn and the Window of the Sunset). Forla
 Eryn as in Eryn Lasgalen; Ithil, the moon, as in Ithilien. Not checked by anyone
 who knows Sindarin well; change any that grate.
 
-To fix: the three northern provinces need a hold each (promote one camp); the two
-fells need a few old places and plants of their own.
+To fix in later steps: Forlad and Eryn Henneth have no stockade, so their holds are
+only their biggest camps until step 2 makes them real holds; the two fells need a
+few old places and plants of their own.
 
 ### 11.2 Captains
 
@@ -834,9 +876,9 @@ shares others with its neighbours. A first list (real plants, our own choice):
 |---|---|---|
 | Forlad | bog myrtle, cotton-grass | thyme |
 | Eryn Henneth | meadowsweet | thyme, bay |
-| The Cormallen Woods | wood sorrel | bay, poppy |
+| The Bridgelands | wood sorrel | bay, poppy |
 | Eryn Ithil | wild garlic | bay, poppy |
-| The Bridgelands | wild vine | poppy, olive |
+| The Southwood | wild vine | poppy, olive |
 | The Morgul Marches | rosemary | olive |
 | The Gorse Fells | gorse | juniper |
 | The Ash Fells | wild sage | juniper |
@@ -888,17 +930,17 @@ the number of provinces freed.
 **Act II: the middle country** (two provinces freed)
 6. *The road under the mountains*: find the Harad Road. The bands on it carry
    arms south.
-7. *What the bands carry*: break bands until one carries orders. They name a
-   gathering at the Cross-roads.
-8. *The Cormallen Woods* and *Eryn Ithil*: freed by their own arcs.
-9. *The gorse*: free the Gorse Fells.
-10. *The Cross-roads*: not a visit but a fight. The remnants gather round the
-    old king; a few rangers come with you, and you break the host together and set
-    his crown of flowers right. The orders found there point to the Marshal in
-    the Morgul Vale.
+7. *What the bands carry*: break bands until one carries orders.
+8. *The gorse*: free the Gorse Fells.
+9. *The Old Bridge*: the bands' orders name a gathering at the bridge. Break it,
+   so the King's builders can cross, and free the Bridgelands. What is found on
+   them points south, to the Cross-roads.
 
-**Act III: the south** (five provinces freed)
-11. *The Old Bridge*: secure it so the King's builders can cross; free the Bridgelands.
+**Act III: the south** (four provinces freed)
+10. *The Moonwood* and *the Southwood*: freed by their own arcs.
+11. *The Cross-roads*: not a visit but a fight. The remnants gather round the
+    old king; a few rangers come with you, and you break the host together and set
+    his crown of flowers right. The orders found there name the Marshal.
 12. *The broken city*: hold the eastern landing at Osgiliath for the masons,
     with rangers beside you, against a company sent to stop the work. Faramir's
     own beat: he was born to defend it. Osgiliath becomes a settlement and the
@@ -914,7 +956,7 @@ the number of provinces freed.
 **After**: *The last fires*, every camp, with Faramir's map. When the last is
 broken, the last span of the bridge at Osgiliath is laid; the King's gift.
 
-**Companions** (for steps 10, 12 and 15): three or four rangers, archers only.
+**Companions** (for steps 11, 12 and 15): three or four rangers, archers only.
 They keep a ring 15 to 25 m behind and to the sides of the ranger, shoot at
 whatever the ranger is fighting or whatever comes for them, and fall back if an
 enemy closes. They are struck down but never killed (they rise when the fight
@@ -924,7 +966,7 @@ phone is small; their arrows use the ranger's arrow code.
 ### 11.7 Build order
 
 Each step ends playable.
-1. Provinces as data; borders and status on the map; progress in the quest log.
+1. **(built, v0.4.0)** Provinces as data; borders and status on the map; progress in the pack.
 2. Captains: a hold in every province, the captain enemy, outer camps feeding the hold, retaking.
 3. Plants: the new plants, regrowth by province.
 4. Tasks: province arcs, new objectives, Faramir's story; save version 5.

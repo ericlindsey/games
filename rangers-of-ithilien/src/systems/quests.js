@@ -10,9 +10,9 @@ import { QUESTS, ERRANDS, TROPHY_HINTS } from '../data/quests.js';
 import { ITEMS } from '../data/items.js';
 import { CAMPS } from '../world/campSites.js';
 import { HA, LANDMARKS, haradRoadX } from '../world/layout.js';
-import { RELICS, RELIC_KINDS } from '../world/relicSites.js';
-import { SITES } from '../world/oldworks.js';
+import { RELIC_KINDS } from '../world/relicSites.js';
 import { regionName } from '../world/regions.js';
+import { PLACES } from './provinces.js';
 import { herbSites } from '../world/herbSites.js';
 import { addItem, removeItem, count, owns } from './inventory.js';
 import { addHonour } from './renown.js';
@@ -26,13 +26,8 @@ export const HOME_DOOR = { x: HA.hatch.exitX + 2, z: (HA.hatch.z0 + HA.hatch.z1)
 
 // ---- places and camps, sorted into the sets the tasks speak of ----
 
-const NOT_RUINS = ['crossroads', 'osgiliath', 'morgul'];
-/** Every old place: { id, x, z, kind, set } where set is 'ruins' | 'villages' | 'farms'. */
-export const PLACES = [
-  ...LANDMARKS.filter((l) => l.kind && !NOT_RUINS.includes(l.kind)).map((l) => ({ id: l.id, x: l.x, z: l.z, kind: l.kind, set: 'ruins' })),
-  ...RELICS.map((r) => ({ id: r.id, x: r.x, z: r.z, kind: r.kind, set: 'ruins' })),
-  ...SITES.map((s) => ({ id: 'site:' + s.id, x: s.x, z: s.z, kind: s.kind, set: s.kind === 'hamlet' ? 'villages' : 'farms' })),
-];
+/** Every old place (listed in systems/provinces.js, with the province each lies in). */
+export { PLACES };
 const RUIN_IDS = new Set(PLACES.filter((p) => p.set === 'ruins').map((p) => p.id));
 const VILLAGE_IDS = new Set(PLACES.filter((p) => p.set === 'villages').map((p) => p.id));
 const regionCache = new Map();

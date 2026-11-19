@@ -618,3 +618,58 @@ test('every module is in the import map, at one release, so caches never mix rel
   const { VERSION } = await import('../src/config.js');
   assert.ok(html.includes(`<p class="version">v${VERSION}</p>`), `the title screen shows v${VERSION}`);
 });
+
+test('provinces: eight, every camp and place in one, each with a hold, following the land', async () => {
+  const P = await import('../src/world/provinces.js');
+  const { PLACES } = await import('../src/systems/provinces.js');
+  assert.equal(P.PROVINCES.length, 8);
+  const ids = new Set(P.PROVINCES.map((p) => p.id));
+  for (const c of CAMPS) assert.ok(ids.has(P.CAMP_PROVINCE[c.id]), `camp ${c.id} lies in a province`);
+  assert.equal(Object.values(P.PROVINCE_CAMPS).reduce((n, l) => n + l.length, 0), CAMPS.length);
+  for (const p of P.PROVINCES) {
+    assert.ok(P.PROVINCE_CAMPS[p.id].length >= 5, `${p.id} has camps to break`);
+    assert.equal(P.CAMP_PROVINCE[P.HOLDS[p.id].id], p.id, `${p.id}'s hold lies in it`);
+    assert.equal(P.provinceAt(p.label.x, p.label.z), p.id, `${p.id}'s name is written inside it`);
+  }
+  for (const p of PLACES) assert.ok(ids.has(p.province));
+  const at = (id) => { const l = LANDMARKS.find((m) => m.id === id); return P.provinceAt(l.x, l.z); };
+  assert.equal(P.provinceAt(HA.x, HA.z), 'henneth');
+  assert.equal(at('cormallen'), 'henneth');
+  assert.equal(at('cairandros'), 'henneth');
+  assert.equal(at('fens'), 'forlad');
+  assert.equal(at('pier'), 'bridgelands');
+  for (const id of ['crossroads', 'osgiliath', 'morgul']) assert.equal(at(id), 'morgul');
+  assert.equal(P.provinceAt(haradRoadX(1000) + 100, 1000), 'gorse');
+  assert.equal(P.provinceAt(haradRoadX(3000) + 100, 3000), 'ash');
+  // the south is held by stockades and war-camps; the north by lesser camps
+  assert.equal(P.HOLDS.southwood.size, 4);
+  assert.equal(P.HOLDS.morgul.size, 4);
+  // borders are drawn, and the land either side of each differs
+  const lines = P.provinceBorders();
+  assert.ok(lines.length >= 7);
+  for (const l of lines) for (const [x, z] of l.filter((_, i) => i % 10 === 0)) {
+    const around = new Set([[0, -12], [0, 12], [-12, 0], [12, 0]].map(([dx, dz]) => P.provinceAt(x + dx, z + dz)));
+    assert.ok(around.size > 1, `the border at ${x.toFixed(0)}, ${z.toFixed(0)} divides two provinces`);
+  }
+});
+
+test('a province is freed by its hold and three in four of its camps', async () => {
+  const { PROVINCE_CAMPS, HOLDS } = await import('../src/world/provinces.js');
+  const { provinceStatus, freedProvinces, statusLine } = await import('../src/systems/provinces.js');
+  const st = newState();
+  let s = provinceStatus(st, 'henneth');
+  assert.ok(!s.freed && !s.holdFound && s.cleared === 0 && s.need === Math.ceil(s.camps * 0.75));
+  assert.match(statusLine(s), /not yet found/);
+  const others = PROVINCE_CAMPS.henneth.filter((c) => c !== HOLDS.henneth);
+  st.cleared.push(...others.slice(0, s.need).map((c) => c.id)); // enough camps, but the hold stands
+  s = provinceStatus(st, 'henneth');
+  assert.ok(s.cleared >= s.need && !s.freed);
+  st.cleared.push(HOLDS.henneth.id);
+  s = provinceStatus(st, 'henneth');
+  assert.ok(s.freed && s.holdFound);
+  assert.deepEqual(freedProvinces(st), ['henneth']);
+  assert.match(statusLine(s), /^Free\./);
+  const st2 = newState(); // the hold alone is not enough
+  st2.cleared.push(HOLDS.forlad.id);
+  assert.ok(!provinceStatus(st2, 'forlad').freed && provinceStatus(st2, 'forlad').holdCleared);
+});
