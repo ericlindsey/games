@@ -9,7 +9,9 @@ import { SITES } from './world/oldworks.js';
 import { RELICS, RELIC_KINDS } from './world/relicSites.js';
 import { forestDensity } from './world/forest.js';
 import { heightAt, STREAMS } from './world/terrain.js';
-import { regionName, dangerTier } from './world/regions.js';
+import { dangerTier } from './world/regions.js';
+import { PROVINCES, PROVINCE_CAMPS, HOLDS, provinceAt, provinceById, fullName, CAMP_PROVINCE } from './world/provinces.js';
+import { provinceStatus, statusLine } from './systems/provinces.js';
 import { Ground } from './world/terrainMesh.js';
 import { Atmosphere } from './world/atmosphere.js';
 import { Water } from './world/water.js';
@@ -198,17 +200,31 @@ async function boot() {
       hud.setTracker(quests.trackers(state));
     },
     onCampCleared: (camp) => {
+      const pid = CAMP_PROVINCE[camp.id], before = pid && provinceStatus(state, pid); // (a camp made up for a test has none)
       camps.clear(camp.id);
       state.cleared.push(camp.id);
       if (!state.discovered.includes('camp:' + camp.id)) state.discovered.push('camp:' + camp.id);
       if (camp.size >= 3) hud.toast(camp.size === 4 ? 'The war-camp is broken' : 'The stockade is broken', 'Word of it will reach Henneth Ann\u00fbn.');
       else hud.toast('The camp is broken', 'Give it a little while. The land remembers how to be green.');
+      if (pid) provinceNews(pid, before, provinceStatus(state, pid));
       honour(HONOUR.camp[camp.size] ?? 3);
       combat.give(inv.stashLoot(camp, lootRand), 'From their stores');
       hud.setTracker(quests.trackers(state));
       save();
     },
   });
+  /** What the ranger is told when a camp falls and its province moves on. */
+  function provinceNews(pid, before, after) {
+    const name = provinceById[pid].name;
+    if (after.freed && !before.freed) {
+      hud.toast(`${name} is free`, 'The hold is broken and the land is ours again. Faramir will want to hear it from you.');
+    } else if (after.holdCleared && !before.holdCleared) {
+      const left = after.need - after.cleared;
+      hud.toast(`The hold of ${name} is broken`, `${left} more camp${left === 1 ? '' : 's'} broken here, and ${name} is free.`);
+    } else if (!after.holdCleared && after.cleared >= after.need && before.cleared < before.need) {
+      hud.toast(`${name} waits on its hold`, 'Enough of its camps are broken. Break the hold, and the province is free.');
+    }
+  }
   const combat = new Combat({
     scene, camera, player, rig, input, state, enemies, hud,
     onLoot: () => hud.setTracker(quests.trackers(state)), // trophies and the like count at once
@@ -470,6 +486,7 @@ async function boot() {
 
   // ---- loop ----
   let last = performance.now(), time = 0, slow = 0, autosave = 0, fps = 60, shade = 0, fpsCount = 0, fpsTime = 0;
+  const province = { id: null, next: null, since: 0 }; // the province the ranger is in, for the notice on crossing a border
   const loop = (now) => {
     requestAnimationFrame(loop);
     const elapsed = (now - last) / 1000;
@@ -532,7 +549,16 @@ async function boot() {
       if (!down) discover();
       target = input.enabled && !down ? findTarget() : null;
       hud.setPrompt(target ? target.label : null, input.touch);
-      hud.setPlace(Math.hypot(player.pos.x - (HA.x - 10), player.pos.z - HA.z) < 55 ? 'Henneth Annûn' : regionName(player.pos.x, player.pos.z));
+      const here = provinceAt(player.pos.x, player.pos.z);
+      province.id ??= here; // where the ranger wakes is not news
+      hud.setPlace(Math.hypot(player.pos.x - (HA.x - 10), player.pos.z - HA.z) < 55 ? 'Henneth Annûn' : provinceById[here].name);
+      // crossing into another province: told once the ranger has been over the border a moment (no flicker along a stream)
+      if (here !== province.id) { province.since = province.next === here ? province.since + 0.25 : 0; province.next = here; }
+      else province.since = 0;
+      if (province.since >= 1) {
+        province.id = here;
+        if (!down) hud.toast(fullName(provinceById[here]), `${provinceById[here].blurb} ${statusLine(provinceStatus(state, here))}`);
+      }
       hud.setWeapon(state);
       state.stats.playSeconds += 0.25;
       if (!hud.debug.hidden) {
@@ -555,6 +581,7 @@ async function boot() {
   const api = {
     ready: true, state, player, rig, input, camps, ground, grass, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
     landmarks: LANDMARKS, sites: SITES, relics: RELICS,
+    provinces: { PROVINCES, PROVINCE_CAMPS, HOLDS, provinceAt, status: provinceStatus },
     teleport(x, z, yaw = player.yaw, y = undefined) {
       player.place(x, z, yaw, y);
       rig.yaw = yaw;

@@ -10,6 +10,8 @@ import { CAMPS } from './world/campSites.js';
 import { LANDMARKS } from './world/layout.js';
 import { RELICS } from './world/relicSites.js';
 import { SITES } from './world/oldworks.js';
+import { PROVINCES, PROVINCE_CAMPS, HOLDS } from './world/provinces.js';
+import { provinceStatus } from './systems/provinces.js';
 
 export function attach(g) {
   const { state } = g;
@@ -43,6 +45,8 @@ export function attach(g) {
     <h4>The enemy</h4>
     <div class="line"><button data-a="camp">Go to nearest camp</button><button data-a="slay">Slay all here</button></div>
     <div class="line"><button data-a="clearnorth">Clear the north</button><button data-a="clearall">Clear all</button></div>
+    <h4>Provinces</h4>
+    <div class="line"><select id="dev-province"></select><button data-a="phold">Go to hold</button><button data-a="pfree">Free it</button></div>
     <div class="line"><button data-a="patrol">Band on the road</button><button data-a="host">Host on the road</button></div>
     <h4>Save</h4>
     <div class="line"><button data-a="wipe">Wipe testing save</button> <small>kept apart from your real game</small></div>`;
@@ -58,6 +62,7 @@ export function attach(g) {
   ];
   $('dev-place').innerHTML = places.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('');
   $('dev-item').innerHTML = Object.entries(ITEMS).map(([id, it]) => `<option value="${id}">${it.name}</option>`).join('');
+  $('dev-province').innerHTML = PROVINCES.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
   $('dev-quest').innerHTML = QUESTS.map((q) => `<option value="${q.id}">${q.giver[0].toUpperCase()}: ${q.title}</option>`).join('');
 
   const refresh = () => {
@@ -117,6 +122,14 @@ export function attach(g) {
     slay() { for (const e of [...g.enemies.list]) g.enemies.damage(e, 1e9); },
     clearnorth() { g.enemies.reset(); for (const c of CAMPS) if (c.tier === 1) clear(c); },
     clearall() { g.enemies.reset(); for (const c of CAMPS) clear(c); },
+    phold() { const h = HOLDS[$('dev-province').value]; go(h.x + 40, h.z); },
+    pfree() { // the hold, and the camps nearest it, until three in four are broken
+      const id = $('dev-province').value, h = HOLDS[id];
+      g.enemies.reset();
+      clear(h);
+      const rest = PROVINCE_CAMPS[id].filter((c) => c !== h).sort((a, b) => Math.hypot(a.x - h.x, a.z - h.z) - Math.hypot(b.x - h.x, b.z - h.z));
+      for (const c of rest) { if (provinceStatus(state, id).freed) break; clear(c); }
+    },
     patrol() { const p = g.player.pos; g.enemies.spawnPatrol(p.z - 60, 1, { list: ['snaga', 'snaga', 'archer'], host: false }); },
     host() { const p = g.player.pos; g.enemies.spawnPatrol(p.z - 90, 1, { list: ['chief', 'uruk', 'uruk', 'haradrim', 'archer', 'archer', 'snaga', 'snaga', 'snaga', 'snaga', 'snaga'], host: true }); },
     wipe() { g.store.clear(); addEventListener('pagehide', (e) => e.stopImmediatePropagation(), true); location.reload(); },

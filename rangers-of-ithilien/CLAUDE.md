@@ -71,6 +71,7 @@ src/
     relicSites.js     44 lesser ruins (pure)
     paths.js          the old paths joining everything (pure)
     campSites.js      the enemy camps, blight (pure)
+    provinces.js      the eight provinces: borders along streams, provinceAt(x, z), each one's camps and hold (pure)
     herbSites.js      where kingsfoil and the seed plants grow (pure)
     forest.js         forest density, heather thicket density (pure)
     groundColor.js    ground colour by place, height, slope (pure)
@@ -98,6 +99,7 @@ src/
   systems/
     save.js           the only code that touches localStorage
     inventory.js      pack, gear, wear and honing, healing, buying, selling, loot tables (pure)
+    provinces.js      how each province stands (freed = hold + 3 in 4 camps); every old place, by province (pure)
     quests.js         reads data/quests.js against the saved state; builds errands, hints (pure)
     renown.js         renown points and levels; what deeds are worth; how the enemy grows (pure)
     combat.js         the ranger's sword and bow, arrows in flight, health, loot bags
@@ -109,7 +111,8 @@ tests/
 
 Files marked (pure) must not import Three.js or touch the DOM, so they run in Node tests.
 Their import order is fixed, to avoid cycles:
-layout -> regions -> terrain -> oldworks -> relicSites -> paths -> campSites -> forest -> groundColor.
+layout -> regions -> terrain -> oldworks -> relicSites -> paths -> campSites -> provinces -> forest -> groundColor.
+In systems/, provinces comes before quests (quests may ask after provinces, never the reverse).
 
 Rules of thumb:
 
@@ -173,6 +176,10 @@ Rules of thumb:
   never saved; they are rebuilt from the camps as the ranger moves.
 - A camp is cleared only by `Enemies.damage` reducing its last defender to no
   health, which calls `onCampCleared` in main.js. Do not add other routes.
+- Provinces (`world/provinces.js`) are places to win; the terrain regions
+  (`world/regions.js`) are kinds of country. Do not mix them up: the place line
+  and the tasks speak of provinces, plants and looks follow regions. How a
+  province stands is worked out from the saved state, never stored.
 - Tasks are data (`data/quests.js`). Progress is computed from the saved state
   each time it is asked for, so there are no counters to keep in step. A new
   kind of objective needs a case in `systems/quests.js` `progress()` (and in
@@ -210,7 +217,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.3.4`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.4.0`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add
