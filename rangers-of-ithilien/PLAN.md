@@ -374,7 +374,11 @@ story is expanded into three acts.
 | Freeing a province | Its captain dead **and** 75% of its camps broken. The rest are remnants. |
 | Retaken camps | While a province's captain lives, broken camps near the hold are sometimes retaken. Never after. |
 | Settlements | Rest (full health), save, quick travel, trade. Villagers give tasks, seed tasks among them. |
-| Healing | No slow self-healing. Health comes from food and draughts, and rest at Henneth Annûn or a settlement. |
+| Healing | No slow self-healing. Health comes from food and draughts, and rest at Henneth Annûn or a settlement. The first province may take a few trips home. |
+| Province names | Tolkienesque: Sindarin where the books would have one, English where they would translate (section 11.1). |
+| The Marshal | Yes: an Uruk war-chief over the captains, met at the mouth of the Morgul Vale. |
+| Companions | A few rangers fight beside you at the Cross-roads, at the Vale, and holding Osgiliath. Archers who keep their distance while the ranger wades in. |
+| Osgiliath | A settlement of its own (the ninth). The bridge is rebuilt in stages; the last span is laid only when every camp is cleared. |
 | Finale | Every province freed and settled. Every camp is an extra last goal after it. |
 | Plants | One or two found only in each province, plus shared ones. Every plant grows back: one picked means one grows somewhere else in the same province. |
 
@@ -766,19 +770,25 @@ Provinces are a new layer, drawn over the regions, sized so each is a job of
 work. Numbers from the current world (bands north to south, heather east of the
 Harad Road):
 
-| Province (working name) | Danger | Camps | Captains now | Ruins + farms/villages |
-|---|---|---|---|---|
-| The Fen-edge and Heath (far north) | 1 | 45 | 0 | 6 + 9 |
-| The Falls (round Henneth Annûn, Cair Andros) | 1 | 36 | 0 | 10 + 7 |
-| Cormallen Woods | 2 | 34 | 0 | 11 + 8 |
-| The Middle Woods | 2 | 24 | 2 | 8 + 9 |
-| The Old Bridge country | 3 | 22 | 5 + 2 war-camps | 11 + 8 |
-| The Cross-roads and the Morgul Vale | 4 | 18 | 6 + 3 war-camps | 9 + 11 |
-| The Upper Heather (east of the road) | 3 | 9 | 2 | 0 |
-| The Lower Heather (east of the road) | 4 | 6 | 5 | 0 |
+| Province | Where | Danger | Camps | Captains now | Ruins + farms/villages |
+|---|---|---|---|---|---|
+| **Forlad**, the North Plain | far north: heath and fen-edge | 1 | 45 | 0 | 6 + 9 |
+| **Eryn Henneth**, the Window Woods | round Henneth Annûn and Cair Andros | 1 | 36 | 0 | 10 + 7 |
+| **The Cormallen Woods** | about the Field of Cormallen | 2 | 34 | 0 | 11 + 8 |
+| **Eryn Ithil**, the Moonwood | the middle woods | 2 | 24 | 2 | 8 + 9 |
+| **The Bridgelands** | the Old Bridge country | 3 | 22 | 5 + 2 war-camps | 11 + 8 |
+| **The Morgul Marches** | the Cross-roads and the mouth of the Vale | 4 | 18 | 6 + 3 war-camps | 9 + 11 |
+| **The Gorse Fells** | the upper heather, east of the road | 3 | 9 | 2 | 0 |
+| **The Ash Fells** | the lower heather, east of the road | 4 | 6 | 5 | 0 |
+
+Names: Sindarin where Gondor would keep an old name, English where the books
+would translate one (as with Henneth Annûn and the Window of the Sunset). Forlad
+(*forod* north + *lad* plain) is our own coinage on the pattern of Dagorlad;
+Eryn as in Eryn Lasgalen; Ithil, the moon, as in Ithilien. Not checked by anyone
+who knows Sindarin well; change any that grate.
 
 To fix: the three northern provinces need a hold each (promote one camp); the two
-heather provinces need a few old places and plants of their own.
+fells need a few old places and plants of their own.
 
 ### 11.2 Captains
 
@@ -806,8 +816,14 @@ Freed = captain dead and 75% of the province's camps broken. Then:
 | 3 Settled | settlers' first wants met | fields sown with the seed brought, a trader, the well in use |
 
 Each province settles one site, chosen in Éowyn's tasks: a village where there is
-one, otherwise a farmstead. With self-healing gone, the Falls must be the first
-province most players free, so its settlement comes early.
+one, otherwise a farmstead. With self-healing gone, Henneth Annûn is the rest
+point until the first settlement; Eryn Henneth may take a few trips home.
+
+**Osgiliath** is a ninth settlement: the eastern landing, held for the King's
+masons (story step 12). The bridge is rebuilt span by span as the land is won:
+scaffolding and a crane first, a span more for each province freed, and the last
+span laid only when every camp in Ithilien is cleared. It is the picture of the
+whole game's progress, seen from the shore.
 
 ### 11.4 Plants
 
@@ -816,14 +832,14 @@ shares others with its neighbours. A first list (real plants, our own choice):
 
 | Province | Only here | Shared |
 |---|---|---|
-| Fen-edge and Heath | bog myrtle, cotton-grass | thyme |
-| The Falls | meadowsweet | thyme, bay |
-| Cormallen Woods | wood sorrel | bay, poppy |
-| The Middle Woods | wild garlic | bay, poppy |
-| The Old Bridge country | wild vine | poppy, olive |
-| The Cross-roads and the Morgul Vale | rosemary | olive |
-| The Upper Heather | gorse | juniper |
-| The Lower Heather | wild sage | juniper |
+| Forlad | bog myrtle, cotton-grass | thyme |
+| Eryn Henneth | meadowsweet | thyme, bay |
+| The Cormallen Woods | wood sorrel | bay, poppy |
+| Eryn Ithil | wild garlic | bay, poppy |
+| The Bridgelands | wild vine | poppy, olive |
+| The Morgul Marches | rosemary | olive |
+| The Gorse Fells | gorse | juniper |
+| The Ash Fells | wild sage | juniper |
 
 **Regrowth**: a picked plant grows again somewhere else in the same province
 after a while. Deterministic: herbSites makes a pool of candidate spots several
@@ -851,7 +867,7 @@ when. A province always has about the same number of each plant standing.
   (`state.stats.got[province][item]`), and new objectives `clearIn`, `gatherIn`,
   `seekIn`, `captain`, `freed`, `settled`. Save version 5.
 
-### 11.6 Faramir's story (draft, not yet agreed)
+### 11.6 Faramir's story (agreed outline; text still to write)
 
 The war is won but the remnants in Ithilien are being drawn together. A new hand
 is gathering them from the Morgul Vale: an Uruk war-chief the others call **the
@@ -861,43 +877,49 @@ the number of provinces freed.
 
 **Act I: the home country** (from the start)
 1. *The nearest fire*: kept as the first lesson.
-2. *The Falls*: free the home province; its captain is the first boss.
+2. *The Window Woods*: free Eryn Henneth; its captain is the first boss.
 3. *A mark on the captain*: the captain carried a token no one knows. Faramir
    asks Éowyn and Mablung; it is the first word of the Marshal.
 4. *The landing at Cair Andros*: settlers are crossing the river. Clear the shore
-   so they can land; they settle in the Falls.
-5. *Smoke on the heath*: free the far north. Open country, smoke seen far off; a
-   quick province, a pause before the harder woods.
+   so they can land; they settle in Eryn Henneth.
+5. *Smoke on the heath*: free Forlad. Open country, smoke seen far off; a quick
+   province, a pause before the harder woods.
 
 **Act II: the middle country** (two provinces freed)
 6. *The road under the mountains*: find the Harad Road. The bands on it carry
    arms south.
 7. *What the bands carry*: break bands until one carries orders. They name a
    gathering at the Cross-roads.
-8. *Cormallen Woods* and *the Middle Woods*: freed by their own arcs.
-9. *The gorse*: free the Upper Heather.
+8. *The Cormallen Woods* and *Eryn Ithil*: freed by their own arcs.
+9. *The gorse*: free the Gorse Fells.
 10. *The Cross-roads*: not a visit but a fight. The remnants gather round the
-    old king; break the host and set his crown of flowers right. The orders found
-    there point to the Marshal in the Morgul Vale.
+    old king; a few rangers come with you, and you break the host together and set
+    his crown of flowers right. The orders found there point to the Marshal in
+    the Morgul Vale.
 
 **Act III: the south** (five provinces freed)
-11. *The Old Bridge*: secure it so the King's builders can cross; free its country.
-12. *The broken city*: hold the eastern landing at Osgiliath for the masons.
-    Faramir's own beat: he was born to defend it.
+11. *The Old Bridge*: secure it so the King's builders can cross; free the Bridgelands.
+12. *The broken city*: hold the eastern landing at Osgiliath for the masons,
+    with rangers beside you, against a company sent to stop the work. Faramir's
+    own beat: he was born to defend it. Osgiliath becomes a settlement and the
+    bridge-building begins.
 13. *The Marshal's lieutenants*: the war-camps.
-14. *The Lower Heather*.
+14. *The Ash Fells*.
 15. *The mouth of the Vale*: with his lieutenants gone the Marshal comes out to
-    meet you where the Vale opens. The Vale itself stays shut; it is not ours to
-    enter.
+    meet you where the Vale opens, and the rangers come with you. The Vale itself
+    stays shut; it is not ours to enter.
 16. *The garden of Gondor*: every province freed and settled. A gathering at
     Cormallen, Faramir and Éowyn both there.
 
-**After**: *The last fires*, every camp, with Faramir's map; the King's gift.
+**After**: *The last fires*, every camp, with Faramir's map. When the last is
+broken, the last span of the bridge at Osgiliath is laid; the King's gift.
 
-Open: whether the Marshal is wanted at all (versus captains with no one above
-them); whether Faramir and a few rangers fight beside you at the Cross-roads and
-at the Vale (needs companions, which do not exist yet); whether Osgiliath's
-landing becomes a ninth settlement.
+**Companions** (for steps 10, 12 and 15): three or four rangers, archers only.
+They keep a ring 15 to 25 m behind and to the sides of the ranger, shoot at
+whatever the ranger is fighting or whatever comes for them, and fall back if an
+enemy closes. They are struck down but never killed (they rise when the fight
+ends), so the player never has to babysit them. Few figures, so the cost on a
+phone is small; their arrows use the ranger's arrow code.
 
 ### 11.7 Build order
 
@@ -908,3 +930,5 @@ Each step ends playable.
 4. Tasks: province arcs, new objectives, Faramir's story; save version 5.
 5. Settlement: rebuilt farms and villages, settlers, rest, travel, trade; remove self-healing.
 6. Errands scoped to provinces; settlers' tasks.
+7. Companions and the three set-piece fights; the Marshal.
+8. Osgiliath: the landing settlement and the bridge rebuilt in stages.
