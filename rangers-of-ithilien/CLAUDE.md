@@ -180,6 +180,11 @@ Rules of thumb:
   (`world/regions.js`) are kinds of country. Do not mix them up: the place line
   and the tasks speak of provinces, plants and looks follow regions. How a
   province stands is worked out from the saved state, never stored.
+- Wounds never mend by themselves. Health comes back only from healing items,
+  resting on the mats in the cave (`refuge.beds`), and waking at home after a fall.
+- Errands keep to the working province (`workingProvince()` in
+  systems/provinces.js: the first in `CAMPAIGN` not yet free). New errand kinds
+  should too; only trophies, plants and the road are taken from anywhere.
 - Tasks are data (`data/quests.js`). Progress is computed from the saved state
   each time it is asked for, so there are no counters to keep in step. A new
   kind of objective needs a case in `systems/quests.js` `progress()` (and in
@@ -217,7 +222,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.4.0`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.4.1`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

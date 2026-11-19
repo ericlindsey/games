@@ -3,8 +3,8 @@
 import { rng } from '../util/noise.js';
 
 export const ENEMY_TYPES = {
-  snaga: { name: 'Orc', hp: 30, damage: 7, speed: 4.7, scale: 0.92 },
-  archer: { name: 'Orc archer', hp: 24, damage: 8, speed: 4.3, scale: 0.95, ranged: true },
+  snaga: { name: 'Orc', hp: 40, damage: 7, speed: 4.7, scale: 0.92 },
+  archer: { name: 'Orc archer', hp: 30, damage: 8, speed: 4.3, scale: 0.95, ranged: true },
   uruk: { name: 'Uruk', hp: 72, damage: 15, speed: 4.3, scale: 1.12 },
   haradrim: { name: 'Southron', hp: 55, damage: 12, speed: 5.1, scale: 1.02 },
   chief: { name: 'Captain', hp: 150, damage: 21, speed: 4.5, scale: 1.28 },
@@ -12,8 +12,8 @@ export const ENEMY_TYPES = {
 
 /**
  * Who holds a camp: a list of type names, fixed for each camp. Pure.
- * Archers are the dangerous ones to leave alone; the smallest camps near home
- * have none, but most others do.
+ * Archers are the dangerous ones to leave alone. Even the stragglers near home
+ * often keep one, and every band does.
  */
 export function rosterFor(camp, renown = 0) {
   const rand = rng(Math.round(camp.x * 31 + camp.z * 17));
@@ -21,11 +21,11 @@ export function rosterFor(camp, renown = 0) {
   const list = ['snaga', 'snaga'];
   if (camp.size === 1) {
     if (rand() < 0.3) list.push('snaga');
-    if (camp.tier >= 2 && rand() < 0.6) list.push('archer');
+    if (rand() < (camp.tier >= 2 ? 0.7 : 0.5)) list.push('archer');
     if (camp.tier >= 3) list[0] = strong();
   } else if (camp.size === 2) {
-    list.push(strong());
-    if (rand() < 0.8) list.push('archer');
+    list.push(strong(), 'archer');
+    if (camp.tier <= 2 && rand() < 0.35) list.push('archer');
     if (camp.tier >= 3) list.push(rand() < 0.4 ? 'archer' : 'snaga');
   } else if (camp.size === 3) {
     list.push('snaga', 'archer', strong(), strong(), 'chief');
@@ -50,6 +50,6 @@ export function patrolRoster(tier, rand, renown = 0) {
   }
   const list = ['snaga'];
   const n = 1 + Math.floor(rand() * 3) + Math.floor(renown / 20);
-  for (let i = 0; i < n; i++) list.push(rand() < 0.2 ? 'archer' : tier >= 3 && rand() < 0.4 ? 'uruk' : 'snaga');
+  for (let i = 0; i < n; i++) list.push(rand() < 0.3 ? 'archer' : tier >= 3 && rand() < 0.4 ? 'uruk' : 'snaga');
   return { list, host: false };
 }

@@ -374,7 +374,7 @@ story is expanded into three acts.
 | Freeing a province | Its captain dead **and** 75% of its camps broken. The rest are remnants. |
 | Retaken camps | While a province's captain lives, broken camps near the hold are sometimes retaken. Never after. |
 | Settlements | Rest (full health), save, quick travel, trade. Villagers give tasks, seed tasks among them. |
-| Healing | No slow self-healing. Health comes from food and draughts, and rest at Henneth Annûn or a settlement. The first province may take a few trips home. |
+| Healing | No self-healing (removed in v0.4.1). Health comes from food and draughts, and from resting on the mats at Henneth Annûn (and later in settlements). |
 | Province names | Tolkienesque: Sindarin where the books would have one, English where they would translate (section 11.1). |
 | The Marshal | Yes: an Uruk war-chief over the captains, met at the mouth of the Morgul Vale. |
 | Companions | A few rangers fight beside you at the Cross-roads, at the Vale, and holding Osgiliath. Archers who keep their distance while the ranger wades in. |
@@ -760,6 +760,35 @@ up a band or a host on the road.
 - Removed nothing yet: self-healing stays until settlements give a place to rest
   (step 5).
 
+### v0.4.1: after the first province playtest
+
+- **No self-healing.** Wounds stay until mended: by food (orc bread 10, waybread
+  22), Éowyn's draughts (60), salves, or **resting on the mats** along the south
+  wall of the cave (walk onto one: "Rest a while" brings full health).
+- **Orc bread**: orcs, archers and Uruks carry it (about one in five), and a
+  broken camp's stores often hold some. Worth 1 silver.
+- **A harder start**: orcs have 40 health (was 30), archers 30 (was 24). Even
+  the smallest camps near home keep an archer about half the time, and every
+  band of size 2 has one (sometimes two). Road bands are a little more often
+  archers. An arrow that finds neither head nor heart does 0.75 of its damage
+  (a limb, aimed low, 0.6); a head shot still kills, a heart shot still does 1.6.
+  The ranger's bow now takes four body shots, or two to the heart, to fell an orc.
+- **Faramir keeps to the provinces**: after the five camps (f2) he asks for the
+  Window Woods to be freed (f14, a new `freed` objective), then Forlad (f15),
+  and only then the Harad Road (f3) and the stockade (f4). (The rest of the told
+  chain is rebuilt in step 4.)
+- **Errands keep to the working province**: the first in Faramir's order
+  (`CAMPAIGN` in world/provinces.js) that is not yet free. Faramir's camps,
+  scout's reports and captains are there; trophies are only asked for if those
+  in the province carry them (no captain's tokens or Harad gold in the north).
+  Éowyn's ruins, villages, farms and old places are there, and her seed errands
+  ask for a seed that grows there. Province names replace the old terrain names
+  ("Fires in Eryn Henneth", not "Fires in the Deep Woods"). A `where` or `set`
+  ending `@<province>` counts only that province; `region:` is still read for
+  errands taken before.
+- **Steeping**: Éowyn steeps all your kingsfoil at once, two plants to a draught,
+  keeping an odd one back.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -970,7 +999,7 @@ Each step ends playable.
 2. Captains: a hold in every province, the captain enemy, outer camps feeding the hold, retaking.
 3. Plants: the new plants, regrowth by province.
 4. Tasks: province arcs, new objectives, Faramir's story; save version 5.
-5. Settlement: rebuilt farms and villages, settlers, rest, travel, trade; remove self-healing.
+5. Settlement: rebuilt farms and villages, settlers, rest, travel, trade. (Self-healing already removed in v0.4.1.)
 6. Errands scoped to provinces; settlers' tasks.
 7. Companions and the three set-piece fights; the Marshal.
 8. Osgiliath: the landing settlement and the bridge rebuilt in stages.

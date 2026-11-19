@@ -411,6 +411,8 @@ export function buildHennethAnnun(scene, water) {
     faramir: { x: fx + 15.2, z: fz - 4.4, heading: -2.2 },
     eowyn: { x: fx + 8.5, z: fz + 3.2, heading: 1.3 },
     mablung: { x: fx + 25.4, z: fz - 4.6, heading: -1.9 },
+    /** The bedrolls along the south wall, where a ranger may rest. */
+    beds: [0, 1, 2, 3, 4].map((i) => ({ x: fx + 14 + i * 1.5, z: fz + 7.4 })),
     /** True inside the cave or its passages. */
     /** The upper flight: from the landing by the cave door up to the forest. */
     /** The hidden stair: from the hall, east and up through the rock to the hole in the forest floor. */

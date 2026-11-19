@@ -10,6 +10,8 @@ import { ITEMS } from '../data/items.js';
 import { GeoBuilder } from '../world/build.js';
 
 const GRAVITY = 9, SWING = 0.5, FULL_DRAW = 0.8;
+/** What an arrow does that finds neither head nor heart: the body, or (aimed low) a limb. */
+const ARROW_BODY = 0.75, ARROW_LIMB = 0.6;
 const _v = new THREE.Vector3(), _d = new THREE.Vector3();
 
 /** Arms for drawing a bow: the left held out straight, the right drawing the string back to the cheek. */
@@ -183,10 +185,7 @@ export class Combat {
       this.fallen -= dt;
       if (this.fallen <= 0) { this.hud.showFallen(false); this.onFallen(); }
       attack = false;
-    } else if (this.sinceHurt > 9 && st.health < BASE_HEALTH && !this.enemies.inCombat()) {
-      st.health = Math.min(BASE_HEALTH, st.health + dt * 2.5); // rest mends, slowly, once the fight is over
-      this.hud.setHealth(st.health);
-    }
+    } // (wounds do not mend by themselves: food, draughts, or rest on the mats at Henneth Annûn)
 
     if (this.aim && (st.weapon !== 'bow' || st.arrows <= 0 || this.fallen > 0)) this.setAim(false);
     if (touch && this.aim) {
@@ -299,13 +298,14 @@ export class Combat {
           const tall = e ? 1.78 * e.def.scale : 0;
           if (e && a.y > e.y - 0.1 && a.y < e.y + tall + 0.12) {
             // Where it strikes matters, if the ranger chose the mark: the head
-            // kills outright, the heart of the body wounds deeply, a limb less.
+            // kills outright, the heart of the body wounds deeply. Anywhere else an
+            // arrow only wounds: it takes several to bring one down that way.
             const up = (a.y - e.y) / tall, off = Math.hypot(a.x - e.x, a.z - e.z);
-            let dmg = a.damage, mark = '';
+            let dmg = a.damage * ARROW_BODY, mark = '';
             if (a.aimed) {
               if (up > 0.8 && off < 0.32) { dmg = e.type === 'chief' ? a.damage * 3 : 1e6; mark = e.type === 'chief' ? 'His helm turns it!' : 'Head!'; }
               else if (up > 0.42 && up <= 0.8 && off < 0.3) { dmg = a.damage * 1.6; mark = 'Heart'; }
-              else if (up < 0.42) dmg = a.damage * 0.8;
+              else if (up < 0.42) dmg = a.damage * ARROW_LIMB;
             }
             const n = Math.hypot(a.vx, a.vz) || 1;
             this.enemies.damage(e, dmg, a.vx / n, a.vz / n);

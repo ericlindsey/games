@@ -10,7 +10,7 @@
 import { LANDMARKS } from '../world/layout.js';
 import { RELICS } from '../world/relicSites.js';
 import { SITES } from '../world/oldworks.js';
-import { PROVINCES, PROVINCE_CAMPS, HOLDS, provinceAt } from '../world/provinces.js';
+import { PROVINCES, PROVINCE_CAMPS, HOLDS, CAMPAIGN, provinceAt } from '../world/provinces.js';
 
 /** The share of a province's camps that must be broken, with its hold, to free it. */
 export const FREE_SHARE = 0.75;
@@ -47,6 +47,21 @@ export function provinceStatus(state, id) {
 /** Ids of the provinces now free. */
 export function freedProvinces(state) {
   return PROVINCES.filter((p) => provinceStatus(state, p.id).freed).map((p) => p.id);
+}
+
+/** The province the work is in now: the first in Faramir's order not yet free (the last, once all are). */
+export function workingProvince(state) {
+  return CAMPAIGN.find((id) => !provinceStatus(state, id).freed) ?? CAMPAIGN.at(-1);
+}
+
+/**
+ * Progress toward freeing a province as { have, need }: camps broken count up
+ * to one short of what is needed, and the hold is the last of them.
+ */
+export function freeProgress(s) {
+  if (s.freed) return { have: s.need, need: s.need };
+  const others = s.cleared - (s.holdCleared ? 1 : 0);
+  return { have: Math.min(others, s.need - 1) + (s.holdCleared ? 1 : 0), need: s.need };
 }
 
 /** A line saying how a province stands, for the pack and for notices. */

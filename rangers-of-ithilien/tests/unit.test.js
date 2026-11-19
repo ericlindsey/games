@@ -443,7 +443,8 @@ test('errands never run out, grow slowly, and can be done', async () => {
       s.quests.count[giver] = n + 1;
     }
   }
-  assert.ok(seen.faramir.size >= 5 && seen.eowyn.size >= 4, 'they cycle through their kinds');
+  assert.ok(seen.faramir.size >= 4 && seen.eowyn.size >= 4, 'they cycle through their kinds');
+  assert.ok(!seen.faramir.has('captain'), 'no captain is asked for while the work is in the north, where there are none');
   // and even with every camp broken and every place found there is work
   const done = newState();
   done.cleared = CAMPS.map((c) => c.id);
@@ -528,7 +529,7 @@ test('tasks: offered in order, tracked, and rewarded once', async () => {
   assert.ok(CAMPS.some((c) => c.size === 3), 'there are stockades for the stockade task');
 });
 
-test('every camp has a company to fight, stronger with size; archers are not everywhere', async () => {
+test('every camp has a company to fight, stronger with size; archers in most', async () => {
   const { rosterFor, patrolRoster, ENEMY_TYPES } = await import('../src/data/enemies.js');
   let total = 0, withArchers = 0;
   for (const c of CAMPS) {
@@ -538,11 +539,15 @@ test('every camp has a company to fight, stronger with size; archers are not eve
     assert.ok(r.length >= 2 && r.every((t) => ENEMY_TYPES[t]), c.id);
     assert.deepEqual(r, rosterFor(c), 'the same company every time');
     assert.equal(r.includes('chief'), c.size >= 3, 'a captain in every stockade and nowhere else');
-    if (c.size === 1 && c.tier === 1) assert.ok(r.length <= 3 && !r.includes('archer'), 'the smallest camps near home are two or three orcs and no archer');
+    if (c.size === 1 && c.tier === 1) assert.ok(r.length <= 4, 'the smallest camps near home are two to four');
+    if (c.size === 2) assert.ok(r.includes('archer'), 'every band keeps an archer');
   }
   const mean = (size) => { const cs = CAMPS.filter((c) => c.size === size); return cs.reduce((n, c) => n + rosterFor(c).length, 0) / cs.length; };
   assert.ok(mean(1) < mean(2) && mean(2) < mean(3) && mean(3) < mean(4));
-  assert.ok(withArchers < CAMPS.length * 0.6, `${withArchers} of ${CAMPS.length} camps have archers`);
+  assert.ok(withArchers > CAMPS.length * 0.6 && withArchers < CAMPS.length * 0.9, `${withArchers} of ${CAMPS.length} camps have archers`);
+  const near = CAMPS.filter((c) => c.size === 1 && c.tier === 1);
+  const nearArchers = near.filter((c) => rosterFor(c).includes('archer')).length;
+  assert.ok(nearArchers > near.length * 0.3 && nearArchers < near.length * 0.7, `even near home, some stragglers keep an archer (${nearArchers} of ${near.length})`);
   assert.ok(total > 300, `${total} enemies in all`);
 
   let n = 1, hosts = 0;
@@ -672,4 +677,72 @@ test('a province is freed by its hold and three in four of its camps', async () 
   const st2 = newState(); // the hold alone is not enough
   st2.cleared.push(HOLDS.forlad.id);
   assert.ok(!provinceStatus(st2, 'forlad').freed && provinceStatus(st2, 'forlad').holdCleared);
+});
+
+test('errands keep to the province the work is in', async () => {
+  const q = await import('../src/systems/quests.js');
+  const { PROVINCE_CAMPS, CAMP_PROVINCE, HOLDS } = await import('../src/world/provinces.js');
+  const { workingProvince } = await import('../src/systems/provinces.js');
+  const s = newState();
+  assert.equal(workingProvince(s), 'henneth', 'the work begins at home');
+  const errandsAt = (st, giver) => [...Array(12).keys()].map((n) => { st.quests.count[giver] = n; return q.errandFrom(giver, st); });
+  for (const e of errandsAt(s, 'faramir')) {
+    assert.ok(!/Deep Woods|Home Woods|Northern Heath|Heather Slopes|Anduin Shore/.test(e.title + e.offer), `${e.title}: no terrain names`);
+    const o = e.objective;
+    if (o.type === 'clearCamp') assert.equal(CAMP_PROVINCE[o.camp], 'henneth', 'a scout\'s report is of a camp at home');
+    if (o.type === 'clearSince') assert.ok(o.where.endsWith('henneth'), o.where);
+    if (o.type === 'gather') assert.ok(!['captainToken', 'haradGold'].includes(o.item), `nothing only the south carries (${o.item})`);
+  }
+  for (const e of errandsAt(s, 'eowyn')) {
+    if (e.objective.type === 'seek') assert.ok(e.objective.set.endsWith('henneth'), e.objective.set);
+    if (e.objective.type === 'gather') assert.notEqual(e.objective.item, 'oliveStone', 'olives grow only in the south');
+  }
+  // free the home country and Forlad, and the work moves to the Gorse Fells, where captains are
+  for (const pid of ['henneth', 'forlad']) s.cleared.push(...PROVINCE_CAMPS[pid].map((c) => c.id));
+  assert.equal(workingProvince(s), 'gorse');
+  s.quests.count.faramir = 5; // the captain's turn
+  const cap = q.errandFrom('faramir', s);
+  assert.equal(cap.errand, 'captain');
+  assert.equal(cap.objective.where, 'stockade@gorse');
+  const base = q.progress(cap.objective, s).have;
+  s.cleared.push(PROVINCE_CAMPS.bridgelands.find((c) => c.size >= 3).id);
+  assert.equal(q.progress(cap.objective, s).have, base, 'a stockade elsewhere does not count');
+  s.cleared.push(HOLDS.gorse.id);
+  assert.equal(q.progress(cap.objective, s).have, base + 1);
+});
+
+test('Faramir asks for the home country to be freed before he sends you further', async () => {
+  const q = await import('../src/systems/quests.js');
+  const { PROVINCE_CAMPS, HOLDS } = await import('../src/world/provinces.js');
+  const s = newState();
+  s.quests.done.push('f1', 'f2');
+  assert.equal(q.offerFrom('faramir', s).id, 'f14');
+  q.accept(s, 'f14');
+  const def = q.byId.f14;
+  assert.equal(q.progress(def.objective, s).have, 0);
+  assert.equal(q.hintTarget(def.objective, s).id, HOLDS.henneth.id, 'asked, he points to their hold');
+  const others = PROVINCE_CAMPS.henneth.filter((c) => c !== HOLDS.henneth);
+  s.cleared.push(...others.map((c) => c.id));
+  const p = q.progress(def.objective, s);
+  assert.equal(p.have, p.need - 1, 'every camp but the hold leaves it one short');
+  s.discovered.push('camp:' + HOLDS.henneth.id);
+  assert.equal(q.targetOf(def.objective, s).id, HOLDS.henneth.id, 'the tracker points at the hold once it is found');
+  s.cleared.push(HOLDS.henneth.id);
+  assert.ok(q.isComplete(def, s));
+  assert.ok(q.turnIn(s, 'f14'));
+  assert.equal(q.offerFrom('faramir', s).id, 'f15', 'then Forlad, before the road and the stockades');
+  assert.ok(q.byId.f3.requires.includes('f15') && q.byId.f4.requires.includes('f15'));
+});
+
+test('orcs carry orc bread, which mends less than waybread', async () => {
+  const inv = await import('../src/systems/inventory.js');
+  const { ITEMS } = await import('../src/data/items.js');
+  assert.ok(ITEMS.orcBread.kind === 'heal' && ITEMS.orcBread.heal < ITEMS.waybread.heal);
+  let n = 7, bread = 0;
+  const rand = () => ((n = (n * 9301 + 49297) % 233280) / 233280);
+  for (let i = 0; i < 400; i++) if (inv.enemyLoot('snaga', 1, rand).some(([id]) => id === 'orcBread')) bread++;
+  assert.ok(bread > 50 && bread < 150, `about one orc in five carries some (${bread} of 400)`);
+  const st = newState();
+  st.health = 95; st.items = { orcBread: 1, draught: 1 };
+  assert.equal(inv.quickHeal(st), 'orcBread', 'a scratch is mended with the lesser food');
 });

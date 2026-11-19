@@ -12,7 +12,8 @@ import { CAMPS } from '../world/campSites.js';
 import { HA, LANDMARKS, haradRoadX } from '../world/layout.js';
 import { RELIC_KINDS } from '../world/relicSites.js';
 import { regionName } from '../world/regions.js';
-import { PLACES } from './provinces.js';
+import { PLACES, provinceStatus, workingProvince, freeProgress } from './provinces.js';
+import { CAMP_PROVINCE, provinceById, provinceAt } from '../world/provinces.js';
 import { herbSites } from '../world/herbSites.js';
 import { addItem, removeItem, count, owns } from './inventory.js';
 import { addHonour } from './renown.js';
@@ -30,12 +31,19 @@ export const HOME_DOOR = { x: HA.hatch.exitX + 2, z: (HA.hatch.z0 + HA.hatch.z1)
 export { PLACES };
 const RUIN_IDS = new Set(PLACES.filter((p) => p.set === 'ruins').map((p) => p.id));
 const VILLAGE_IDS = new Set(PLACES.filter((p) => p.set === 'villages').map((p) => p.id));
+// 'region:<name>' (terrain regions) is only read for errands taken before provinces; new work speaks of provinces.
 const regionCache = new Map();
 const regionOf = (p) => { if (!regionCache.has(p)) regionCache.set(p, regionName(p.x, p.z)); return regionCache.get(p); };
+/** A `where` or `set` may end '@<province>', to count only what lies in it. */
+const within = (spec) => { const i = spec.indexOf('@'); return i < 0 ? [spec, null] : [spec.slice(0, i), spec.slice(i + 1)]; };
 
 const campById = Object.fromEntries(CAMPS.map((c) => [c.id, c]));
 /** Which camps a `where` names. */
-function campMatches(where, c) {
+function campMatches(spec, c) {
+  const [where, pid] = within(spec);
+  if (pid && CAMP_PROVINCE[c.id] !== pid) return false;
+  if (where === 'any') return true;
+  if (where.startsWith('province:')) return CAMP_PROVINCE[c.id] === where.slice(9);
   if (where === 'stockade') return c.size >= 3;
   if (where === 'warcamp') return c.size === 4;
   if (where === 'heather') return c.x > haradRoadX(c.z) + 10;
@@ -43,7 +51,10 @@ function campMatches(where, c) {
   return false;
 }
 /** Which places a `set` names. */
-function placeMatches(set, p) {
+function placeMatches(spec, p) {
+  const [set, pid] = within(spec);
+  if (pid && p.province !== pid) return false;
+  if (set.startsWith('province:')) return p.province === set.slice(9);
   if (set === 'ruins' || set === 'villages' || set === 'farms') return p.set === set;
   if (set === 'places') return true;
   if (set.startsWith('kind:')) return p.set === 'ruins' && p.kind === set.slice(5);
@@ -80,6 +91,7 @@ export function progress(o, state) {
     case 'seek': return { have: foundIn(state, o.set) - o.base, need: o.count };
     case 'gather': return { have: count(state, o.item), need: o.count };
     case 'gatherAll': return { have: o.items.reduce((n, id) => n + Math.min(o.count, count(state, id)), 0), need: o.items.length * o.count };
+    case 'freed': return freeProgress(provinceStatus(state, o.province));
     case 'all': {
       const parts = o.of.map((p) => progress(p, state));
       return { have: parts.filter((p) => p.have >= p.need).length, need: parts.length };
@@ -104,6 +116,10 @@ export function targetOf(o, state) {
   if (o.type === 'discover') {
     const id = o.ids.find((i) => !state.discovered.includes(i));
     return LANDMARKS.find((l) => l.id === id) ?? null;
+  }
+  if (o.type === 'freed') { // the hold, once it has been found
+    const s = provinceStatus(state, o.province);
+    return s.holdFound && !s.holdCleared ? s.hold : null;
   }
   if (o.type === 'all') {
     for (const p of o.of) { if (isDone(p, state)) continue; const t = targetOf(p, state); if (t) return t; }
@@ -207,43 +223,60 @@ export function errandFrom(giver, state) {
   return null;
 }
 
+/** How a province is named in a sentence: "the Bridgelands", "Eryn Henneth". */
+const inWords = (pid) => provinceById[pid].name.replace(/^The /, 'the ');
+
+// Errands keep to the province the work is in (workingProvince): its camps,
+// its old places. Only trophies, plants and the road bands are taken anywhere.
 function buildFaramir(kind, n, state, E) {
+  const pid = workingProvince(state);
+  const open = uncleared(state).filter((c) => CAMP_PROVINCE[c.id] === pid);
   if (kind === 'trophy') {
-    const [item, base] = E.trophies[n % E.trophies.length];
+    // only what is carried by those still in the province (or on the road, for the arrowheads)
+    const carried = {
+      redEye: open.some((c) => c.size >= 2 || c.tier >= 3), // Uruks
+      captainToken: open.some((c) => c.size >= 3),
+      haradGold: open.some((c) => c.tier >= 3), // Southrons
+    };
+    const L = E.trophies.length;
+    const pick = [...Array(L).keys()].map((k) => E.trophies[(n + k) % L]).find(([id]) => carried[id] ?? true);
+    const [item, base] = pick;
     const c = item === 'captainToken' ? 1 + Math.floor(n / 14) : base + Math.floor(n / 6);
     return { params: { itemName: ITEMS[item].name, count: c, hint: TROPHY_HINTS[item] }, objective: { type: 'gather', item, count: c } };
   }
   if (kind === 'region') {
-    const open = uncleared(state);
-    const regions = [...new Set(open.map(regionOf))].sort();
-    if (!regions.length) return null;
-    const region = regions[n % regions.length];
-    const c = Math.min(open.filter((cp) => regionOf(cp) === region).length, 1 + Math.floor(n / 4), 5);
-    const where = 'region:' + region;
-    return { params: { region, count: c }, objective: { type: 'clearSince', where, count: c, base: clearedWhere(state, where) } };
+    if (!open.length) return null;
+    const c = Math.min(open.length, 1 + Math.floor(n / 4), 5);
+    const where = 'province:' + pid;
+    return { params: { region: provinceById[pid].name, count: c }, objective: { type: 'clearSince', where, count: c, base: clearedWhere(state, where) } };
   }
   if (kind === 'bands') {
     const c = Math.min(3, 1 + Math.floor(n / 8));
     return { params: { count: c }, objective: { type: 'bands', count: c, base: state.stats.bands ?? 0 } };
   }
   if (kind === 'scouted') {
-    const open = uncleared(state);
     const camp = nearestTo(open.filter((c) => !state.discovered.includes('camp:' + c.id))) ?? nearestTo(open);
     if (!camp) return null;
     return { params: { where: directionWords(camp.x, camp.z) }, objective: { type: 'clearCamp', camp: camp.id } };
   }
   if (kind === 'captain') {
-    if (!uncleared(state).some((c) => c.size >= 3)) return null;
-    return { params: {}, objective: { type: 'clearSince', where: 'stockade', count: 1, base: clearedWhere(state, 'stockade') } };
+    if (!open.some((c) => c.size >= 3)) return null;
+    const where = 'stockade@' + pid;
+    return { params: { where: inWords(pid) }, objective: { type: 'clearSince', where, count: 1, base: clearedWhere(state, where) } };
   }
   return null;
 }
 
 function buildEowyn(kind, n, state, E) {
+  const pid = workingProvince(state);
+  const left = PLACES.filter((p) => p.province === pid && !state.discovered.includes(p.id));
   if (kind === 'seeds' || kind === 'kingsfoil') {
-    const item = kind === 'kingsfoil' ? 'athelas' : E.seeds[Math.floor(n / 2) % E.seeds.length];
     const c = kind === 'kingsfoil' ? 4 + Math.floor(n / 4) : 3 + Math.floor(n / 4);
-    if (standingPlants(state, item).length + count(state, item) < c) return null;
+    // a plant that grows in the province, enough of it standing there
+    const here = (id) => standingPlants(state, id).filter((h) => provinceAt(h.x, h.z) === pid).length + count(state, id) >= c;
+    const S = E.seeds.length, first = Math.floor(n / 2);
+    const item = kind === 'kingsfoil' ? 'athelas' : [...Array(S).keys()].map((k) => E.seeds[(first + k) % S]).find(here);
+    if (!item || !here(item)) return null;
     return {
       params: { itemName: ITEMS[item].name, count: c, hint: E.seedHints[item] ?? '' },
       objective: { type: 'gather', item, count: c },
@@ -251,24 +284,23 @@ function buildEowyn(kind, n, state, E) {
     };
   }
   if (kind === 'kind') {
-    const kinds = Object.keys(RELIC_KINDS).filter((k) => PLACES.some((p) => p.set === 'ruins' && p.kind === k && !state.discovered.includes(p.id)));
+    const kinds = Object.keys(RELIC_KINDS).filter((k) => left.some((p) => p.set === 'ruins' && p.kind === k));
     if (!kinds.length) return null;
-    const k = kinds[n % kinds.length], set = 'kind:' + k;
-    return { params: { title: RELIC_KINDS[k][0], kindPlural: KIND_PLURALS[k] ?? k }, objective: { type: 'seek', set, count: 1, base: foundIn(state, set) } };
+    const k = kinds[n % kinds.length], set = `kind:${k}@${pid}`;
+    return { params: { title: RELIC_KINDS[k][0], kindPlural: KIND_PLURALS[k] ?? k, where: inWords(pid) }, objective: { type: 'seek', set, count: 1, base: foundIn(state, set) } };
   }
   if (kind === 'area') {
-    const left = PLACES.filter((p) => !state.discovered.includes(p.id));
-    const regions = [...new Set(left.map(regionOf))].sort();
-    if (!regions.length) return null;
-    const region = regions[n % regions.length], set = 'region:' + region;
-    const c = Math.min(left.filter((p) => regionOf(p) === region).length, 1 + Math.floor(n / 6), 3);
-    return { params: { region, count: c }, objective: { type: 'seek', set, count: c, base: foundIn(state, set) } };
+    if (!left.length) return null;
+    const set = 'province:' + pid;
+    const c = Math.min(left.length, 1 + Math.floor(n / 6), 3);
+    return { params: { region: provinceById[pid].name, count: c }, objective: { type: 'seek', set, count: c, base: foundIn(state, set) } };
   }
   if (kind === 'site') {
-    const leftOf = (set) => PLACES.some((p) => p.set === set && !state.discovered.includes(p.id));
-    const set = leftOf('villages') && (n % 2 === 0 || !leftOf('farms')) ? 'villages' : leftOf('farms') ? 'farms' : null;
+    const has = (set) => left.some((p) => p.set === set);
+    const set = has('villages') && (n % 2 === 0 || !has('farms')) ? 'villages' : has('farms') ? 'farms' : null;
     if (!set) return null;
-    return { params: { kind: set === 'villages' ? 'hamlet' : 'farm' }, objective: { type: 'seek', set, count: 1, base: foundIn(state, set) } };
+    const spec = `${set}@${pid}`;
+    return { params: { kind: set === 'villages' ? 'hamlet' : 'farm', where: inWords(pid) }, objective: { type: 'seek', set: spec, count: 1, base: foundIn(state, spec) } };
   }
   return null;
 }
@@ -288,6 +320,10 @@ export function hintTarget(o, state) {
     case 'gatherAll': {
       const item = o.items.find((id) => count(state, id) < o.count);
       return item ? nearestTo(standingPlants(state, item)) : null;
+    }
+    case 'freed': { // the hold first, then the nearest camp still standing there
+      const s = provinceStatus(state, o.province);
+      return s.holdCleared ? nearestTo(open('province:' + o.province)) : s.hold;
     }
     case 'all': for (const p of o.of) if (!isDone(p, state)) return hintTarget(p, state); return null;
     default: return null;

@@ -13,7 +13,7 @@ import { progressOf, MAX_RENOWN } from '../systems/renown.js';
 import * as inv from '../systems/inventory.js';
 import * as quests from '../systems/quests.js';
 import { PROVINCES, provinceAt, provinceBorders, fullName } from '../world/provinces.js';
-import { provinceStatus, statusLine } from '../systems/provinces.js';
+import { provinceStatus, statusLine, freeProgress } from '../systems/provinces.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -414,8 +414,8 @@ export class PackPanel {
       const el = row(land, fullName(p), note, [], 'task province' + (s.freed ? ' done' : ''));
       const bar = document.createElement('div'); bar.className = 'bar';
       const fill = document.createElement('div');
-      const others = s.cleared - (s.holdCleared ? 1 : 0); // the hold is one of the camps it needs, and must be among them
-      fill.style.width = Math.round(((Math.min(others, s.need - 1) + (s.holdCleared ? 1 : 0)) / s.need) * 100) + '%';
+      const fp = freeProgress(s);
+      fill.style.width = Math.round((fp.have / fp.need) * 100) + '%';
       bar.append(fill); el.firstChild.append(bar);
     }
 

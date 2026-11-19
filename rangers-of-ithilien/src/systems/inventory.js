@@ -216,6 +216,7 @@ export function enemyLoot(type, tier, rand, onRoad = false) {
   if ((type === 'snaga' || type === 'uruk') && rand() < 0.18) loot.push(['orcBlade', 1]);
   if (type === 'uruk' && rand() < 0.35) loot.push(['redEye', 1]);
   if (type === 'archer' && onRoad && rand() < 0.75) loot.push(['arrowheads', 1 + Math.floor(rand() * 2)]);
+  if (type !== 'haradrim' && type !== 'chief' && rand() < 0.22) loot.push(['orcBread', 1]); // their own rations
   if (rand() < 0.04) loot.push(['waybread', 1]);
   for (const [id, p] of GEAR_DROPS[type] ?? []) if (rand() < p) { loot.push([id, 1]); break; }
   if (type === 'chief') {
@@ -230,7 +231,8 @@ export function enemyLoot(type, tier, rand, onRoad = false) {
 export function stashLoot(camp, rand) {
   const loot = [['silver', 2 + camp.size * 3 + Math.floor(rand() * (2 + camp.tier * 2))]];
   if (rand() < 0.45) loot.push(['arrows', 2 + Math.floor(rand() * 5)]);
-  if (rand() < 0.2 + camp.size * 0.12) loot.push([rand() < 0.6 ? 'waybread' : 'draught', 1]);
+  if (rand() < 0.5) loot.push(['orcBread', 1 + Math.floor(rand() * 2)]); // what they lived on
+  if (rand() < 0.15 + camp.size * 0.1) loot.push([rand() < 0.6 ? 'waybread' : 'draught', 1]);
   if (rand() < 0.4) loot.push([rand() < 0.7 ? 'orcTrinket' : 'blackCoin', 1 + Math.floor(rand() * camp.size)]);
   if (camp.size >= 3 && rand() < 0.5) loot.push(['haradGold', 1]);
   if (camp.size === 4) loot.push([['ironGreaves', 'yewBow', 'dolAmrothSword'][Math.floor(rand() * 3)], 1]);
