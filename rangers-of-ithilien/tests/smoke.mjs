@@ -82,6 +82,20 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     return bad;
   });
   check(swingers.length === 0, `no plant sways about a far-off origin${swingers.length ? ' (' + swingers.join(', ') + ' m up)' : ''}`);
+  // The camera can be held for looking about (roi.lookFrom, roi.follow; tools/shoot.mjs), and given back.
+  const held = await page.evaluate(async () => {
+    const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    roi.lookFrom(1010, 44, 1192, 1020, 41, 1192);
+    await frame();
+    const c = roi.rig.camera.position, at = { x: c.x, y: c.y, z: c.z };
+    roi.follow(0, 2, -4);
+    await frame();
+    const p = roi.player.pos, f = roi.rig.camera.position, follows = Math.abs(f.x - p.x) < 0.01 && Math.abs(f.y - p.y - 2) < 0.01 && Math.abs(f.z - p.z + 4) < 0.01;
+    roi.lookFrom(null);
+    await frame();
+    return { at, follows, freed: roi.rig.held === null };
+  });
+  check(Math.hypot(held.at.x - 1010, held.at.y - 44, held.at.z - 1192) < 0.01 && held.follows && held.freed, 'the camera can be held at a point or behind the ranger, and given back');
   const torch = await page.evaluate(() => roi.refuge.torchlight());
   check(torch.on === 1 && torch.burning === torch.of && torch.of === 6, `every torch in the cave is lit at once (${torch.burning} of ${torch.of})`);
 

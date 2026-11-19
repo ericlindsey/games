@@ -1,0 +1,6 @@
+[
+ { "name": "faramir", "ranger": [1018, 1188, 0], "from": [1013.0, 41.75, 1186.4], "at": [1015.2, 41.3, 1185.4], "fov": 45 },
+ { "name": "ranger-back", "ranger": [335, 1195, 1.57], "follow": [-3.2, 0.9, 0.6], "fov": 40 },
+ { "name": "ranger-running-side", "ranger": [335, 1195, 1.57], "follow": [0.2, 0.5, 3.4], "fov": 40, "hold": "KeyW", "wait": 3500 },
+ { "name": "ranger-running-back", "ranger": [335, 1200, 1.57], "follow": [-3.4, 1.0, 0.8], "fov": 40, "hold": "KeyW", "wait": 3500 }
+]

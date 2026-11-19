@@ -97,21 +97,32 @@ async function boot() {
   const loading = $('loading');
   const say = async (text) => { loading.textContent = text; await nextFrame(); };
 
+  // (each part of the world names what it adds to the scene, so tools/perf.mjs can say what is drawn)
+  let named = 0;
+  const label = (name) => { for (; named < scene.children.length; named++) scene.children[named].name ||= name; };
   await say('Raising the mountains…');
   const atmosphere = new Atmosphere(scene, quality);
+  label('sky');
   const ground = new Ground(scene, quality);
   await say('Filling the river…');
   const water = new Water(scene);
+  label('water');
   await say('Hollowing the cave…');
   const refuge = buildHennethAnnun(scene, water);
+  label('Henneth Annûn');
   buildRuins(scene);
+  label('ruins');
   await say('Laying the old walls…');
   buildFarms(scene, quality.shadows);
+  label('farms');
   buildRelics(scene, quality.shadows);
+  label('lesser ruins and waymarks');
   const motes = new Motes(scene, quality.motes);
   const grass = new Grass(scene, quality);
   const herbs = new Herbs(scene, state.picked);
+  label('herbs');
   const camps = new Camps(scene, (id) => state.cleared.includes(id));
+  label('camps');
 
   // ---- people ----
   const player = new Player(scene);
@@ -562,6 +573,10 @@ async function boot() {
       grass.update(x, z, 1e3);
     },
     blocked: (x, z, y, r) => blockedBySolid(x, z, y, r),
+    /** Hold the camera at (x, y, z) looking at (ax, ay, az); roi.lookFrom(null) lets it go. */
+    lookFrom(x, y, z, ax, ay, az, fov) { rig.hold(x === null ? null : { from: [x, y, z], at: [ax, ay, az], fov }); },
+    /** Hold the camera at an offset from the ranger, looking at them, as they move; roi.follow(null) lets it go. */
+    follow(dx, dy, dz, fov) { rig.hold(dx === null ? null : { offset: [dx, dy, dz], fov }); },
     hud, map, pack, trade, refreshHud, goHome, openPanel, store, trunkAt, haradRoadX, travelTo, travelPlaces, streams: STREAMS,
   };
   window.roi = api;

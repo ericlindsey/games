@@ -105,6 +105,8 @@ src/
 tests/
   unit.test.js        pure logic (node --test)
   smoke.mjs           drives the real game in headless Chromium, desktop + phone
+tools/                for looking at changes: shoot.mjs (screenshots from views, before and
+                      after), perf.mjs (what is drawn where); views/*.json; common.mjs
 ```
 
 Files marked (pure) must not import Three.js or touch the DOM, so they run in Node tests.
@@ -210,7 +212,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.3.4`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.3.5`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add
@@ -238,10 +240,22 @@ python3 -m http.server 8000     # open http://localhost:8000
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
    the title, `?debug` shows the overlay, `?quality=low|medium|high`.
-   In the console, `roi.teleport(x, z, yaw)` moves the ranger, and `roi.state`,
+   In the console, `roi.teleport(x, z, yaw)` moves the ranger, `roi.lookFrom(x, y, z,
+   ax, ay, az)` holds the camera at a point looking at another and `roi.follow(dx, dy,
+   dz)` at an offset behind the ranger (`null` gives it back), and `roi.state`,
    `roi.enemies`, `roi.combat`, `roi.quests` and `roi.inv` expose the rest; backtick toggles
    the overlay; `G` toggles a fast debug run.
-5. Headless Chromium renders in software (single-digit fps; on `high` a single
+5. For anything visual, shoot it: `node tools/shoot.mjs tools/views/henneth.json`
+   (or `woods.json`, `people.json`, or a views file of your own; the format is at
+   the top of shoot.mjs) saves a screenshot of each view; add `--ref origin/main`
+   to shoot the same views on that version too and set each pair side by side.
+   `--only name,name` picks views; `--quality` picks the quality (medium by default).
+   Use `origin/main`, not a local `main`, which may be far behind.
+6. For anything that may cost frame rate, count it: `node tools/perf.mjs
+   [--ref origin/main]` reports triangles and draw calls at a few places, and what
+   they are spent on (plants by form, grass, ground, farms, ruins, ...), in view
+   and in the shadow map (which the renderer's own count leaves out).
+7. Headless Chromium renders in software (single-digit fps; on `high` a single
    screenshot can take a minute), so it proves behaviour, not performance. Say so
    rather than claiming a frame rate.
 

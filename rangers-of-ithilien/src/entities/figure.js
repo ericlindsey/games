@@ -236,6 +236,7 @@ function quiverGeometry(n) {
 export function makeFigure(o) {
   SHARED.material ||= figureMaterial();
   const g = new THREE.Group();
+  g.name = 'people';
   const limbs = {};
   const boots = o.boots ?? 0x4a3828;
   const SKIN = SURF.skin, CLOTH = SURF.cloth, METAL = SURF.metal, LEATHER = SURF.wood;
