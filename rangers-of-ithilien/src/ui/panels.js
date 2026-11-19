@@ -12,6 +12,8 @@ import { ITEMS, SHOP, SLOTS, SLOT_NAMES, REPAIR } from '../data/items.js';
 import { progressOf, MAX_RENOWN } from '../systems/renown.js';
 import * as inv from '../systems/inventory.js';
 import * as quests from '../systems/quests.js';
+import { PROVINCES, provinceAt, provinceBorders, fullName } from '../world/provinces.js';
+import { provinceStatus, statusLine } from '../systems/provinces.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -125,6 +127,30 @@ export class MapPanel {
     }
     ctx.putImageData(img, 0, 0);
     this.base = c;
+    // which province each cell lies in, for washing the freed ones green
+    this.cells = new Uint8Array(w * h);
+    const index = Object.fromEntries(PROVINCES.map((p, i) => [p.id, i]));
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) {
+        const x = (i + 0.5) * step, z = (j + 0.5) * step;
+        this.cells[j * w + i] = x < bankX(z) ? 255 : index[provinceAt(x, z)]; // the river is no one's
+      }
+    }
+    this.borders = provinceBorders();
+  }
+
+  /** A soft green wash over every freed province: drawn small, scaled up smooth. */
+  freedWash(free) {
+    const w = this.base.width, h = this.base.height;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d'), img = ctx.createImageData(w, h);
+    for (let k = 0; k < w * h; k++) {
+      if (!free[this.cells[k]]) continue;
+      img.data[k * 4] = 70; img.data[k * 4 + 1] = 170; img.data[k * 4 + 2] = 50; img.data[k * 4 + 3] = 105;
+    }
+    ctx.putImageData(img, 0, 0);
+    return c;
   }
 
   /**
@@ -163,6 +189,11 @@ export class MapPanel {
     for (let x = bankX(3875); x <= WORLD.width; x += 40) south.push([x, southRoadZ(x)]);
     line(harad, 'rgba(90,60,30,0.75)', 1.5, [5, 3]);
     line(south, 'rgba(90,60,30,0.75)', 1.5, [5, 3]);
+
+    // the provinces: freed ones washed green, borders, and their names
+    const status = PROVINCES.map((p) => provinceStatus(state, p.id));
+    if (status.some((s) => s.freed)) ctx.drawImage(this.freedWash(status.map((s) => s.freed)), 0, 0, W, H);
+    for (const b of this.borders) line(b, 'rgba(120,40,30,0.55)', 2.2, [1, 4, 7, 4]);
 
     ctx.font = 'italic 600 15px Palatino, Georgia, serif';
     ctx.textBaseline = 'middle';
@@ -212,6 +243,28 @@ export class MapPanel {
       if (done) { ctx.arc(x, y, 4, 0, 7); } else { ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4); ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4); }
       ctx.stroke();
     }
+    // the holds, once found: a square keep, red while it stands
+    for (const s of status) {
+      if (!s.holdFound) continue;
+      const x = s.hold.x * scale, y = s.hold.z * scale;
+      ctx.strokeStyle = s.holdCleared ? '#3f6b3a' : '#8a2a22'; ctx.lineWidth = 2;
+      ctx.strokeRect(x - 7, y - 7, 14, 14);
+    }
+    // the provinces' names, over the marks, with how far each is from free
+    ctx.textAlign = 'center';
+    PROVINCES.forEach((p, i) => {
+      const s = status[i], x = p.label.x * scale, y = p.label.z * scale, fell = p.id === 'gorse' || p.id === 'ash';
+      ctx.font = `600 ${fell ? 11 : 14}px Palatino, Georgia, serif`;
+      const words = fell ? p.name.replace(/^The /, '').toUpperCase().split(' ') : [p.name.toUpperCase()];
+      ctx.fillStyle = s.freed ? 'rgba(40,90,30,0.9)' : 'rgba(110,40,28,0.8)';
+      ctx.strokeStyle = 'rgba(239,228,200,0.85)'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+      words.forEach((wd, k) => { const ty = y + (k - (words.length - 1) / 2) * 13; ctx.strokeText(wd, x, ty); ctx.fillText(wd, x, ty); });
+      ctx.font = 'italic 11px Palatino, Georgia, serif';
+      const note = s.freed ? 'free' : `${s.cleared} of ${s.need}`;
+      const ny = y + (words.length / 2) * 13 + 4;
+      ctx.strokeText(note, x, ny); ctx.fillText(note, x, ny);
+    });
+    ctx.textAlign = 'start';
     // ways back by the old roads: a ring round each place the ranger can travel to
     ctx.strokeStyle = 'rgba(58,47,31,0.85)'; ctx.lineWidth = 1.4;
     for (const p of places) { ctx.beginPath(); ctx.arc(p.x * scale, p.z * scale, 6.5, 0, 7); ctx.stroke(); }
@@ -353,6 +406,18 @@ export class PackPanel {
     if (st.quests.done.length) empty(tasks, `Done: ${st.quests.done.map((id) => quests.byId[id]?.title).filter(Boolean).join(', ')}.`);
     const errands = Object.values(st.quests.count ?? {}).reduce((a, b) => a + b, 0);
     if (errands) empty(tasks, `Errands run: ${errands}.`);
+
+    const land = $('pack-provinces'); land.replaceChildren();
+    for (const p of PROVINCES) {
+      const s = provinceStatus(st, p.id);
+      const note = statusLine(s) + (s.places ? ` ${s.found} of ${s.places} old places found.` : '');
+      const el = row(land, fullName(p), note, [], 'task province' + (s.freed ? ' done' : ''));
+      const bar = document.createElement('div'); bar.className = 'bar';
+      const fill = document.createElement('div');
+      const others = s.cleared - (s.holdCleared ? 1 : 0); // the hold is one of the camps it needs, and must be among them
+      fill.style.width = Math.round(((Math.min(others, s.need - 1) + (s.holdCleared ? 1 : 0)) / s.need) * 100) + '%';
+      bar.append(fill); el.firstChild.append(bar);
+    }
 
     const gear = $('pack-gear'); gear.replaceChildren();
     for (const slot of SLOTS) {

@@ -42,6 +42,7 @@ async function run(label, contextOptions, body) {
   console.log(`\n== ${label} ==`);
   const ctx = await browser.newContext(contextOptions);
   const page = await ctx.newPage();
+  page.setDefaultTimeout(120000); // a slow machine can be busy building the world for more than Playwright's 30 s
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(e.message));
@@ -607,6 +608,42 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     for (const id of ['southronScimitar', 'hornBow', 'blackMail', 'gondorHelm', 'ironGreaves']) delete roi.state.items[id];
     roi.refreshHud();
   });
+
+  // Provinces: the place line names them, crossing a border is told, breaking a
+  // hold with three in four of its camps frees one, and the pack and map show it.
+  await page.evaluate(() => { roi.enemies.reset(); roi.teleport(700, 1000, 0); });
+  await page.waitForTimeout(600);
+  await page.evaluate(() => roi.teleport(1080, 1860, 0));
+  // the notice waits for a second of game time, and headless frames are slow out in the woods
+  const crossed = await page.waitForFunction(() => document.getElementById('place').textContent === 'The Bridgelands' &&
+    (roi.hud.queue.some((t) => t.big === 'The Bridgelands') || document.getElementById('toast').textContent.includes('The Bridgelands')), null, { timeout: 180000 }).then(() => true, () => false);
+  check(crossed, 'the place line names the province, and crossing into one is told');
+  await page.evaluate(() => {
+    const { PROVINCE_CAMPS, HOLDS } = roi.provinces;
+    window.hold = HOLDS.henneth;
+    for (const c of PROVINCE_CAMPS.henneth) if (c !== hold && !roi.state.cleared.includes(c.id)) { roi.state.cleared.push(c.id); roi.camps.clear(c.id); }
+    roi.state.discovered.push('camp:' + HOLDS.bridgelands.id); // a hold found but standing, for the map
+    roi.enemies.reset();
+    roi.combat.god = true;
+    roi.teleport(hold.x + 40, hold.z, -Math.PI / 2);
+  });
+  check(await page.evaluate(() => !roi.provinces.status(roi.state, 'henneth').freed), 'with its hold standing, a province is not free however many camps fall');
+  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === hold.id), null, { timeout: 30000 });
+  await page.evaluate(() => { for (const e of roi.enemies.list.filter((e) => e.camp.id === hold.id)) roi.enemies.damage(e, 1e9); });
+  const told = await page.waitForFunction(() => roi.hud.queue.some((t) => t.big === 'Eryn Henneth is free') || document.getElementById('toast').textContent.includes('Eryn Henneth is free'), null, { timeout: 20000 }).then(() => true, () => false);
+  check(told && await page.evaluate(() => roi.provinces.status(roi.state, 'henneth').freed), 'breaking the hold frees the province, and the ranger is told');
+  await page.evaluate(() => { roi.combat.god = false; roi.enemies.reset(); });
+  await page.keyboard.press('KeyI');
+  await page.waitForSelector('#pack:not([hidden])');
+  const land = await page.textContent('#pack-provinces');
+  check(land.includes('Eryn Henneth, the Window Woods') && land.includes('Free.') && land.includes('Forlad') && land.includes('not yet found'), 'the pack lists the provinces and how each stands');
+  await page.evaluate(() => document.getElementById('pack-provinces').scrollIntoView());
+  await shot(page, 'pack-provinces');
+  await page.keyboard.press('KeyI');
+  await page.keyboard.press('KeyM');
+  await page.waitForSelector('#map:not([hidden])');
+  await shot(page, 'map-provinces');
+  await page.keyboard.press('KeyM');
 
   // Save, reload, resume.
   await page.evaluate(() => roi.teleport(700, 1000, 1));
