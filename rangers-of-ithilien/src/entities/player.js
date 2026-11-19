@@ -201,7 +201,25 @@ export class CameraRig {
     this.dist = 6;
   }
 
+  /**
+   * For looking at the world while debugging (roi.lookFrom, roi.follow, tools/):
+   * hold the camera at a point looking at another, or at an offset from the
+   * ranger looking at them. `null` gives the camera back to the player.
+   * @param {{ from?: number[], at?: number[], offset?: number[], fov?: number } | null} view
+   */
+  hold(view) { this.held = view; }
+
   update(dt, input, player) {
+    if (this.held) {
+      input.consumeLook(_look);
+      const v = this.held, p = player.pos, cam = this.camera;
+      if (v.offset) { cam.position.set(p.x + v.offset[0], p.y + v.offset[1], p.z + v.offset[2]); cam.lookAt(p.x, p.y + 1.1, p.z); }
+      else { cam.position.set(...v.from); cam.lookAt(...v.at); }
+      const fov = v.fov ?? 62;
+      if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+      player.figure.visible = true;
+      return;
+    }
     input.consumeLook(_look);
     // Taking aim narrows the view and steadies the hand.
     this.zoom = (this.zoom ?? 0) + ((this.zoomed ? 1 : 0) - (this.zoom ?? 0)) * Math.min(1, dt * 7);
