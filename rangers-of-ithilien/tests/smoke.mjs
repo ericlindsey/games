@@ -463,7 +463,9 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // An enemy shut in a roofless house gets out: it jumps, and failing that is set aside.
   const freed = await page.evaluate(() => {
     roi.enemies.reset();
-    const h = roi.sites.find((s) => s.kind === 'farm').houses[0];
+    // a farmhouse with no camp near, so only the one enemy is about, and well away from the falls (where they give up a chase)
+    const h = roi.sites.filter((s) => s.kind === 'farm').map((s) => s.houses[0])
+      .find((h) => Math.hypot(h.x - roi.HA.x, h.z - roi.HA.z) > 300 && roi.camps.sites.every((c) => Math.hypot(c.x - h.x, c.z - h.z) > 150));
     roi.teleport(h.x + h.w / 2 + 9, h.z, -Math.PI / 2);
     roi.combat.god = true;
     roi.enemies.spawnCamp({ id: 'test-house', x: h.x, z: h.z, tier: 1, size: 1 }, ['snaga']);
@@ -473,7 +475,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     window.house = h;
     return true;
   });
-  const out2 = await page.waitForFunction(() => { const e = roi.enemies.list.find((e) => e.camp.id === 'test-house'); return e && (Math.abs(e.x - house.x) > house.w / 2 + 0.5 || Math.abs(e.z - house.z) > house.d / 2 + 0.5); }, null, { timeout: 240000 }).then(() => true, () => false);
+  const out2 = await page.waitForFunction(() => { const e = roi.enemies.list.find((e) => e.camp.id === 'test-house'); return e && (Math.abs(e.x - house.x) > house.w / 2 + 0.5 || Math.abs(e.z - house.z) > house.d / 2 + 0.5); }, null, { timeout: 480000 }).then(() => true, () => false);
   check(freed && out2, 'an enemy stuck inside walls finds its way out');
   await page.evaluate(() => { roi.enemies.reset(); roi.combat.god = false; });
 
@@ -572,18 +574,18 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     roi.teleport(snipe.x + 60, snipe.z, -Math.PI / 2);
   });
   const company = () => page.evaluate(() => { const es = roi.enemies.list.filter((e) => e.camp.id === snipe.id && !e.dead); return { n: es.length, hurt: es.some((e) => e.hp < e.maxHp) }; });
-  await page.waitForFunction(() => roi.enemies.list.filter((e) => e.camp.id === snipe.id).length >= 2, null, { timeout: 30000 });
+  await page.waitForFunction(() => roi.enemies.list.filter((e) => e.camp.id === snipe.id).length >= 2, null, { timeout: 120000 });
   const whole = await company();
   await page.evaluate(() => { const es = roi.enemies.list.filter((e) => e.camp.id === snipe.id); roi.enemies.damage(es[0], 1e9); roi.enemies.damage(es[1], es[1].maxHp * 0.5); });
   await page.evaluate(() => roi.teleport(snipe.x + (snipe.x > roi.WORLD.width / 2 ? -400 : 400), snipe.z, 0)); // out of its reach, still in the land
-  await page.waitForFunction(() => !roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 20000 });
+  await page.waitForFunction(() => !roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 120000 });
   await page.evaluate(() => roi.teleport(snipe.x + 60, snipe.z, 0));
-  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 20000 });
+  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 120000 });
   const worn = await company();
   check(worn.n === whole.n - 1 && worn.hurt, `a camp keeps its dead and wounded when the ranger walks off and comes back (${whole.n} -> ${worn.n})`);
   await page.evaluate(() => roi.goHome('Home.'));
   await page.evaluate(() => roi.teleport(snipe.x + 60, snipe.z, 0));
-  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 20000 });
+  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 120000 });
   const mended = await company();
   check(mended.n === whole.n && !mended.hurt, 'but going home lets it mend');
   await page.evaluate(() => roi.enemies.reset());

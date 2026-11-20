@@ -203,17 +203,19 @@ export class Enemies {
 
   /**
    * Getting unstuck. Every second, see how far an enemy that wants to move has
-   * got. Only one that is after the ranger jumps, after a second of going nowhere
-   * (which clears a low wall); any that is stuck four seconds is set down a step
-   * or two aside, on open ground, toward where it was trying to go.
+   * got toward where it is going (sliding to and fro along a wall is not getting
+   * anywhere). Only one that is after the ranger jumps, after a second of going
+   * nowhere (which clears a low wall); any that is stuck four seconds is set down
+   * a step or two aside, on open ground, toward where it was trying to go.
    */
   unstick(e, tx, tz, dt, jump) {
     const c = e.check;
     c.t += dt;
     if (c.t < 1) return;
-    const moved = Math.hypot(e.x - c.x, e.z - c.z);
+    const d = Math.hypot(tx - c.x, tz - c.z) || 1;
+    const gained = ((e.x - c.x) * (tx - c.x) + (e.z - c.z) * (tz - c.z)) / d; // along the way to the target
     c.t = 0; c.x = e.x; c.z = e.z;
-    if (moved > 1.2) { e.stuckFor = 0; return; }
+    if (gained > 1.2) { e.stuckFor = 0; return; }
     e.stuckFor++;
     if (jump && !e.air) { e.vy = 6.8; e.air = true; }
     if (e.stuckFor >= 4) {

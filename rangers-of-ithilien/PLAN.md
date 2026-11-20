@@ -848,6 +848,11 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
   places, camps and plants were in another land, so the ranger begins again.
 - Province holds and stockades: Forlad and Eryn Henneth still have none (their
   holds are bands); the Bridgelands and the Gorse Fells have one each.
+- **An enemy shut in a house gets out** however it lies: an enemy is now judged
+  stuck by how far it has got *toward* where it is going in a second, not how far
+  it has moved. One trapped against the inside of a wall used to slide from
+  corner to corner, always moving, so it never jumped or was set aside. (The
+  smoke test's house in the new land showed it.)
 
 ### Known gaps to pick up
 
