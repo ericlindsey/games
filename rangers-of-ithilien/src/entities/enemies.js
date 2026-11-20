@@ -10,14 +10,14 @@ import { CAMPS } from '../world/campSites.js';
 import { heightAt } from '../world/terrain.js';
 import { groundAt, blockedBySolid, resolveCircles } from '../world/collision.js';
 import { makeFigure, animateFigure, LOOKS, figureMaterial } from './figure.js';
-import { ENEMY_TYPES, rosterFor, patrolRoster } from '../data/enemies.js';
+import { ENEMY_TYPES, CHASE, rosterFor, patrolRoster } from '../data/enemies.js';
 import { enemyStrength } from '../systems/renown.js';
 import { haradRoadX } from '../world/layout.js';
 import { dangerTier, REFUGE } from '../world/regions.js';
 
 export { ENEMY_TYPES, rosterFor };
 
-const SPAWN_AT = 120, FORGET_AT = 190, SIGHT = 27, SIGHT_QUIET = 13, LEASH = 80, REACH = 1.9;
+const SPAWN_AT = 120, FORGET_AT = 190, SIGHT = 27, SIGHT_QUIET = 13, REACH = 1.9;
 // A camp's wounds and dead are remembered while the ranger is within this of it
 // (and not back at Henneth Annûn), so a company can be worn down from afar.
 const WOUNDS_KEPT = 750, HOME_HEALS = 150;
@@ -64,7 +64,7 @@ export class Enemies {
     roster.forEach((type, i) => {
       if (wounds && !(wounds[i] > 0)) return; // fallen, and still fallen
       const def = ENEMY_TYPES[type];
-      const a = (i / roster.length) * Math.PI * 2 + rand() * 0.8, r = 2.6 + rand() * (2 + camp.size * 1.3);
+      const a = (i / roster.length) * Math.PI * 2 + rand() * 0.8, r = 2.6 + rand() * (2 + camp.size * 1.3); // (within campReach, data/enemies.js)
       // a camp's company stands about its fire; a band on the road walks in file
       let x = camp.patrol ? haradRoadX(camp.z - camp.patrol.dir * i * 1.8) + (i % 2 ? 1.2 : -1.2) : camp.x + Math.cos(a) * r;
       let z = camp.patrol ? camp.z - camp.patrol.dir * i * 1.8 : camp.z + Math.sin(a) * r;
@@ -152,6 +152,7 @@ export class Enemies {
    * when a company that was at ease is roused: `how` is 'seen' or 'struck'.
    */
   rouse(camp, how) {
+    if (this.api.isCleared?.(camp.id) && !camp.patrol) return;
     let woke = false;
     for (const o of this.list) {
       if (o.camp !== camp || o.dead) continue;
@@ -280,7 +281,8 @@ export class Enemies {
         const d = Math.hypot(camp.x - p.x, camp.z - p.z);
         const here = this.camps.has(camp.id);
         if (!here && d < SPAWN_AT && !this.api.isCleared(camp.id)) this.spawnCamp(camp);
-        else if (here && d > FORGET_AT) this.forgetCamp(camp.id);
+        // (not while any of them is still on the ranger's heels, however far from home)
+        else if (here && d > FORGET_AT && !this.list.some((e) => e.camp === camp && e.alerted && !e.dead)) this.forgetCamp(camp.id);
       }
       // Bands on the road: forgotten when far behind, and a new one now and then
       // while the ranger is anywhere near the road.
@@ -300,6 +302,17 @@ export class Enemies {
       }
     }
     const atHome = Math.hypot(p.x - HA.x, p.z - HA.z) < REFUGE - 10; // they will not come near the falls
+    // Those on the chase rouse anyone at rest they pass near (CHASE.rouse; no
+    // two camps' companies stand that close at rest, so none is drawn in by
+    // its neighbour being roused at home: tests/unit.test.js checks).
+    for (const e of this.list) {
+      if (!e.alerted || e.dead) continue;
+      for (const o of this.list) {
+        if (o.alerted || o.dead || o.camp === e.camp) continue;
+        const ox = o.x - e.x, oz = o.z - e.z;
+        if (Math.abs(ox) < CHASE.rouse && Math.abs(oz) < CHASE.rouse && ox * ox + oz * oz < CHASE.rouse * CHASE.rouse) this.rouse(o.camp, 'called');
+      }
+    }
 
     for (const e of this.list) {
       const pose = {};
@@ -325,7 +338,8 @@ export class Enemies {
       if (!e.alerted && alive && dy < 6 && dist < (quiet ? SIGHT_QUIET : SIGHT)) {
         this.rouse(e.camp, 'seen');
       }
-      if (e.alerted && (fromCamp > LEASH || !alive || (atHome && fromCamp > 40) || dist > 70)) { e.alerted = false; e.state = 'return'; }
+      // They give up only when the ranger is lost to them or home; not for being far from their camp.
+      if (e.alerted && (!alive || atHome || dist > CHASE.lost)) { e.alerted = false; e.state = 'return'; }
       if (e.alerted && e.state === 'idle') e.state = 'chase';
 
       switch (e.state) {

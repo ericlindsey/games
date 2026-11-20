@@ -200,6 +200,7 @@ async function boot() {
     onKill: (e) => { state.stats.kills++; combat.dropLoot(e); honour(HONOUR.kill[e.type] ?? 1); hud.callout(`${e.def.name} felled`, 'felled'); },
     onSpotted: (camp, how) => hud.callout(
       camp.patrol ? (camp.patrol.host ? 'The host has seen you!' : 'The band on the road has seen you!')
+        : how === 'called' ? (camp.size >= 3 ? 'A stockade takes up the chase!' : 'Another camp takes up the chase!')
         : how === 'struck' ? (camp.size >= 3 ? 'The stockade is roused!' : 'The camp is roused!')
         : camp.size >= 3 ? 'The stockade has seen you!' : 'They have seen you!', 'seen'),
     renown: () => state.renown,

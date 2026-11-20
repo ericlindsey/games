@@ -11,6 +11,16 @@ export const ENEMY_TYPES = {
 };
 
 /**
+ * How a chase goes (since v0.6). Once roused, a company follows the ranger
+ * wherever they go, however far from its camp, until the ranger is `lost`
+ * metres off or back within the refuge of Henneth Annûn. On the way, anyone
+ * at rest within `rouse` metres of a chaser takes up the chase too.
+ */
+export const CHASE = { lost: 100, rouse: 35 };
+/** How far from its fire a camp's company may stand at rest (where they are set down, plus their wandering). */
+export const campReach = (size) => 2.6 + 2 + size * 1.3 + 2.5;
+
+/**
  * Who holds a camp: a list of type names, fixed for each camp. Pure.
  * Archers are the dangerous ones to leave alone. Even the stragglers near home
  * often keep one, and every band does.
