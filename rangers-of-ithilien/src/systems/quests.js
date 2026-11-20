@@ -190,7 +190,7 @@ export function directionWords(x, z) {
   const names = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
   const a = Math.atan2(dx, -dz); // 0 = north, clockwise
   const dir = names[(Math.round(a / (Math.PI / 4)) + 8) % 8];
-  const far = d < 350 ? 'not far' : d < 900 ? 'a fair walk' : d < 1700 ? 'a long walk' : 'a very long way';
+  const far = d < 270 ? 'not far' : d < 680 ? 'a fair walk' : d < 1280 ? 'a long walk' : 'a very long way';
   return `to the ${dir} of here, ${far}`;
 }
 
@@ -361,7 +361,7 @@ export function remindText(q, state) {
  * few, the nearest to home first. Toward the end this is how the last are found.
  */
 export function scoutedCamps(state) {
-  const k = 3 + Math.floor(state.cleared.length / 40);
+  const k = 3 + Math.floor(state.cleared.length / 25);
   return uncleared(state)
     .filter((c) => !state.discovered.includes('camp:' + c.id))
     .sort((a, b) => Math.hypot(a.x - HA.x, a.z - HA.z) - Math.hypot(b.x - HA.x, b.z - HA.z))

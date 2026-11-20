@@ -21,8 +21,8 @@ for (const s of SITES) node(s.x, s.z + (s.kind === 'hamlet' ? 0 : 9));
 for (const l of LANDMARKS) if (l.kind && l.kind !== 'morgul' && l.kind !== 'osgiliath' && l.kind !== 'crossroads') node(l.x, l.z + (l.flat ?? 10) * 0.6);
 node(LANDMARKS.find((l) => l.id === 'cormallen').x, HA.z + 30);
 for (const r of RELICS) node(r.x, r.z + 7);
-for (let z = 260; z < 3800; z += 320) node(haradRoadX(z), z, true);        // joining points on the roads
-for (let x = 420; x < 1500; x += 300) node(x, southRoadZ(x), true);
+for (let z = 195; z < 2850; z += 320) node(haradRoadX(z), z, true);        // joining points on the roads
+for (let x = 315; x < 1125; x += 300) node(x, southRoadZ(x), true);
 
 /** True if the straight line a-b crosses the pool or the cut (no path may lead over the edge). */
 function crossesCut(a, b) {

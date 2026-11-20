@@ -209,7 +209,7 @@ const GEAR_DROPS = {
  */
 export function enemyLoot(type, tier, rand, onRoad = false) {
   const loot = [];
-  if (rand() < 0.4) loot.push(['silver', 1 + Math.floor(rand() * (1 + tier * 1.5))]);
+  if (rand() < 0.4) loot.push(['silver', 1 + Math.floor(rand() * (2 + tier * 2.5))]);
   if (type === 'archer' ? rand() < 0.6 : rand() < 0.12) loot.push(['arrows', 1 + Math.floor(rand() * (type === 'archer' ? 3 : 2))]);
   if (rand() < 0.25) loot.push([type === 'haradrim' ? (rand() < 0.4 ? 'haradGold' : 'blackCoin') : rand() < 0.75 ? 'orcTrinket' : 'blackCoin', 1]);
   // trophies for Faramir's count
@@ -220,7 +220,7 @@ export function enemyLoot(type, tier, rand, onRoad = false) {
   if (rand() < 0.04) loot.push(['waybread', 1]);
   for (const [id, p] of GEAR_DROPS[type] ?? []) if (rand() < p) { loot.push([id, 1]); break; }
   if (type === 'chief') {
-    loot.push(['silver', 10 + Math.floor(rand() * 12)], ['captainToken', 1]);
+    loot.push(['silver', 16 + Math.floor(rand() * 19)], ['captainToken', 1]);
     if (rand() < 0.5) loot.push(['redEye', 1]);
     if (rand() < 0.5) loot.push(['draught', 1]);
   }
@@ -229,7 +229,7 @@ export function enemyLoot(type, tier, rand, onRoad = false) {
 
 /** What is worth taking from a camp once it is broken up. */
 export function stashLoot(camp, rand) {
-  const loot = [['silver', 2 + camp.size * 3 + Math.floor(rand() * (2 + camp.tier * 2))]];
+  const loot = [['silver', 3 + camp.size * 5 + Math.floor(rand() * (3 + camp.tier * 3))]];
   if (rand() < 0.45) loot.push(['arrows', 2 + Math.floor(rand() * 5)]);
   if (rand() < 0.5) loot.push(['orcBread', 1 + Math.floor(rand() * 2)]); // what they lived on
   if (rand() < 0.15 + camp.size * 0.1) loot.push([rand() < 0.6 ? 'waybread' : 'draught', 1]);

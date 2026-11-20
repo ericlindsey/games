@@ -11,8 +11,8 @@ const rand = rng(WORLD.seed + 101);
 const between = (a, b) => a + (b - a) * rand();
 
 function buildable(x, z, margin = 0) {
-  if (x < bankX(z) + 70 || x > haradRoadX(z) - 50 || z < 140 || z > southRoadZ(x) - 90) return false;
-  if (Math.abs(z - HA.z) < 90 + margin && x > 600 && x < HA.x + 120) return false;
+  if (x < bankX(z) + 70 || x > haradRoadX(z) - 50 || z < 105 || z > southRoadZ(x) - 90) return false;
+  if (Math.abs(z - HA.z) < 90 + margin && x > HA.x - 400 && x < HA.x + 120) return false;
   if (streamDistance(x, z) < 24 || roadDistance(x, z) < 22) return false;
   for (const l of LANDMARKS) if (Math.hypot(x - l.x, z - l.z) < l.r * 0.5 + 45 + margin) return false;
   return heightAt(x, z) > 3 && slopeAt(x, z) < 0.2;
@@ -41,6 +41,17 @@ function avenue(x0, z0, x1, z1, species, spacing, width, scale) {
     }
   }
 }
+/** The same list in an order drawn from the seeded generator (a real shuffle:
+ * sorting with a random comparator draws a different number of times in
+ * different browsers, and the world would come out differently). */
+function shuffled(list) {
+  const a = list.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 function field(site, minX, minZ, w, d) {
   site.fields.push({ minX, maxX: minX + w, minZ, maxZ: minZ + d });
 }
@@ -50,7 +61,7 @@ function farm(x, z, i) {
   const w = between(8, 11), d = between(5.5, 7.5);
   site.houses.push({ x, z, w, d });
   if (rand() < 0.5) site.houses.push({ x: x + between(9, 13) * (rand() < 0.5 ? -1 : 1), z: z + between(-4, 4), w: between(4, 6), d: between(4, 5.5) }); // a byre
-  const quads = [[1, 1], [-1, 1], [1, -1], [-1, -1]].sort(() => rand() - 0.5).slice(0, 2 + Math.floor(rand() * 3));
+  const quads = shuffled([[1, 1], [-1, 1], [1, -1], [-1, -1]]).slice(0, 2 + Math.floor(rand() * 3));
   for (const [sx, sz] of quads) {
     const fw = between(34, 62), fd = between(30, 54);
     field(site, sx > 0 ? x + 8 : x - 8 - fw, sz > 0 ? z + 7 : z - 7 - fd, fw, fd);
@@ -99,14 +110,14 @@ function hamlet(x, z, i) {
 function scatter(count, spacing, make, margin) {
   let made = 0;
   for (let tries = 0; tries < count * 80 && made < count; tries++) {
-    const x = between(180, 1500), z = between(140, 3800);
+    const x = between(135, 1125), z = between(105, 2850);
     if (!buildable(x, z, margin)) continue;
     if (SITES.some((s) => Math.hypot(s.x - x, s.z - z) < (s.kind === 'hamlet' ? Math.max(spacing, 210) : spacing))) continue;
     SITES.push(make(x, z, made++));
   }
 }
-scatter(6, 520, hamlet, 30);
-scatter(46, 175, farm, 0);
+scatter(4, 450, hamlet, 30);
+scatter(26, 175, farm, 0);
 
 // ---- lookups ----
 const CELL = 64;

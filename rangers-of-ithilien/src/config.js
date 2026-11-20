@@ -2,10 +2,11 @@
 
 export const WORLD = {
   seed: 3019,
-  width: 2000,   // east-west: Anduin bank (low x) to the Ephel Dúath (high x)
-  length: 4000,  // north-south: northern heath (z=0) to beyond the Morgul road
-  // The backdrop terrain extends past the playable area on every side.
-  backdrop: { minX: -640, maxX: 2400, minZ: -480, maxZ: 4480 },
+  width: 1500,   // east-west: Anduin bank (low x) to the Ephel Dúath (high x)
+  length: 3000,  // north-south: northern heath (z=0) to beyond the Morgul road
+  // The backdrop terrain extends past the playable area on every side. It is
+  // drawn on a 32 m grid, so each side must be a whole number of 32 m steps.
+  backdrop: { minX: -640, maxX: 1920, minZ: -480, maxZ: 3488 },
 };
 
 export const CHUNK = { size: 160, segments: 40 };
@@ -40,6 +41,6 @@ export const QUALITY = {
   high:   { loadRadius: 360, fogFar: 3200, shadows: true,  shadowMap: 2048, pixelRatio: 2, minPixelRatio: 1.5, trees: 1,   under: 1,   cover: 1,   motes: 200, terrainSegments: 80, treeNear: 115, treeMid: 330, shrubNear: 70, shrubMid: 220, coverFar: 72, grass: 82, grassNear: 42, grassSpacing: 0.62 },
 };
 
-export const VERSION = '0.3b';
+export const VERSION = '0.5';
 
-export const SAVE = { key: 'rangers-of-ithilien.save', version: 5, autosaveSeconds: 30 };
+export const SAVE = { key: 'rangers-of-ithilien.save', version: 6, autosaveSeconds: 30 };

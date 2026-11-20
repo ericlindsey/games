@@ -4,8 +4,10 @@
 //
 // The curve is set so that a ranger who clears every camp, does a good many
 // errands and hunts the road bands reaches 50 at about the end, and no sooner:
-// every camp is worth about 1,900 points with its company, the told tasks about
-// 900, and the rest has to come from errands and the road.
+// the hundred camps are worth about 2,050 points with their companies, the told
+// tasks about 1,750, the old places 160, and the rest has to come from errands
+// and the road. (Since 0.5 there are half as many camps as before, each worth
+// about 1.6 times as much.)
 
 export const MAX_RENOWN = 50;
 
@@ -31,10 +33,10 @@ export function progressOf(points) {
 
 /** What deeds are worth. */
 export const HONOUR = {
-  kill: { snaga: 1, archer: 1, uruk: 2, haradrim: 2, chief: 6 },
-  camp: [0, 3, 6, 14, 30],      // by camp size
+  kill: { snaga: 2, archer: 2, uruk: 3, haradrim: 3, chief: 9 },
+  camp: [0, 4, 9, 20, 48],      // by camp size
   band: 6, host: 40,            // a band beaten on the road; a great host
-  place: 2, village: 1,         // an old place found; a farm or village found
+  place: 3, village: 2,         // an old place found; a farm or village found
 };
 
 /**

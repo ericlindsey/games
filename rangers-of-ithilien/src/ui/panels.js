@@ -167,7 +167,7 @@ export class MapPanel {
       : !places.length ? 'The old places you find are marked here. You can travel to them by the old ways.'
       : inFight ? 'Not while the enemy has seen you.' : 'Click an old place to travel there, or Henneth Ann\u00fbn to go home.';
     if (!this.base) this.drawBase();
-    const scale = 0.3; // canvas pixels per metre
+    const scale = 0.4; // canvas pixels per metre (600 by 1200 for the whole land)
     const cv = this.canvas, W = WORLD.width * scale, H = WORLD.length * scale;
     cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d');
@@ -186,7 +186,7 @@ export class MapPanel {
     for (const pts of PATHS) line(pts, 'rgba(110,85,50,0.42)', 1, [2, 3]); // the old ways, faintly
     const harad = [], south = [];
     for (let z = 0; z <= WORLD.length; z += 40) harad.push([haradRoadX(z), z]);
-    for (let x = bankX(3875); x <= WORLD.width; x += 40) south.push([x, southRoadZ(x)]);
+    for (let x = bankX(southRoadZ(0)); x <= WORLD.width; x += 40) south.push([x, southRoadZ(x)]);
     line(harad, 'rgba(90,60,30,0.75)', 1.5, [5, 3]);
     line(south, 'rgba(90,60,30,0.75)', 1.5, [5, 3]);
 

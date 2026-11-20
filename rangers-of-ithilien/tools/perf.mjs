@@ -17,7 +17,7 @@ const a = args();
 const quality = a.quality ?? 'medium';
 const SPOTS = a.spots
   ? String(a.spots).split(';').map((s, i) => { const [x, z] = s.split(',').map(Number); return [`${x},${z}`, x, z]; })
-  : [['home woods', 1100, 1600], ['deep woods', 700, 3000], ['deep woods (east)', 900, 2700], ['Henneth Annûn, the pool', 975, 1196]];
+  : [['home woods', 825, 1200], ['deep woods', 300, 2350], ['deep woods (east)', 1000, 2325], ['Henneth Annûn, the pool', 727, 900]];
 const TOP = Number(a.top ?? 8);
 
 /** Runs in the page: what is drawn, grouped, in view and into the shadow map. */

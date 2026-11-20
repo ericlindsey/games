@@ -1,9 +1,10 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.3b: the deep woods as old forest; shadows and small plants that come in gently.** The land, the enemy, fighting, gear, tasks and trade are built and
-have had three rounds of playtest; v0.3 reworks how all of it looks (section 4, and
-"v0.3" in section 10); v0.3a fixes what a further look turned up there; v0.3b makes the deep woods old forest. Next: playtest the new look on a phone, then Milestone 5
-(sound, day and night) and the gaps listed at the end of section 10.
+Status: **v0.5: a smaller world, 1.5 by 3 km, with a hundred camps.** The land, the enemy, fighting, gear, tasks and trade are built and
+have had several rounds of playtest; v0.3 reworked how all of it looks (section 4); v0.4 laid
+eight provinces over the land (section 11). v0.5 shrinks the land by a quarter each way for a
+quicker pace, with everything in it scaled to match ("v0.5" in section 10). Next: playtest the
+pace of the smaller world, then the rest of M6 (section 11.7) and the gaps listed at the end of section 10.
 
 ---
 
@@ -45,21 +46,25 @@ The first playable build (**Milestone 1**) is exploration only:
 ### 3.1 Size
 
 Tolkien's North Ithilien is on the order of 40 by 100 miles. The game compresses
-this to **2 km east-west by 4 km north-south**. It began at 3.2 x 6.4 km; playtest
+this to **1.5 km east-west by 3 km north-south**. It began at 3.2 x 6.4 km; playtest
 showed that was too much wilderness once the forest thickened and walls and ruins
-were added. At a run of 7.5 m/s it is about 4 minutes river to mountains and 9
-minutes north to south in a straight line, and a good deal longer through woods.
+were added, so v0.1 made it 2 x 4 km. In v0.5 the pace still felt slow, so it was
+shrunk again by a quarter each way, with everything in it in proportion (half the
+camps, ruins and farms, a hundred camps exactly). At a run of 7.5 m/s it is about
+2.6 minutes river to mountains and 6.5 minutes north to south in a straight line,
+and a good deal longer through woods.
 
 ### 3.2 Layout
 
-North is up. Not to scale. (x, z) in metres from the north-west corner.
+North is up. Not to scale. (x, z) in metres from the north-west corner; the land
+is 1500 by 3000.
 
 ```
             thinning forest, heath (z = 0)
    +--------------------------------------------------+
    |~~ fens     . heath .   village     ‖^^^^ /\/\/\  |
    |~~                                  ‖^^^^ /\/\/\  |
-   |(CA)  Cormallen <~~~cut~~[HENNETH]~~‖~~~~ /\/\/\  |   Henneth Annûn (1000, 1190)
+   |(CA)  Cormallen <~~~cut~~[HENNETH]~~‖~~~~ /\/\/\  |   Henneth Annûn (752, 894)
    |~~        farms, walls, lanes       ‖^^^^ EPHEL   |
    |~~    <~~~~~~~~ stream ~~~~~~~~~~~~~‖^^^^ DÚATH   |   ^^^^ tall heather
    |~~   the home woods: woods + glades ‖^^^^ /\/\/\  |
@@ -68,7 +73,7 @@ North is up. Not to scale. (x, z) in metres from the north-west corner.
    |~~    <~~~~~~~~ stream ~~~~~~~~~~~~~‖^^^^ /\/\/\  |
    |[OSGILIATH]====== road ======= CROSS-ROADS ==> Morgul Vale (barred)
    +--------------------------------------------------+
-   ~~ Anduin   (CA) Cair Andros   ‖ Harad Road (x ~1530)   /\ mountains
+   ~~ Anduin   (CA) Cair Andros   ‖ Harad Road (x ~1150)   /\ mountains
 ```
 
 ### 3.3 Boundaries
@@ -121,7 +126,7 @@ motes drift in the air.
 
 ### 3.5a Old habitation
 
-About 46 farmsteads and 6 hamlets, generated from the world seed
+26 farmsteads and 4 hamlets (46 and 6 before v0.5), generated from the world seed
 (`world/oldworks.js`). Each farm has a roofless house, two to four walled fields
 (walls standing, tumbled, or gone, in runs), an old olive orchard and a cypress
 avenue to the door. Hamlets have a ring of houses, a well, a broken market cross
@@ -135,15 +140,18 @@ the southern road, and the northern heath.
 
 | Tier | Roughly | Expect |
 |------|---------|--------|
-| 0 Refuge | within ~220 m of the falls | Nothing hostile. |
-| 1 Home woods | to ~560 m | Wolves, a lone starving orc. |
-| 2 The middle land | to ~1.1 km | Small orc camps, snares and pit traps. |
-| 3 The marches | beyond | War-bands, Southron and Easterling holdouts, large fortified camps. |
-| 4 The shadowed edges | Morgul road, heather slopes, far north | The worst of what fled the Gate. |
+| 0 Refuge | within 180 m of the falls (`REFUGE`) | Nothing hostile. |
+| 1 Home woods | the north, to 190 m south of the falls | Stragglers in small camps. |
+| 2 The middle land | to z 1650 | Bands, a stockade or two. |
+| 3 The marches | to z 2250 | Stockades, Southrons. |
+| 4 The shadowed edges | the far south and the Morgul road; the heather is a step worse than the woods beside it | War-camps, the worst of what fled the Gate. |
 
-There are 129 camps (`world/campSites.js`), none within 250 m of home, thickening
-with tier. Size 1 is a fire and a shelter; size 3 is a stockade. Each blights
-about 95 m around it.
+(Danger was first meant to grow with distance from the falls; since v0.1 it runs
+north to south instead, as `dangerTier` in regions.js says.)
+
+There are exactly 100 camps (`world/campSites.js`, `CAMP_COUNT`), none within
+200 m of home. Size 1 is a fire and a shelter; size 3 is a stockade. Each blights
+55 to 140 m around it, by size.
 
 ## 4. Look and feel
 
@@ -357,9 +365,9 @@ story is expanded into three acts.
 |----------|----------|
 | Camera | Third person, zoom in to first person. |
 | Visual style | v0.1-0.2: clean low-poly, flat shaded. From v0.3: stylised but rich: generated grain and bump on every surface, leaf cards, grass, filmic light, rounded figures. |
-| World size | 2 × 4 km (reduced from 3.2 × 6.4 after playtest). |
+| World size | 1.5 × 3 km (v0.5; it was 3.2 × 6.4, then 2 × 4 after the first playtest). |
 | Forest | Dense and tall, closing overhead; a once-farmed land going back to woods. |
-| Camps | A hundred or more. |
+| Camps | A hundred, exactly (v0.5; there were about 190 on the 2 × 4 km land). |
 | Tooling | No build step. Three.js r170 vendored. |
 | Hosting | GitHub Pages from the repo root, with a landing page linking each game. |
 | Combat | Aimed, real-time, especially the bow. On touch, one Attack button picks target and weapon. |
@@ -391,15 +399,15 @@ story is expanded into three acts.
   in the rock up to the forest, the ledge beside the fall, the cave.
 - Forest of great trees with understory, herbs and litter; fens; Cormallen;
   heather slopes where the camera rides above the bushes.
-- 52 old farms and hamlets; seven named ruins; 44 lesser ruins of ten kinds; the
+- 30 old farms and hamlets; seven named ruins; 27 lesser ruins of ten kinds; the
   Cross-roads, the edge of Osgiliath, the barred Morgul Vale, Cair Andros.
-- 26 km of half-seen old paths (`world/paths.js`) joining all of the above and
+- 16 km of half-seen old paths (`world/paths.js`) joining all of the above and
   the two ways out of Henneth Annûn. They thin the trees, show on the ground
   and the map, and carry worn slabs and small cairns.
 
 ### The enemy and the fighting (M3)
 
-- 188 camps hold about 680 enemies (`data/enemies.js`): orcs, orc archers (in a
+- 100 camps hold about 450 enemies (`data/enemies.js`): orcs, orc archers (in a
   pale cowl, to be picked out), Uruks, Southrons, and a captain in each stockade.
 - **Where they are** (`world/campSites.js`): danger runs north to south. The
   woods north of Henneth Annûn are a hunting ground of many small camps (two or
@@ -455,20 +463,22 @@ story is expanded into three acts.
 - **Honing**: Mablung hones a sword or restrings a bow, +1 damage a step, up to
   +3, at renown 4, 14 and 28 (30, 90 and 220 silver).
 - **Renown** (`systems/renown.js`): deeds earn points, and points make a level
-  from 0 to 50 (`25n + 1.2n²` points for level n). Kills 1 to 6, camps 3 to 30,
-  road bands 6 (a host 40), old places 2, farms and villages 1, told tasks 15 to
-  300, errands 14 rising to 60. Every camp and told task together come to about
-  3,500 of the 4,250 for fifty: the rest is errands and the road. The pack shows
-  renown with a bar toward the next level.
+  from 0 to 50 (`25n + 1.2n²` points for level n). Kills 2 to 9, camps 4 to 48,
+  road bands 6 (a host 40), old places 3, farms and villages 2, told tasks 15 to
+  300, errands 14 rising to 60 (since v0.5, with half the camps, each camp, kill
+  and place is worth about 1.6 times what it was). The camps come to about 2,050,
+  the told tasks 1,750 and the places 160, of the 4,250 for fifty: the rest is
+  errands and the road. The pack shows renown with a bar toward the next level.
 - **The enemy grows with renown**: health +1.2% and damage +0.9% a level; from
   renown 15 each camp of size 2 or more holds one more for each 15, small camps
   one more from 25, and road bands one more for each 20.
-- **Told tasks** (`QUESTS`): Faramir's chain runs to 13 (the nearest fire, the
-  home woods, the heather, the stockade, the road bands, the Cross-roads,
-  Osgiliath, thirty fires, five captains, sixty fires, the war-camps, a hundred
-  fires, every camp). Éowyn's runs to 8 (kingsfoil, the old places, a village,
-  seed for the gardens, fifteen places, every village, thirty places, every
-  place).
+- **Told tasks** (`QUESTS`): Faramir's chain runs to 15 (the nearest fire, the
+  home woods, the Window Woods and Forlad freed, the heather, the stockade, the
+  road bands, the Cross-roads, Osgiliath, fifteen fires, five captains, thirty
+  fires, the three war-camps, half the fires (fifty), every camp). Éowyn's runs
+  to 8 (kingsfoil, the old places, a village, seed for the gardens, ten places,
+  every village, twenty places, every place). (Before v0.5 the counts were 30,
+  60 and 100 fires, and 15 and 30 places.)
 - **Errands** (`ERRANDS`, built in `systems/quests.js`): lesser work that never
   runs out, one in hand from each giver at a time, each a little bigger than the
   last. Faramir: trophies for the count (orc blades, trinkets, Red Eye badges,
@@ -481,12 +491,12 @@ story is expanded into three acts.
   give a direction from the falls ("to the south-east of here, a long walk");
   a third time and they mark it on your map, and the tracker follows the mark.
 - **Faramir's map**: after the first task he will show his map, which always
-  has camps you have not found (three, rising to seven late on), the nearest
+  has camps you have not found (three, one more for every 25 broken), the nearest
   to home first. They are copied onto yours as dashed red rings. Toward the end
   this is how the last camps are found.
-- **Plants**: kingsfoil (about 370) and four seeds for Éowyn: wild thyme in the
+- **Plants**: kingsfoil (about 200) and four seeds for Éowyn: wild thyme in the
   northern glades, bay in the woods, poppies about the old farms, wild olive in
-  the south (60 to 80 of each). Walk over them; seed has a gold glimmer.
+  the south (26 to 41 of each). Walk over them; seed has a gold glimmer.
 - Saves are version 4. Older saves start a new ranger and keep their settings.
 
 ### Streams
@@ -496,7 +506,7 @@ the mountains and is walked downhill over the base terrain, joining any stream i
 meets. Its bed is a running minimum along the course, so it never rises, and the
 ground is cut down to it in a small valley. Where a trace comes round in a loop
 it has found a hollow: the loop is cut out and a pool (6 to 13 m) lies there
-instead, 37 in all. Streams that come within 28 m of another join it; nothing
+instead, 16 in all. Streams that come within 28 m of another join it; nothing
 joins the home stream above its fall, and others are steered away from it. Water is a ribbon a fixed depth above
 the bed. The home stream keeps a fixed course across the shelf, over the fall and
 through the cut, then is traced from the cut's mouth to the river. Ruin sites are
@@ -789,6 +799,55 @@ up a band or a host on the road.
 - **Steeping**: Éowyn steeps all your kingsfoil at once, two plants to a draught,
   keeping an odd one back.
 
+### v0.5: a smaller world
+
+The pace was too slow: too long walking between things worth doing. The land is
+now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
+
+- **The layout** keeps its shape at three quarters the size: the Anduin, the
+  Harad Road (x about 1150), the southern road (z about 2906), the mountain wall
+  (from x about 1270), the named places, and Henneth Annûn at (752, 894), still in
+  the northern third, halfway from river to mountains. Henneth Annûn itself, the
+  pool, the cut, the cave and every ruin, farm and camp keep their own sizes;
+  only where they stand has changed. Everything about the falls is now laid out
+  from `HA.x` and `HA.z` in layout.js (on the terrain's 4 m grid). The land rises
+  as high over the shorter run, so the hills are a little steeper.
+- **Exactly 100 camps** (`CAMP_COUNT`): the land is scattered with camps at the
+  same spacing as before, which makes about 115, and the stragglers that lie
+  nearest another are thinned out until there are a hundred. 50 small camps, 30
+  bands, 17 stockades, 3 war-camps (Faramir's "three war-camps" is true again;
+  there were five). About 450 enemies.
+- **The rest in proportion**: 26 farms and 4 villages (were 46 and 6), 27 lesser
+  ruins on a grid of 3 by 8 (were 48 on 4 by 10), 16 km of old paths (26), about
+  200 kingsfoil (370) and 26 to 41 of each seed plant, 21 streams and 16 pools.
+  The springs were placed so that five streams still cross the whole land where
+  the province borders want them (z about 755, 1324, 1704, 2297 and 2694 at the
+  middle); the fens end a little further north (z 500) so the northern border
+  stream runs along their edge instead of being drawn into them.
+- **The refuge** is 180 m (was 220), camps keep 200 m off (was 250), the enemy
+  will not come within 170 m (was 210), and a camp's wounds are kept until the
+  ranger is 750 m away (was 1 km). Directions in hints scale too ("not far" under
+  270 m, "a fair walk" under 680, "a long walk" under 1280).
+- **Renown and silver**: with half the camps, each camp, kill and old place is
+  worth about 1.6 times as much renown (kills 2 to 9, camps 4 to 48, places 3,
+  farms 2) and the fallen and their stores carry about 1.6 times the silver, so
+  the totals over the game are what they were (camps about 2,050 renown and
+  3,000 silver) and the best gear still comes near renown 50.
+- **Tasks**: Faramir's count of fires is 15, 30 and 50 ("half the fires", was 30,
+  60 and 100); Éowyn's old places are 10 and 20 (were 15 and 30). Faramir's map
+  shows one more unfound camp for every 25 broken (was 40).
+- **The map** is drawn at 0.4 pixels a metre (was 0.3), so it is the same size
+  on screen as before.
+- **The same world everywhere**: Chromium used to make 190 camps where Node made
+  194. The old farms shuffled their fields with `sort(() => rand() - 0.5)`, and
+  each engine calls such a comparator a different number of times, so the random
+  sequence drifted apart. They now use a seeded shuffle; the smoke test checks
+  that the browser makes the same hundred camps as Node.
+- **Saves are version 6.** A save from before 0.5 keeps its settings only: its
+  places, camps and plants were in another land, so the ranger begins again.
+- Province holds and stockades: Forlad and Eryn Henneth still have none (their
+  holds are bands); the Bridgelands and the Gorse Fells have one each.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -825,32 +884,32 @@ is built. The decisions are in section 9.
 ### 11.1 Why provinces
 
 The five terrain regions (`world/regions.js`) are kinds of country, not places to
-free: the Home Woods holds 89 of 194 camps and two stockades, the Heather Slopes
+free: on the 2 x 4 km land the Home Woods held 89 of 194 camps and two stockades, the Heather Slopes
 has no ruins or plants, and every stockade and war-camp lies south of the falls.
 Provinces are a new layer (`world/provinces.js`), drawn over the regions.
 
 **Borders follow the land.** West of the Harad Road, the five streams that run the
 whole way from the mountains to the Anduin (crossing the middle of the land at
-about z 740, 1520, 2180, 2990 and 3330) cut the woods into bands. East of the
+about z 755, 1324, 1704, 2297 and 2694 since v0.5) cut the woods into bands. East of the
 road the heather is two fells, split where the third of those streams comes down.
-A strip 200 m deep along the southern road belongs to the Morgul Marches, so the
+A strip 150 m deep along the southern road belongs to the Morgul Marches, so the
 Cross-roads, Osgiliath's shore and the mouth of the Vale lie together. Each
 province's **hold** is its strongest camp, nearest the middle of its camps.
 
 | Province | Landmarks | Camps | Stockades + war-camps | Old places |
 |---|---|---|---|---|
-| **Forlad**, the North Plain | the Northern Fens | 51 | 0 | 19 |
-| **Eryn Henneth**, the Window Woods | Henneth Annûn, Cair Andros, the Field of Cormallen, the Mossy Arch, the Broken Watch | 46 | 0 | 21 |
-| **The Bridgelands** | the Old Bridge, the Fallen Colonnade | 35 | 1 | 24 |
-| **The Gorse Fells** | (heather, east of the road) | 9 | 2 | 0 |
-| **Eryn Ithil**, the Moonwood | the Roofless Shrine, the Stair to Nowhere | 25 | 5 | 22 |
-| **The Southwood** | the Dry Fountain | 9 | 3 + 2 | 10 |
-| **The Ash Fells** | (heather, east of the road) | 5 | 5 | 0 |
-| **The Morgul Marches** | the Cross-roads, Osgiliath, the Morgul Vale | 14 | 4 + 3 | 11 |
+| **Forlad**, the North Plain | the Northern Fens, the Broken Watch | 26 | 0 | 12 |
+| **Eryn Henneth**, the Window Woods | Henneth Annûn, Cair Andros, the Field of Cormallen, the Mossy Arch | 20 | 0 | 13 |
+| **The Bridgelands** | the Old Bridge, the Fallen Colonnade | 10 | 1 | 10 |
+| **The Gorse Fells** | (heather, east of the road) | 10 | 1 | 0 |
+| **Eryn Ithil**, the Moonwood | the Roofless Shrine, the Stair to Nowhere | 13 | 4 | 13 |
+| **The Southwood** | the Dry Fountain | 8 | 4 + 2 | 9 |
+| **The Ash Fells** | (heather, east of the road) | 7 | 4 | 1 |
+| **The Morgul Marches** | the Cross-roads, Osgiliath, the Morgul Vale | 6 | 3 + 1 | 6 |
 
-(Counts as Node generates the world; Chromium makes 190 camps rather than 194,
-from a float difference in camp placement, so a browser shows a few fewer in the
-north. That is a separate fix.)
+(Counts for the v0.5 world of 100 camps. Node and the browser now make the same
+world; before v0.5 Chromium made 190 camps where Node made 194, fixed in v0.5.
+The Broken Watch now stands just north of the border, in Forlad.)
 
 Two changes from the first sketch, now the borders follow streams: the Field of
 Cormallen lies by the falls, so it is part of Eryn Henneth and there is no
