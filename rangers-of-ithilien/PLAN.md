@@ -837,7 +837,8 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
   60 and 100); Éowyn's old places are 10 and 20 (were 15 and 30). Faramir's map
   shows one more unfound camp for every 25 broken (was 40).
 - **The map** is drawn at 0.4 pixels a metre (was 0.3), so it is the same size
-  on screen as before.
+  on screen as before. A landmark's name is moved down (or up) a line if it would
+  be written over one already there (the Morgul Vale used to cover the Cross-roads).
 - **The same world everywhere**: Chromium used to make 190 camps where Node made
   194. The old farms shuffled their fields with `sort(() => rand() - 0.5)`, and
   each engine calls such a comparator a different number of times, so the random

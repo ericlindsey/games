@@ -197,6 +197,7 @@ export class MapPanel {
 
     ctx.font = 'italic 600 15px Palatino, Georgia, serif';
     ctx.textBaseline = 'middle';
+    const written = []; // names already on the map, so another is not written over one
     for (const l of LANDMARKS) {
       if (!state.discovered.includes(l.id)) continue;
       const x = l.x * scale, y = l.z * scale;
@@ -204,8 +205,11 @@ export class MapPanel {
       ctx.beginPath(); ctx.arc(x, y, l.id === 'henneth' ? 4 : 2.5, 0, 7); ctx.fill();
       const text = l.name, tw = ctx.measureText(text).width;
       const tx = x + 6 + tw > W - 4 ? x - 6 - tw : x + 6;
-      ctx.strokeStyle = 'rgba(239,228,200,0.85)'; ctx.lineWidth = 3; ctx.strokeText(text, tx, y);
-      ctx.fillText(text, tx, y);
+      const clashes = (ty) => written.some((r) => tx < r.x1 && tx + tw > r.x0 && Math.abs(ty - r.y) < 15);
+      const ty = [y, y + 16, y - 16, y + 32].find((t) => !clashes(t)) ?? y;
+      written.push({ x0: tx, x1: tx + tw, y: ty });
+      ctx.strokeStyle = 'rgba(239,228,200,0.85)'; ctx.lineWidth = 3; ctx.strokeText(text, tx, ty);
+      ctx.fillText(text, tx, ty);
     }
     // old farms and hamlets appear once you have walked near them
     ctx.fillStyle = 'rgba(90,70,45,0.85)';
