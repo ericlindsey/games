@@ -440,6 +440,8 @@ test('errands never run out, grow slowly, and can be done', async () => {
   const q = await import('../src/systems/quests.js');
   const { ITEMS } = await import('../src/data/items.js');
   const s = newState();
+  assert.equal(q.errandFrom('faramir', s), null, 'Faramir has no errands until the nearest fire is out');
+  s.quests.done.push('f1', 'f3'); // (and has sent the ranger to the road, so the bands are asked for)
   const seen = { faramir: new Set(), eowyn: new Set() };
   for (let n = 0; n < 40; n++) {
     for (const giver of ['faramir', 'eowyn']) {
@@ -463,11 +465,13 @@ test('errands never run out, grow slowly, and can be done', async () => {
   const done = newState();
   done.cleared = CAMPS.map((c) => c.id);
   done.discovered.push(...q.PLACES.map((p) => p.id));
+  done.quests.done.push('f1');
   for (const giver of ['faramir', 'eowyn']) assert.ok(q.errandFrom(giver, done), `${giver} still has work at the end`);
 
   // a trophy errand, done and handed in
   const t = newState();
-  t.quests.count.faramir = 0;
+  t.quests.done.push('f1');
+  t.quests.count.faramir = 1;
   const e = q.errandFrom('faramir', t);
   assert.equal(e.objective.type, 'gather');
   q.acceptErrand(t, e);
@@ -475,7 +479,7 @@ test('errands never run out, grow slowly, and can be done', async () => {
   const back = q.turnIn(t, e.id);
   assert.ok(back && back.loot.some(([id]) => id === 'silver'));
   assert.equal(t.items[e.objective.item], 1, 'trophies are handed over');
-  assert.equal(t.quests.count.faramir, 1);
+  assert.equal(t.quests.count.faramir, 2);
   assert.ok(t.honour > 0);
 });
 
@@ -698,13 +702,15 @@ test('errands keep to the province the work is in', async () => {
   const { PROVINCE_CAMPS, CAMP_PROVINCE, HOLDS } = await import('../src/world/provinces.js');
   const { workingProvince } = await import('../src/systems/provinces.js');
   const s = newState();
+  s.quests.done.push('f1');
   assert.equal(workingProvince(s), 'henneth', 'the work begins at home');
   const errandsAt = (st, giver) => [...Array(12).keys()].map((n) => { st.quests.count[giver] = n; return q.errandFrom(giver, st); });
   for (const e of errandsAt(s, 'faramir')) {
     assert.ok(!/Deep Woods|Home Woods|Northern Heath|Heather Slopes|Anduin Shore/.test(e.title + e.offer), `${e.title}: no terrain names`);
     const o = e.objective;
     if (o.type === 'clearCamp') assert.equal(CAMP_PROVINCE[o.camp], 'henneth', 'a scout\'s report is of a camp at home');
-    if (o.type === 'clearSince') assert.ok(o.where.endsWith('henneth'), o.where);
+    if (o.type === 'clearSince') assert.ok(o.where.endsWith('henneth') || (e.errand === 'bounty' && o.where === 'any'), o.where);
+    assert.notEqual(e.errand, 'region', 'no "break one camp here" beside the call to free the province');
     if (o.type === 'gather') assert.ok(!['captainToken', 'haradGold'].includes(o.item), `nothing only the south carries (${o.item})`);
   }
   for (const e of errandsAt(s, 'eowyn')) {
@@ -759,4 +765,49 @@ test('orcs carry orc bread, which mends less than waybread', async () => {
   const st = newState();
   st.health = 95; st.items = { orcBread: 1, draught: 1 };
   assert.equal(inv.quickHeal(st), 'orcBread', 'a scratch is mended with the lesser food');
+});
+
+test('Éowyn\'s first village is the one in the Window Woods', async () => {
+  const q = await import('../src/systems/quests.js');
+  const home = q.PLACES.filter((p) => p.set === 'villages' && p.province === 'henneth');
+  assert.equal(home.length, 1, 'Eryn Henneth has a village of its own');
+  const s = newState();
+  s.quests.active.push('e3');
+  const e3 = q.questOf(s, 'e3');
+  s.discovered.push(...q.PLACES.filter((p) => p.set === 'villages' && p.province !== 'henneth').map((p) => p.id));
+  assert.ok(!q.isComplete(e3, s), 'a village elsewhere does not count');
+  const hint = q.hintTarget(e3.objective, s);
+  assert.equal(hint.x, home[0].x, 'and she points to the one at home');
+  s.discovered.push(home[0].id);
+  assert.ok(q.isComplete(e3, s));
+});
+
+test('a roused camp never draws in its neighbour while both are at rest', async () => {
+  const { CHASE, campReach } = await import('../src/data/enemies.js');
+  let worst = Infinity;
+  for (const a of CAMPS) for (const b of CAMPS) {
+    if (a.id >= b.id) continue;
+    const gap = Math.hypot(a.x - b.x, a.z - b.z) - campReach(a.size) - campReach(b.size);
+    worst = Math.min(worst, gap);
+  }
+  assert.ok(worst > CHASE.rouse + 3, `the nearest two companies at rest stand ${worst.toFixed(1)} m apart (rousing reaches ${CHASE.rouse})`);
+});
+
+test('the lesser ruins stand on level ground, and the sunken court is sunken', async () => {
+  const { RELICS, RELIC_FLAT, COURT } = await import('../src/world/relicSites.js');
+  for (const r of RELICS) {
+    const R = RELIC_FLAT[r.kind];
+    if (!R) continue;
+    // the ground under a ruin's whole footprint is level, so no end of it hangs in the air
+    const y = heightAt(r.x + (r.kind === 'baths' ? 20 : 0), r.z), heights = [];
+    for (let a = 0; a < 6.28; a += 0.5) heights.push(heightAt(r.x + Math.cos(a) * R * 0.85, r.z + Math.sin(a) * R * 0.85));
+    if (r.kind !== 'baths') assert.ok(Math.max(...heights) - Math.min(...heights) < 0.5, `${r.id} (${r.kind}) is level: ${Math.min(...heights).toFixed(2)} to ${Math.max(...heights).toFixed(2)}`);
+    // and the levelling stops short of every camp, which were placed on the land as it was
+    for (const c of CAMPS) assert.ok(Math.hypot(c.x - r.x, c.z - r.z) > Math.min(22, R * 1.75) + 2, `${r.id}'s levelling reaches camp ${c.id}`);
+    if (r.kind === 'baths') {
+      const floor = heightAt(r.x, r.z), around = heightAt(r.x + COURT.hw + COURT.walk + 1, r.z);
+      assert.ok(around - floor > COURT.depth - 0.3, `the court lies ${(around - floor).toFixed(2)} m down`);
+      assert.ok(Math.abs(heightAt(r.x + COURT.hw - 0.5, r.z + COURT.hd - 0.5) - floor) < 0.05, 'its floor is flat');
+    }
+  }
 });
