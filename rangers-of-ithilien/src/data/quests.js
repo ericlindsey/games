@@ -30,7 +30,7 @@ export const QUESTS = [
   // ---- Faramir: the clearing of Ithilien ----
   {
     id: 'f1', giver: 'faramir', title: 'The nearest fire',
-    offer: 'There is a camp closer to this door than I like. A few stragglers, no more, but they will find the stair in time if they are let alone. Go and put that fire out. Mablung will see you have arrows.',
+    offer: 'Those who fled the Black Gate did not all flee far. Orcs, and Men who served the Enemy, have gone to ground in our woods, each company round its own fire. Where they camp the land sickens: the light goes dim and grey about them, and nothing sings. Break a camp, down to the last of its company, and the land about it begins to mend; you will see it come back while you stand there.\n\nAnd there is one closer to this door than I like. A few stragglers, no more, hungry and frightened, but they will find the stair in time if they are let alone. Go softly and they will not see you until you choose. Put that fire out. Mablung will see you have arrows, and if it goes ill, come back here: they will not follow you to the falls.',
     remind: 'The nearest camp, ranger. It is marked on your map. Come back when it is cold for good.',
     done: 'Good. One fire the fewer, and the woods about our door are our own again. Take this; you will want it for the next.',
     objective: { type: 'clearCamp', camp: 'nearest' },
@@ -38,7 +38,7 @@ export const QUESTS = [
   },
   {
     id: 'f2', giver: 'faramir', requires: ['f1'], title: 'The home woods',
-    offer: 'Now the rest of the near country. Five camps broken, counting the one you have done, and a man might walk from here to Cormallen without looking over his shoulder.',
+    offer: 'Now the rest of the near country. Look about you, when you are out there: this was farmland once, the garden of Gondor, and you will find the walls and lanes of it yet under the trees. The Great River bounds us on the west and the Mountains of Shadow on the east, and the land climbs from the one to the other. Our stream runs down to Cormallen, where the King\u2019s host made merry. The farther you go from this window, toward the mountains or the Morgul road or the heath in the north, the more of them there are, and the worse they are led.\n\nFive camps broken, counting the one you have done, and a man might walk from here to Cormallen without looking over his shoulder.',
     remind: 'Five camps in all. Work outward from the falls.',
     done: 'Five. I walked out to one of them yesterday and there were flowers in the ash. Here: greaves, for the brambles as much as the orcs.',
     objective: { type: 'clearCount', count: 5 },
@@ -46,7 +46,7 @@ export const QUESTS = [
   },
   {
     id: 'f14', giver: 'faramir', requires: ['f2'], title: 'The Window Woods',
-    offer: 'Five camps is a beginning. But they are not leaderless out there. In these woods, between the river and the road, whoever leads them keeps the strongest camp of all: their hold. Break it, and enough of the rest that they give the woods up for lost. Then the Window Woods are ours, from Cair Andros to the Harad Road.',
+    offer: 'Five camps is a beginning. But they are not leaderless out there, and that troubles me: stragglers should scatter, and these have not. In these woods, between the river and the road, whoever leads them keeps the strongest camp of all, ringed with stakes: their hold. Break it, and enough of the rest that they give the woods up for lost. Then the Window Woods are ours, from Cair Andros to the Harad Road.\n\nThe land is too wide to win all at once, so we shall win it a piece at a time: the Window Woods first, then the heath to the north, then the country beyond the road and southward. Your map shows where each begins and ends. And there are folk waiting on the far bank for word that these woods are safe to settle. I would not keep them waiting long.',
     remind: 'Free the Window Woods: break their hold, and three camps in four with it. Your pack will show you how it stands.',
     done: 'Then the Window Woods are free. I walked down to the river this morning and met no one but a fox. Take these; the north will be harder on you than you think.',
     objective: { type: 'freed', province: 'henneth' },
@@ -152,7 +152,7 @@ export const QUESTS = [
   // ---- Éowyn: the old land, and the gardens ----
   {
     id: 'e1', giver: 'eowyn', title: 'Kingsfoil', picture: 'kingsfoil',
-    offer: 'Will you gather for me? There is a leaf the old wives of Gondor call kingsfoil: low, plain, white-flowered, sweet when it is crushed. Here, I have drawn it for you: a rosette of long leaves and a few white stars above. It likes the edges of glades, and in the shade it has a pale glimmer about it that no other flower has. Bring me five plants and I will show you what the Houses of Healing taught me.',
+    offer: 'Everything grows here, once it is let alone: thyme and sage underfoot, bay and olive, and flowers I have no names for yet. Where the Enemy\u2019s folk have camped the land goes grey and sour, but it does not stay so; drive them off and in a little while you can watch the colour come back. I think that is the best thing I have seen since the war.\n\nWill you gather for me? There is a leaf the old wives of Gondor call kingsfoil: low, plain, white-flowered, sweet when it is crushed. Here, I have drawn it for you: a rosette of long leaves and a few white stars above. It likes the edges of glades, and in the shade it has a pale glimmer about it that no other flower has. Bring me five plants and I will show you what the Houses of Healing taught me.',
     remind: 'Five plants of kingsfoil. Look in the glades, where the light gets in.',
     done: 'These are good. Smell that! Here, take these draughts; and bring me more whenever you find it. Two plants make one draught, if I do the steeping.',
     objective: { type: 'gather', item: 'athelas', count: 5 },
@@ -160,7 +160,7 @@ export const QUESTS = [
   },
   {
     id: 'e2', giver: 'eowyn', title: 'The old places',
-    offer: 'I am making a map of what Ithilien was. Not the camps; Faramir has that map, and welcome to it. The old things: arches, shrines, standing stones, whatever was built here before the Shadow. They lie in every quarter of the land, and the old roads ran between them; the rangers still know those ways, and once you have found a place you can come and go by them. Find me four.',
+    offer: 'Faramir will tell you where to fight. I will tell you to come home afterward, and to look about you on the way. I am making a map of what Ithilien was. Not the camps; Faramir has that map, and welcome to it. The old things: arches, shrines, standing stones, whatever was built here before the Shadow. They lie in every quarter of the land, and the old roads ran between them; the rangers still know those ways, and once you have found a place you can come and go by them. Find me four.',
     remind: 'Four of the old places. The old paths lead to most of them, if you can keep to a path.',
     done: 'Four! Sit, and tell me each one. … I shall draw them in tonight. This is for your trouble, and for the telling.',
     objective: { type: 'discoverCount', set: 'ruins', count: 4 },
@@ -168,10 +168,10 @@ export const QUESTS = [
   },
   {
     id: 'e3', giver: 'eowyn', requires: ['e2'], title: 'A village in the trees',
-    offer: 'There were villages here. I have found their names in a book of Faramir’s and not one of them on the ground. Find me a village, ranger, even a dead one.',
-    remind: 'A ruined village: houses in a ring, a well, a broken cross. The lanes of great beeches lead to them.',
-    done: 'A well, and a market cross? Then people will live there again; I mean to see to it. Thank you.',
-    objective: { type: 'discoverCount', set: 'villages', count: 1 },
+    offer: 'There were villages here. I have found their names in a book of Faramir’s and not one of them on the ground. There are families waiting across the River, ranger, who have lost their own homes to the war, and when the Window Woods are safe they will cross at Cair Andros. I would have somewhere ready for them to go. The book puts a village in these woods, between the landing and the falls, on the old way south. Find it for me, even if it is dead.',
+    remind: 'The village of the Window Woods: houses in a ring, a well, a broken cross, somewhere between Cair Andros and the falls. The lanes of great beeches lead to it.',
+    done: 'A well, and a market cross? Then people will live there again; I mean to see to it. When Faramir has the woods quiet, that is where they shall go. Thank you.',
+    objective: { type: 'seek', set: 'villages@henneth', count: 1, base: 0 },
     reward: { silver: 30, items: { draught: 2 }, honour: 25 },
   },
   {
@@ -234,21 +234,24 @@ export const TROPHY_HINTS = {
  */
 export const ERRANDS = {
   faramir: {
-    kinds: ['trophy', 'region', 'bands', 'trophy', 'scouted', 'captain'],
+    // (since v0.6 the old 'region' errand, "break 1 camp in X", is gone: it read
+    // oddly beside Faramir's own call to free the whole province. A bounty on
+    // every five to ten camps broken takes its place.)
+    kinds: ['bounty', 'trophy', 'scouted', 'bands', 'trophy', 'captain'],
     trophies: [['orcBlade', 3], ['orcTrinket', 4], ['redEye', 2], ['arrowheads', 3], ['blackCoin', 3], ['captainToken', 1], ['haradGold', 2]],
     gifts: ['leatherCap', 'guardSword', 'ironGreaves', 'citadelGreaves', 'citadelHelm'],
     text: {
       trophy: (p) => ({
         title: `${p.itemName} for the count`,
-        offer: `I would know how many of them are still out there, and what they carry. Bring me ${p.count} ${p.itemName.toLowerCase()}. ${p.hint}`,
+        offer: `They are better kept than stragglers have any right to be: fed, and armed, and held together. Someone is seeing to it, and I would know who. What they carry tells me where it comes from, and how many hands it passes through. Bring me ${p.count} ${p.itemName.toLowerCase()}. ${p.hint}`,
         remind: `${p.count} ${p.itemName.toLowerCase()}, for the count.`,
-        done: 'Good. Into the forge with them, and into the tally. Here.',
+        done: 'Good. Into the tally with them, and then the forge. Mablung and I will sit up over these tonight. Here.',
       }),
-      region: (p) => ({
-        title: `Fires in ${p.region.replace(/^The /, 'the ')}`,
-        offer: `The scouts say ${p.region.replace(/^The /, 'the ')} is busier than it should be. Break ${p.count} camp${p.count > 1 ? 's' : ''} there.`,
-        remind: `${p.count} camp${p.count > 1 ? 's' : ''} broken in ${p.region.replace(/^The /, 'the ')}.`,
-        done: 'That country will sleep the better for it. Thank you.',
+      bounty: (p) => ({
+        title: `A bounty on ${p.count} fires`,
+        offer: `The Steward\u2019s treasury has sent us silver for the work, and I would rather it went to the one doing it. For every ${p.count} camps you break, wherever they lie, there is a purse waiting here. Break ${p.count} more and come and claim it.`,
+        remind: `${p.count} more camps broken, anywhere, for the bounty.`,
+        done: `${p.count} more fires out. Here is the purse, and there will be another for the next ${p.count}.`,
       }),
       bands: (p) => ({
         title: 'Watch on the road',
@@ -258,13 +261,13 @@ export const ERRANDS = {
       }),
       scouted: (p) => ({
         title: 'A scout’s report',
-        offer: `A scout came in last night with word of a camp ${p.where}. I have marked it on your map. See to it.`,
+        offer: `A scout came in last night with word of a camp ${p.where}. They moved in lately, she says, and in good order, as if they had been sent. I have marked it on your map. See to it, and look about you for anything that says who sent them.`,
         remind: `The camp ${p.where}. It is marked on your map.`,
         done: 'Good. I shall tell the scout; she will be glad she came back to report it.',
       }),
       captain: (p) => ({
         title: 'Another captain',
-        offer: `There is a captain still holding a stockade together in ${p.where}. Break it, and him.`,
+        offer: `There is a captain still holding a stockade together in ${p.where}, and while he stands the camps about him take heart. Break it, and him.`,
         remind: `A stockade or a war-camp in ${p.where} broken, captain and all.`,
         done: 'One captain fewer. Well done.',
       }),
