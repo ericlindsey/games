@@ -4,7 +4,7 @@
 import { rng } from '../util/noise.js';
 import { WORLD } from '../config.js';
 import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, roadDistance } from './layout.js';
-import { heightAt, slopeAt, streamDistance } from './terrain.js';
+import { heightAt, slopeAt, streamDistance, levelGround } from './terrain.js';
 import { SITES, houseDistance } from './oldworks.js';
 
 /** kind -> what the ranger notes on finding one */
@@ -62,6 +62,30 @@ function generate() {
 
 /** @type {{id:string, kind:string, x:number, z:number}[]} */
 export const RELICS = generate();
+
+/**
+ * How much ground each kind of ruin levels about itself (since v0.6: before,
+ * a ruin on a slope stood on the height at its middle, and the downhill end of
+ * a long one, such as a gateway's wall, hung in the air). The aqueduct strides
+ * over the land on piers of its own height and levels nothing.
+ * A sunken court is also dug down (`dig`): the court itself, and the walk round it.
+ */
+export const RELIC_FLAT = { stones: 9, statue: 8, barrow: 10, rotunda: 8, chapel: 10, waystone: 5, gate: 11.5, tower: 7, baths: 12.5 };
+export const COURT = { hw: 5.5, hd: 7.5, walk: 2.4, depth: 1.5 }; // the sunken court: half its size, the walk round it, how deep
+// Placed after every ruin is chosen (so none was chosen on ground another had
+// levelled), and kept short of where the camps may lie (26 m off, campSites.js).
+levelGround(RELICS.filter((r) => RELIC_FLAT[r.kind]).map((r) => ({
+  x: r.x, z: r.z, r0: RELIC_FLAT[r.kind], r1: Math.min(22, RELIC_FLAT[r.kind] * 1.75),
+  dig: r.kind === 'baths' ? { hw: COURT.hw + COURT.walk, hd: COURT.hd + COURT.walk, depth: COURT.depth } : null,
+})));
+
+/** True inside a sunken court or the walk round it, where nothing grows but what is drawn there. */
+export function inCourt(x, z) {
+  for (const r of RELICS) {
+    if (r.kind === 'baths' && Math.abs(x - r.x) < COURT.hw + COURT.walk + 0.8 && Math.abs(z - r.z) < COURT.hd + COURT.walk + 0.8) return true;
+  }
+  return false;
+}
 
 /** Distance to the nearest relic (large if none is near). */
 export function relicDistance(x, z) {

@@ -12,6 +12,7 @@ import { regionWeights } from './regions.js';
 import { inField } from './oldworks.js';
 import { pathWear } from './paths.js';
 import { campNear } from './campSites.js';
+import { inCourt } from './relicSites.js';
 import { roadDistance, ROAD_HALF_WIDTH, HA, gorgeZ, inClearing, bankX } from './layout.js';
 import { groundAt } from './collision.js';
 import { hash2 } from '../util/noise.js';
@@ -63,6 +64,7 @@ export function grassAt(x, z, h) {
   if (h < WATER_LEVEL + 0.3 || x < bankX(z) + 4) return 0;
   if (roadDistance(x, z) < ROAD_HALF_WIDTH + 0.8) return 0;
   if (streamDistance(x, z) < 2.6) return 0;
+  if (inCourt(x, z)) return 0; // paved, and deep in leaves
   // the wet stone of the basin and the cut at Henneth Annûn
   if (h < HA.plateau - 9 && x < HA.x + 1 && x > HA.gorge.endX && Math.abs(z - (x < HA.basin.minX ? gorgeZ(x) : HA.z)) < 24) return 0;
   // nor on the walls of the basin and the cut, under their skin of rock
