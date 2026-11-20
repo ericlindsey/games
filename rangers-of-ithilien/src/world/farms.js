@@ -2,7 +2,7 @@
 // tumbled field walls, wells and the paving of lost lanes.
 
 import { SITES } from './oldworks.js';
-import { heightAt } from './terrain.js';
+import { heightAt, streamDistance } from './terrain.js';
 import { addSolid, addCircle } from './collision.js';
 import { GeoBuilder, SURF, materials } from './build.js';
 import { wall as ashlar, rubble } from './ruins.js';
@@ -19,7 +19,9 @@ function solidWall(b, x, z, w, d, y, h, color) {
 }
 
 function house(b, rand, hs) {
-  const y = heightAt(hs.x, hs.z), t = 0.6;
+  const t = 0.6;
+  // on the lowest ground under it, so no corner hangs over a slope (the walls are buried a little)
+  const y = Math.min(...[[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]].map(([sx, sz]) => heightAt(hs.x + sx * hs.w / 2, hs.z + sz * hs.d / 2)));
   const long = hs.w >= hs.d;                    // the door is in a long wall
   const color = () => HOUSE[Math.floor(rand() * HOUSE.length)];
   const height = () => 0.9 + rand() * 2.8;
@@ -30,49 +32,93 @@ function house(b, rand, hs) {
     { ew: false, x: x0, z: hs.z, len: hs.d }, { ew: false, x: x1, z: hs.z, len: hs.d },
   ];
   const doorSide = long ? (rand() < 0.5 ? 0 : 1) : (rand() < 0.5 ? 2 : 3);
+  // One gable may still stand above the rest: an end wall (never the door's),
+  // whole and tall, with the gable resting on it. (It used to be set at a fixed
+  // height over whatever stood below, and over a low wall it hung in the air.)
+  const gable = rand() < 0.6 ? (long ? 2 + Math.floor(rand() * 2) : Math.floor(rand() * 2)) : -1;
   sides.forEach((s, i) => {
-    const pieces = i === doorSide ? [[-s.len / 2, -0.8], [0.8, s.len / 2]] : rand() < 0.3 ? [[-s.len / 2, -s.len * 0.1]] : [[-s.len / 2, s.len / 2]];
+    const pieces = i === doorSide ? [[-s.len / 2, -0.8], [0.8, s.len / 2]] : i !== gable && rand() < 0.3 ? [[-s.len / 2, -s.len * 0.1]] : [[-s.len / 2, s.len / 2]];
     for (const [a, c] of pieces) {
-      const len = c - a, mid = (a + c) / 2, h = height();
+      const len = c - a, mid = (a + c) / 2, h = i === gable ? 2.9 + rand() * 0.6 : height();
       if (s.ew) solidWall(b, s.x + mid, s.z, len, t, y, h, color());
       else solidWall(b, s.x, s.z + mid, t, len, y, h, color());
+      if (i === gable) {
+        const gh = 1.7, gy = y + h - 0.5; // set into the wall's broken top, so it never floats
+        if (s.ew) b.box(s.len * 0.55, gh, t, s.x, gy, s.z, color()); else b.box(t, gh, s.len * 0.55, s.x, gy, s.z, color());
+        if (s.ew) b.box(s.len * 0.3, 0.7, t, s.x, gy + gh - 0.05, s.z, color()); else b.box(t, 0.7, s.len * 0.3, s.x, gy + gh - 0.05, s.z, color());
+      }
     }
   });
-  // one gable still stands above the rest
-  if (rand() < 0.6) {
-    const g = sides[long ? 2 + Math.floor(rand() * 2) : Math.floor(rand() * 2)];
-    if (g.ew) b.box(g.len * 0.55, 1.8, t, g.x, y + 2.6, g.z, color()); else b.box(t, 1.8, g.len * 0.55, g.x, y + 2.6, g.z, color());
-  }
   rubble(b, rand, hs.x, hs.z, 6, Math.max(hs.w, hs.d) + 4); // fallen stone, inside and out
 }
 
-/** Dry-stone wall along one edge of a field: standing, tumbled, or gone. */
+/**
+ * A stretch of field wall still standing: rough stones laid dry (SURF.drystone),
+ * broken along its top, a few stones still lying on it and a few fallen at its
+ * foot. On sloping ground it is built in short steps, each on its own ground,
+ * so no end of it hangs in the air.
+ */
+function dryWall(b, rand, xa, za, xb, zb, h, ew) {
+  const ya = heightAt(xa, za), yb = heightAt(xb, zb);
+  const steps = Math.min(6, 1 + Math.floor(Math.abs(ya - yb) / 0.35));
+  for (let k = 0; k < steps; k++) {
+    const f0 = k / steps, f1 = (k + 1) / steps;
+    const x0 = xa + (xb - xa) * f0, z0 = za + (zb - za) * f0, x1 = xa + (xb - xa) * f1, z1 = za + (zb - za) * f1;
+    const x = (x0 + x1) / 2, z = (z0 + z1) / 2, len = Math.hypot(x1 - x0, z1 - z0) + 0.04;
+    const g0 = heightAt(x0, z0), g1 = heightAt(x1, z1), lo = Math.min(g0, g1), hi = Math.max(g0, g1);
+    if (streamDistance(x, z) < 5) continue; // no wall stands in a stream
+    const top = hi + h, t = 0.78;
+    const color = WALL[Math.floor(rand() * WALL.length)];
+    b.kind = SURF.drystone;
+    // battered: broad below, narrower above, the upper part broken in runs
+    b.box(ew ? len : t, top - 0.4 - (lo - 0.6), ew ? t : len, x, lo - 0.6, z, color);
+    const runs = Math.max(1, Math.round(len / 1.3));
+    for (let i = 0; i < runs; i++) {
+      const o = -len / 2 + (len / runs) * (i + 0.5), drop = rand() < 0.35 ? 0.15 + rand() * 0.35 : 0;
+      if (0.4 - drop < 0.08) continue;
+      b.box(ew ? len / runs + 0.02 : t - 0.14, 0.4 - drop, ew ? t - 0.14 : len / runs + 0.02, ew ? x + o : x, top - 0.4, ew ? z : z + o, rand() < 0.25 ? WALL[3] : color);
+      if (!drop && rand() < 0.7) { // a cope-stone on top
+        const cx = ew ? x + o + (rand() - 0.5) * 0.4 : x, cz = ew ? z : z + o + (rand() - 0.5) * 0.4;
+        addRock(b, cx, top - 0.06, cz, 0.5 + rand() * 0.25, rand() < 0.3 ? WALL[3] : color, Math.floor(rand() * 1e5), { detail: 0, sy: 0.55, cuts: 5, rough: 0.12 });
+      }
+    }
+    b.kind = SURF.masonry;
+    if (rand() < 0.5) { // fallen from it
+      const side = rand() < 0.5 ? -1 : 1, o = (rand() - 0.5) * len;
+      const fx = ew ? x + o : x + side * 0.9, fz = ew ? z + side * 0.9 : z + o;
+      addRock(b, fx, heightAt(fx, fz) - 0.12, fz, 0.45 + rand() * 0.3, color, Math.floor(rand() * 1e5), { detail: 0, sy: 0.6, cuts: 6, rough: 0.12 });
+    }
+    addSolid({ minX: x - (ew ? len : t) / 2, maxX: x + (ew ? len : t) / 2, minZ: z - (ew ? t : len) / 2, maxZ: z + (ew ? t : len) / 2, bottom: lo - 2, top });
+  }
+}
+
+/**
+ * Field wall along one edge of a field, in runs: mostly a low line of tumbled
+ * field stone you can step over, here and there still standing shoulder high,
+ * and in places gone altogether. (Since v0.6 these are all rough stone; they
+ * were laid ashlar, which looked like brick.)
+ */
 function fieldEdge(b, rand, xa, za, xb, zb) {
   const len = Math.hypot(xb - xa, zb - za), n = Math.max(1, Math.round(len / 5)), seg = len / n;
   const ew = Math.abs(xb - xa) > Math.abs(zb - za);
   let state = rand();
   for (let i = 0; i < n; i++) {
     if (rand() < 0.45) state = rand(); // walls fail in runs, not stone by stone
-    if (state > 0.82) continue;        // gone
+    if (state > 0.84) continue;        // gone
     const f = (i + 0.5) / n, x = xa + (xb - xa) * f, z = za + (zb - za) * f, y = heightAt(x, z);
-    if (y < 1) continue;
+    if (y < 1 || streamDistance(x, z) < 4) continue;
     const color = WALL[Math.floor(rand() * WALL.length)];
-    if (state < 0.5) {
-      const h = 0.72 + rand() * 0.35, t = 0.7;
-      if (ew) solidWall(b, x, z, seg + 0.05, t, y, h, color); else solidWall(b, x, z, t, seg + 0.05, y, h, color);
-      // uneven cope-stones, so the wall reads as laid stone and not a slab
-      for (let k = 0; k < 4; k++) {
-        const o = (k - 1.5) * (seg / 4), s2 = 0.5 + rand() * 0.5;
-        b.box(ew ? seg / 4 - 0.1 : t + 0.12, 0.12 + rand() * 0.2, ew ? t + 0.12 : seg / 4 - 0.1,
-          ew ? x + o : x, y + h - 0.02, ew ? z : z + o, WALL[Math.floor(rand() * WALL.length)], (rand() - 0.5) * 0.15 * s2);
-      }
+    if (state < 0.28) {
+      const f0 = i / n, f1 = (i + 1) / n;
+      dryWall(b, rand, xa + (xb - xa) * f0, za + (zb - za) * f0, xa + (xb - xa) * f1, za + (zb - za) * f1, 0.95 + rand() * 0.7, ew);
     } else {
-      // tumbled: a low spread of stone you can step over
+      // tumbled: a low spread of stone you can step over, now and then a second course still on the first
       const n = Math.max(3, Math.round(seg * 1.2));
       for (let k = 0; k < n; k++) {
         const f2 = (k + 0.5) / n - 0.5, s = 0.5 + rand() * 0.5;
-        const sx = ew ? x + f2 * seg : x + (rand() - 0.5) * 0.9, sz = ew ? z + (rand() - 0.5) * 0.9 : z + f2 * seg;
-        addRock(b, sx, heightAt(sx, sz) - 0.15, sz, s, k % 3 ? color : WALL[1], Math.floor(rand() * 1e5), { detail: 0, sy: 0.6, cuts: 6, rough: 0.12 });
+        const sx = ew ? x + f2 * seg : x + (rand() - 0.5) * 0.9, sz = ew ? z + (rand() - 0.5) * 0.9 : z + f2 * seg, sy = heightAt(sx, sz);
+        addRock(b, sx, sy - 0.15, sz, s, k % 3 ? color : WALL[1], Math.floor(rand() * 1e5), { detail: 0, sy: 0.6, cuts: 6, rough: 0.12 });
+        if (state < 0.45 && rand() < 0.5) addRock(b, sx + (rand() - 0.5) * 0.2, sy + s * 0.3, sz + (rand() - 0.5) * 0.2, s * 0.7, color, Math.floor(rand() * 1e5), { detail: 0, sy: 0.6, cuts: 6, rough: 0.12 });
       }
     }
   }

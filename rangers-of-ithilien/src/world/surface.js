@@ -25,6 +25,7 @@ export const SURF = {
   skin: 10,
   metal: 11,
   cave: 12,    // rock under cover: no moss
+  drystone: 13, // field stone laid without mortar: the old field walls (its own texture, uStones)
 };
 
 // Regions of the leaf atlas (u from, u to). The last quarter is solid white:
@@ -122,6 +123,60 @@ function makeDetailTexture(size = 512) {
   return tex;
 }
 
+/**
+ * Dry-stone walling, in the red channel: rough field stones of every size laid
+ * in uneven courses, with deep dark gaps between them and no mortar. One tile
+ * is about 2.2 m across at the scale it is drawn (SURF.drystone).
+ */
+function makeStoneTexture(size = 256) {
+  const data = new Uint8Array(size * size * 4);
+  const rr = makeHash(131), h1 = makeHash(137), h2 = makeHash(139);
+  // courses of uneven height, summing to the tile; each cut into stones of uneven length
+  const rows = [];
+  let v0 = 0;
+  while (v0 < 0.999) {
+    const hgt = Math.min(1 - v0, 0.11 + rr(rows.length, 1) * 0.1);
+    const left = 1 - v0 - hgt;
+    const h = left < 0.09 ? 1 - v0 : hgt;
+    const joints = [];
+    let u = rr(rows.length, 2) * 0.2;
+    while (u < 1) { joints.push(u); u += 0.09 + rr(rows.length, joints.length + 3) * 0.2; }
+    rows.push({ v0, h, joints });
+    v0 += h;
+  }
+  for (let y = 0; y < size; y++) {
+    const v = y / size;
+    let r = 0;
+    while (r < rows.length - 1 && rows[r].v0 + rows[r].h <= v) r++;
+    const row = rows[r], fv = (v - row.v0) / row.h;
+    for (let x = 0; x < size; x++) {
+      const u = x / size, i = (y * size + x) * 4;
+      const J = row.joints;
+      let k = 0;
+      while (k < J.length && J[k] <= u) k++;
+      const jl = k > 0 ? J[k - 1] : J[J.length - 1] - 1, jr = k < J.length ? J[k] : J[0] + 1;
+      const fu = (u - jl) / (jr - jl);
+      // a rounded stone: superellipse distance from its middle, its outline wobbling
+      const wob = tileNoise(u, v, 24, 24, h1) * 0.12;
+      const du = Math.abs(fu - 0.5) * 2, dv = Math.abs(fv - 0.5) * 2;
+      const e = Math.pow(Math.pow(du, 3) + Math.pow(dv, 3), 1 / 3) + wob;
+      const shade = 0.5 + rr(r * 53 + k, 9) * 0.4;
+      let st = e > 0.93 ? 0.08 : shade * (0.75 + 0.25 * sstep(0.93, 0.6, e)) + tileFbm(u, v, 16, 16, 3, h2) * 0.12;
+      st += (1 - fv) * 0.05; // the top of each stone a little lighter
+      const c = Math.max(0, Math.min(255, Math.round(st * 255)));
+      data[i] = c; data[i + 1] = c; data[i + 2] = c; data[i + 3] = 255;
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /** Leaf clusters drawn on a canvas: broad leaves, needles, small ivy leaves, and solid white. */
 function makeLeafAtlas() {
   const W = 1024, H = 256;
@@ -198,8 +253,9 @@ function makeLeafAtlas() {
   return tex;
 }
 
-let detailTex = null, atlasTex = null;
+let detailTex = null, atlasTex = null, stoneTex = null;
 export function detailTexture() { return (detailTex ||= makeDetailTexture()); }
+export function stoneTexture() { return (stoneTex ||= makeStoneTexture()); }
 export function leafAtlas() { return (atlasTex ||= makeLeafAtlas()); }
 
 // ---------------------------------------------------------------------------
@@ -319,6 +375,7 @@ if (lod.x > 0.5) {
 
 const FRAG_HEAD = /* glsl */`
 uniform sampler2D uDetail;
+uniform sampler2D uStones;
 uniform vec3 uMossColor;
 uniform float uMossAmt;
 uniform float uDetailAmt;
@@ -337,6 +394,9 @@ float surfBump;   // how strongly it raises the surface
 float surfLeaf;   // 1 on leaves: they glow a little, more with the sun behind them
 vec4 surfTri(vec3 p, vec3 w) {
   return texture2D(uDetail, p.zy) * w.x + texture2D(uDetail, p.xz) * w.y + texture2D(uDetail, p.xy) * w.z;
+}
+float stoneTri(vec3 p, vec3 w) {
+  return texture2D(uStones, p.zy).r * w.x + texture2D(uStones, p.xz).r * w.y + texture2D(uStones, p.xy).r * w.z;
 }
 vec3 surfPerturb(vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection) {
   vec3 vSigmaX = normalize(dFdx(surf_pos));
@@ -372,8 +432,10 @@ const FRAG_COLOR = /* glsl */`
   else if (k == 10.0) { ch = vec4(0.0, 1.0, 0.0, 0.0); sc = 6.0;  con = 0.05; bmp = 0.1; }
   else if (k == 12.0) { ch = vec4(1.0, 0.0, 0.0, 0.0); sc = 0.42; con = 0.7;  bmp = 2.6; }
   else if (k == 11.0) { ch = vec4(1.0, 0.0, 0.0, 0.0); sc = 3.0;  con = 0.25; bmp = 0.3; }
+  if (k == 13.0)      { ch = vec4(1.0, 0.0, 0.0, 0.0); sc = 0.45; con = 0.95; bmp = 3.2; moss = 0.45; }
   vec4 t = surfTri(vSurfPos * sc, w);
   float d = dot(t, ch);
+  if (k == 13.0) d = mix(stoneTri(vSurfPos * sc, w), d, 0.18); // the walling, with a little of the rock's grain on each stone
   if (k == 5.0 || k == 12.0) {
     // rock: blend in the same grain at a much larger, offset scale, so the
     // repeat of the small one cannot be seen across a cliff
@@ -470,6 +532,7 @@ export function surfaceMaterial(o = {}) {
   const mat = new THREE.MeshLambertMaterial(params);
   const uniforms = {
     uDetail: { value: detailTexture() },
+    uStones: { value: stoneTexture() },
     uDefaultKind: { value: o.kind ?? SURF.plain },
     uSway: { value: o.wind ?? 0 },
     uMossAmt: { value: o.moss ?? 1 },
