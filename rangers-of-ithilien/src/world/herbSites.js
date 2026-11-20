@@ -15,10 +15,10 @@ import { houseDistance } from './oldworks.js';
  */
 export const PLANTS = {
   athelas: { cell: 55, rate: 0.34, salt: 600, grows: (x, z, d) => d <= 0.93 },
-  thymeSeed: { cell: 70, rate: 0.3, salt: 640, grows: (x, z, d) => d < 0.45 && z < 2300 },
-  baySeed: { cell: 70, rate: 0.3, salt: 660, grows: (x, z, d) => d > 0.45 && d < 0.88 && z > 700 && z < 2900 },
+  thymeSeed: { cell: 70, rate: 0.3, salt: 640, grows: (x, z, d) => d < 0.45 && z < 1725 },
+  baySeed: { cell: 70, rate: 0.3, salt: 660, grows: (x, z, d) => d > 0.45 && d < 0.88 && z > 525 && z < 2175 },
   poppySeed: { cell: 50, rate: 0.5, salt: 680, grows: (x, z, d, h) => h > 8 && h < 70 },
-  oliveStone: { cell: 70, rate: 0.35, salt: 700, grows: (x, z, d) => d < 0.9 && z > 2300 },
+  oliveStone: { cell: 70, rate: 0.35, salt: 700, grows: (x, z, d) => d < 0.9 && z > 1725 },
 };
 
 /** Where they grow: [{ id, kind, x, z }]. Fixed by the world seed. Pure. */

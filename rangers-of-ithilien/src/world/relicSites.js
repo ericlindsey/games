@@ -26,8 +26,8 @@ function generate() {
   const kinds = Object.keys(RELIC_KINDS);
   const out = [];
   const ok = (x, z, gap) => {
-    if (x < bankX(z) + 60 || x > haradRoadX(z) + 130 || z < 120 || z > southRoadZ(x) - 70) return false;
-    if (Math.abs(z - HA.z) < 70 && x > 600 && x < HA.x + 90) return false;
+    if (x < bankX(z) + 60 || x > haradRoadX(z) + 130 || z < 90 || z > southRoadZ(x) - 70) return false;
+    if (Math.abs(z - HA.z) < 70 && x > HA.x - 400 && x < HA.x + 90) return false;
     if (streamDistance(x, z) < 20 || roadDistance(x, z) < 18 || houseDistance(x, z) < 30) return false;
     if (LANDMARKS.some((l) => Math.hypot(x - l.x, z - l.z) < l.r * 0.5 + 60)) return false;
     if (SITES.some((s) => Math.hypot(x - s.x, z - s.z) < (s.kind === 'hamlet' ? 110 : 55))) return false;
@@ -39,9 +39,9 @@ function generate() {
   // First, one in each part of the land, so that wherever the ranger is there
   // is an old place not far off (they are also ways back by the old roads).
   // The parts run in a grid between the river and a little beyond the road.
-  const COLS = 4, ROWS = 10;
+  const COLS = 3, ROWS = 8;
   for (let j = 0; j < ROWS; j++) {
-    const z = 260 + (j + 0.5) * (3500 / ROWS);
+    const z = 195 + (j + 0.5) * (2625 / ROWS);
     const x0 = bankX(z) + 110, x1 = haradRoadX(z) + 90;
     for (let i = 0; i < COLS; i++) {
       const tx = x0 + (i + 0.5) * ((x1 - x0) / COLS);
@@ -53,8 +53,8 @@ function generate() {
     }
   }
   // Then a few more wherever they fall.
-  for (let tries = 0; tries < 4000 && out.length < 48; tries++) {
-    const x = 170 + rand() * 1520, z = 150 + rand() * 3660;
+  for (let tries = 0; tries < 4000 && out.length < 27; tries++) {
+    const x = 128 + rand() * 1140, z = 112 + rand() * 2745;
     if (ok(x, z, 170)) add(x, z);
   }
   return out;

@@ -1,7 +1,7 @@
 // Boot, wiring and the game loop.
 
 import * as THREE from 'three';
-import { QUALITY, SAVE } from './config.js';
+import { QUALITY, SAVE, WORLD } from './config.js';
 import { HA, LANDMARKS, haradRoadX } from './world/layout.js';
 import { trunkAt, blockedBySolid } from './world/collision.js';
 import { CAMPS, blightAt } from './world/campSites.js';
@@ -608,7 +608,7 @@ async function boot() {
   // For tests and for poking at the world from the console.
   const api = {
     ready: true, state, player, rig, input, camps, ground, grass, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
-    landmarks: LANDMARKS, sites: SITES, relics: RELICS,
+    landmarks: LANDMARKS, sites: SITES, relics: RELICS, HA, WORLD,
     provinces: { PROVINCES, PROVINCE_CAMPS, HOLDS, provinceAt, status: provinceStatus },
     teleport(x, z, yaw = player.yaw, y = undefined) {
       player.place(x, z, yaw, y);

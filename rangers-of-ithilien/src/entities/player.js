@@ -13,7 +13,7 @@ import { makeFigure, animateFigure, rangerLook } from './figure.js';
 function boundary(x, z) {
   if (z < 60) return 'North lies only the waste before the Black Gate. Your charge is Ithilien.';
   if (z > southRoadZ(x) + 70) return 'Your charge lies north of the road.';
-  if (x > 1782) return 'The way into the mountains is barred, and wisely.';
+  if (x > 1360) return 'The way into the mountains is barred, and wisely.';
   if (x > WORLD.width - 20 || x < -40) return 'You can go no farther.';
   return null;
 }

@@ -37,7 +37,9 @@ When a decision is unclear, choose the option that serves these, in this order:
   No downloaded models or images.
 - **Deterministic world.** Everything placed in the world derives from the world
   seed and position (seeded RNG, never `Math.random()` in world generation), so the
-  same world appears on every device and saves stay small.
+  same world appears on every device and saves stay small. Never shuffle with
+  `sort(() => rand() - 0.5)`: engines call the comparator a different number of
+  times, so the random sequence (and the world after it) differs between browsers.
 - **Mobile is a first-class target for exploration.** Anything in the exploration
   loop (moving, looking, talking, map, saving) must work with touch. Combat and
   skills may require keyboard and mouse.
@@ -68,9 +70,9 @@ src/
     regions.js        region weights, danger tier (pure)
     terrain.js        heightAt(x, z); traces the streams; the basin and cut at Henneth Annûn (pure)
     oldworks.js       old farms and hamlets: houses, fields, lanes, planted rows (pure)
-    relicSites.js     44 lesser ruins (pure)
+    relicSites.js     27 lesser ruins (pure)
     paths.js          the old paths joining everything (pure)
-    campSites.js      the enemy camps, blight (pure)
+    campSites.js      the enemy camps (exactly CAMP_COUNT, 100), blight (pure)
     provinces.js      the eight provinces: borders along streams, provinceAt(x, z), each one's camps and hold (pure)
     herbSites.js      where kingsfoil and the seed plants grow (pure)
     forest.js         forest density, heather thicket density (pure)
@@ -139,7 +141,8 @@ Rules of thumb:
 
 - Play area: bounded by the Anduin (west), the Ephel Dúath (east), the
   Osgiliath–Minas Ithil road (south), and the thinning of the forest (north).
-- The world is 2 km east-west by 4 km north-south.
+- The world is 1.5 km east-west by 3 km north-south (since v0.5; it was 2 by 4),
+  with exactly 100 enemy camps.
 - Henneth Annûn sits in the northern third, about halfway between river and
   mountains. The fall faces **west** (it is the Window of the Sunset). The pool is
   walled in by cliffs and cannot be seen until you stand over it. The stream leaves
@@ -198,6 +201,8 @@ Rules of thumb:
 - The economy is deliberately lean (loot tables in `systems/inventory.js`, prices
   in `data/items.js`, quest rewards in `data/quests.js`). After playtest, 23 camps
   gave 126 arrows and 767 silver, which was too much; keep that in mind when adding loot.
+  (Since v0.5 there are half as many camps, each giving about 1.6 times the silver
+  and renown it did, so the totals over the game are unchanged.)
 - Water runs downhill. Stream beds come from `STREAMS` in terrain.js and never
   rise along a stream; draw water from those beds, never from a formula of your own.
 - Anything built on the ground is levelled to the ground as it stands there
@@ -224,7 +229,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.4.1`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.5`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add
@@ -252,7 +257,8 @@ python3 -m http.server 8000     # open http://localhost:8000
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
    the title, `?debug` shows the overlay, `?quality=low|medium|high`.
-   In the console, `roi.teleport(x, z, yaw)` moves the ranger, `roi.lookFrom(x, y, z,
+   In the console, `roi.teleport(x, z, yaw)` moves the ranger (`roi.HA` and `roi.WORLD`
+   give Henneth Annûn's layout and the world's size), `roi.lookFrom(x, y, z,
    ax, ay, az)` holds the camera at a point looking at another and `roi.follow(dx, dy,
    dz)` at an offset behind the ranger (`null` gives it back), and `roi.state`,
    `roi.enemies`, `roi.combat`, `roi.quests` and `roi.inv` expose the rest; backtick toggles
@@ -262,7 +268,9 @@ python3 -m http.server 8000     # open http://localhost:8000
    the top of shoot.mjs) saves a screenshot of each view; add `--ref origin/main`
    to shoot the same views on that version too and set each pair side by side.
    `--only name,name` picks views; `--quality` picks the quality (medium by default).
-   Use `origin/main`, not a local `main`, which may be far behind.
+   Use `origin/main`, not a local `main`, which may be far behind. (The views
+   name places in the world as it is now: against a version before v0.5, whose
+   land was larger, they show other places.)
 6. For anything that may cost frame rate, count it: `node tools/perf.mjs
    [--ref origin/main]` reports triangles and draw calls at a few places, and what
    they are spent on (plants by form, grass, ground, farms, ruins, ...), in view

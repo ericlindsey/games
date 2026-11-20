@@ -29,7 +29,7 @@ export const DIALOGUE = {
       report: {
         text: (ctx) => {
           const n = ctx.cleared.length, total = CAMPS.length;
-          if (n === 0) return 'It has not begun. No camp has been broken yet, and our scouts count more than a hundred fires between the river and the mountains. Start near home and work outward.';
+          if (n === 0) return 'It has not begun. No camp has been broken yet, and our scouts count a hundred fires between the river and the mountains. Start near home and work outward.';
           if (n < total) return `${n} of ${total} camps broken, by our count. I walked out to one of them yesterday and there were flowers in the ash. Keep on.`;
           return 'Every fire we knew of is out. I did not think to say so this year. Go and look at the land, ranger. You earned the sight of it.';
         },

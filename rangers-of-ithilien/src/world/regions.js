@@ -10,13 +10,13 @@ const cormallen = LANDMARKS.find((l) => l.id === 'cormallen');
 
 export function fenWeight(x, z) {
   const dx = x - bankX(z);
-  if (dx < -10 || dx > 400 || z > 780) return 0;
-  return (1 - smoothstep(160, 400, dx)) * (1 - smoothstep(400, 780, z));
+  if (dx < -10 || dx > 300 || z > 500) return 0;
+  return (1 - smoothstep(120, 300, dx)) * (1 - smoothstep(240, 500, z));
 }
 
 export function lawnWeight(x, z) {
   const d = Math.hypot(x - cormallen.x, z - cormallen.z);
-  return 1 - smoothstep(70, 190, d);
+  return 1 - smoothstep(60, 150, d);
 }
 
 /**
@@ -29,8 +29,8 @@ export function regionWeights(x, z, out = {}) {
   const rx = haradRoadX(z);
   const foothill = smoothstep(rx - 20, rx + 60, x + n * 0.12);
   const river = 1 - smoothstep(30, 160, dx);
-  const north = 1 - smoothstep(380, 850, z + n);
-  const south = smoothstep(2200, 2800, z + n);
+  const north = 1 - smoothstep(285, 640, z + n);
+  const south = smoothstep(1650, 2100, z + n);
   let rest = 1 - foothill;
   out.foothill = foothill;
   out.river = river * rest;
@@ -60,6 +60,9 @@ export function regionName(x, z) {
   return NAMES[best];
 }
 
+/** Within this distance of the falls nothing hostile comes. */
+export const REFUGE = 180;
+
 /**
  * 0 (refuge) to 4. Danger now runs north to south: the woods north of Henneth
  * Annûn are the hunting ground of a new ranger, and the companies grow as the
@@ -67,8 +70,8 @@ export function regionName(x, z) {
  * woods beside it.
  */
 export function dangerTier(x, z) {
-  if (Math.hypot(x - HA.x, z - HA.z) < 220) return 0;
-  let t = z < HA.z + 250 ? 1 : z < 2200 ? 2 : z < 3000 ? 3 : 4;
+  if (Math.hypot(x - HA.x, z - HA.z) < REFUGE) return 0;
+  let t = z < HA.z + 190 ? 1 : z < 1650 ? 2 : z < 2250 ? 3 : 4;
   if (x > haradRoadX(z) - 40) t++;
   return Math.min(4, t);
 }

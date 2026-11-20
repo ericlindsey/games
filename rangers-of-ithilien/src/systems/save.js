@@ -48,7 +48,10 @@ export function migrate(raw) {
   // v3 -> v4 rebuilt the gear, renown and tasks (more of everything, spread
   // across the whole game), so a v3 ranger's progress no longer fits either:
   // again only the settings carry over (the player agreed to begin again).
-  if (raw.version < 4) raw = { version: 4, settings: raw.settings };
+  // v5 -> v6 (release 0.5) shrank the world to 1.5 km by 3 km and laid it out
+  // anew: every camp, place, plant and task count changed. Only the settings
+  // carry over again.
+  if (raw.version < 6) raw = { version: 6, settings: raw.settings };
   const p = raw.player;
   if (p && num(p.x) && num(p.z) && p.x >= 0 && p.x <= WORLD.width && p.z >= 0 && p.z <= WORLD.length) {
     s.player = { x: p.x, z: p.z, heading: num(p.heading) ? p.heading : 0 };

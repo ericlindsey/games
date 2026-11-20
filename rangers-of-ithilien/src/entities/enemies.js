@@ -13,14 +13,14 @@ import { makeFigure, animateFigure, LOOKS, figureMaterial } from './figure.js';
 import { ENEMY_TYPES, rosterFor, patrolRoster } from '../data/enemies.js';
 import { enemyStrength } from '../systems/renown.js';
 import { haradRoadX } from '../world/layout.js';
-import { dangerTier } from '../world/regions.js';
+import { dangerTier, REFUGE } from '../world/regions.js';
 
 export { ENEMY_TYPES, rosterFor };
 
 const SPAWN_AT = 120, FORGET_AT = 190, SIGHT = 27, SIGHT_QUIET = 13, LEASH = 80, REACH = 1.9;
 // A camp's wounds and dead are remembered while the ranger is within this of it
 // (and not back at Henneth Annûn), so a company can be worn down from afar.
-const WOUNDS_KEPT = 1000, HOME_HEALS = 150;
+const WOUNDS_KEPT = 750, HOME_HEALS = 150;
 const CAMPS_BY_ID = new Map(CAMPS.map((c) => [c.id, c]));
 
 const _up = new THREE.Vector3(0, 1, 0);
@@ -203,17 +203,19 @@ export class Enemies {
 
   /**
    * Getting unstuck. Every second, see how far an enemy that wants to move has
-   * got. Only one that is after the ranger jumps, after a second of going nowhere
-   * (which clears a low wall); any that is stuck four seconds is set down a step
-   * or two aside, on open ground, toward where it was trying to go.
+   * got toward where it is going (sliding to and fro along a wall is not getting
+   * anywhere). Only one that is after the ranger jumps, after a second of going
+   * nowhere (which clears a low wall); any that is stuck four seconds is set down
+   * a step or two aside, on open ground, toward where it was trying to go.
    */
   unstick(e, tx, tz, dt, jump) {
     const c = e.check;
     c.t += dt;
     if (c.t < 1) return;
-    const moved = Math.hypot(e.x - c.x, e.z - c.z);
+    const d = Math.hypot(tx - c.x, tz - c.z) || 1;
+    const gained = ((e.x - c.x) * (tx - c.x) + (e.z - c.z) * (tz - c.z)) / d; // along the way to the target
     c.t = 0; c.x = e.x; c.z = e.z;
-    if (moved > 1.2) { e.stuckFor = 0; return; }
+    if (gained > 1.2) { e.stuckFor = 0; return; }
     e.stuckFor++;
     if (jump && !e.air) { e.vy = 6.8; e.air = true; }
     if (e.stuckFor >= 4) {
@@ -287,9 +289,9 @@ export class Enemies {
         const lead = this.list.find((e) => e.camp === c.camp && !e.dead);
         const any = this.list.some((e) => e.camp === c.camp);
         if (!any) this.camps.delete(id); // all fallen and gone
-        else if (lead && (Math.hypot(lead.x - p.x, lead.z - p.z) > 300 || lead.z < 80 || lead.z > 3800)) this.forgetCamp(id);
+        else if (lead && (Math.hypot(lead.x - p.x, lead.z - p.z) > 300 || lead.z < 60 || lead.z > 2850)) this.forgetCamp(id);
       }
-      const nearRoad = Math.abs(p.x - haradRoadX(p.z)) < 240 && p.z > 260 && p.z < 3700;
+      const nearRoad = Math.abs(p.x - haradRoadX(p.z)) < 240 && p.z > 195 && p.z < 2775;
       this.patrolIn -= nearRoad ? 0.5 : 0;
       if (nearRoad && this.patrolIn <= 0 && alive && ![...this.camps.values()].some((c) => c.camp.patrol)) {
         const dir = this.rand() < 0.75 ? 1 : -1; // most come south from the Black Gate
@@ -297,7 +299,7 @@ export class Enemies {
         this.patrolIn = 50 + this.rand() * 70;
       }
     }
-    const atHome = Math.hypot(p.x - HA.x, p.z - HA.z) < 210; // they will not come near the falls
+    const atHome = Math.hypot(p.x - HA.x, p.z - HA.z) < REFUGE - 10; // they will not come near the falls
 
     for (const e of this.list) {
       const pose = {};

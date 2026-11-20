@@ -167,7 +167,7 @@ export class MapPanel {
       : !places.length ? 'The old places you find are marked here. You can travel to them by the old ways.'
       : inFight ? 'Not while the enemy has seen you.' : 'Click an old place to travel there, or Henneth Ann\u00fbn to go home.';
     if (!this.base) this.drawBase();
-    const scale = 0.3; // canvas pixels per metre
+    const scale = 0.4; // canvas pixels per metre (600 by 1200 for the whole land)
     const cv = this.canvas, W = WORLD.width * scale, H = WORLD.length * scale;
     cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d');
@@ -186,7 +186,7 @@ export class MapPanel {
     for (const pts of PATHS) line(pts, 'rgba(110,85,50,0.42)', 1, [2, 3]); // the old ways, faintly
     const harad = [], south = [];
     for (let z = 0; z <= WORLD.length; z += 40) harad.push([haradRoadX(z), z]);
-    for (let x = bankX(3875); x <= WORLD.width; x += 40) south.push([x, southRoadZ(x)]);
+    for (let x = bankX(southRoadZ(0)); x <= WORLD.width; x += 40) south.push([x, southRoadZ(x)]);
     line(harad, 'rgba(90,60,30,0.75)', 1.5, [5, 3]);
     line(south, 'rgba(90,60,30,0.75)', 1.5, [5, 3]);
 
@@ -197,6 +197,7 @@ export class MapPanel {
 
     ctx.font = 'italic 600 15px Palatino, Georgia, serif';
     ctx.textBaseline = 'middle';
+    const written = []; // names already on the map, so another is not written over one
     for (const l of LANDMARKS) {
       if (!state.discovered.includes(l.id)) continue;
       const x = l.x * scale, y = l.z * scale;
@@ -204,8 +205,11 @@ export class MapPanel {
       ctx.beginPath(); ctx.arc(x, y, l.id === 'henneth' ? 4 : 2.5, 0, 7); ctx.fill();
       const text = l.name, tw = ctx.measureText(text).width;
       const tx = x + 6 + tw > W - 4 ? x - 6 - tw : x + 6;
-      ctx.strokeStyle = 'rgba(239,228,200,0.85)'; ctx.lineWidth = 3; ctx.strokeText(text, tx, y);
-      ctx.fillText(text, tx, y);
+      const clashes = (ty) => written.some((r) => tx < r.x1 && tx + tw > r.x0 && Math.abs(ty - r.y) < 15);
+      const ty = [y, y + 16, y - 16, y + 32].find((t) => !clashes(t)) ?? y;
+      written.push({ x0: tx, x1: tx + tw, y: ty });
+      ctx.strokeStyle = 'rgba(239,228,200,0.85)'; ctx.lineWidth = 3; ctx.strokeText(text, tx, ty);
+      ctx.fillText(text, tx, ty);
     }
     // old farms and hamlets appear once you have walked near them
     ctx.fillStyle = 'rgba(90,70,45,0.85)';

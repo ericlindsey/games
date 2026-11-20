@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { heightAt } from '../src/world/terrain.js';
 import { HA, LANDMARKS, bankX, CROSSROADS, inClearing, haradRoadX, gorgeZ, stairTop, poolQ } from '../src/world/layout.js';
-import { regionWeights, dangerTier } from '../src/world/regions.js';
+import { regionWeights, dangerTier, REFUGE } from '../src/world/regions.js';
 import { forestDensity, thicketDensity } from '../src/world/forest.js';
 import { CAMPS, blightAt, campNear } from '../src/world/campSites.js';
 import { SITES, inField, plantedIn, PLANTED_COUNT } from '../src/world/oldworks.js';
@@ -22,11 +22,11 @@ test('terrain is deterministic and finite', () => {
 });
 
 test('the land has the right shape', () => {
-  const z = 2300;
+  const z = 1725;
   assert.ok(heightAt(bankX(z) - 150, z) < -5, 'the Anduin is deep mid-channel');
   assert.ok(heightAt(bankX(z) + 80, z) > 0, 'the east bank is dry');
-  assert.ok(heightAt(1000, z) > heightAt(400, z), 'the land rises eastward');
-  assert.ok(heightAt(1950, z) > 200, 'the Ephel Dúath are high');
+  assert.ok(heightAt(750, z) > heightAt(300, z), 'the land rises eastward');
+  for (const zz of [500, 1500, 2400]) assert.ok(heightAt(WORLD.width, zz) > 200, 'the Ephel Dúath are high');
 });
 
 test('Henneth Annûn: a walled pool, a deep cut, and a way out downstream', () => {
@@ -37,8 +37,8 @@ test('Henneth Annûn: a walled pool, a deep cut, and a way out downstream', () =
   assert.ok(heightAt(HA.basin.minX - 12, HA.z + 16) > floor + 15, 'cliffs to the west, either side of the cut');
   // the cut: deep near the pool, running out to open ground downstream
   const depth = (x) => heightAt(x, HA.z + 16) - heightAt(x, HA.z + 3);
-  assert.ok(depth(900) > 15, 'the cut is deep near the pool');
-  assert.ok(depth(600) < 4, 'and has run out to ground level downstream');
+  assert.ok(depth(HA.x - 100) > 15, 'the cut is deep near the pool');
+  assert.ok(depth(HA.x - 400) < 4, 'and has run out to ground level downstream');
 });
 
 test('Henneth Annûn: the fall drops into deep water, right under the cliff', async () => {
@@ -92,13 +92,23 @@ test('you can walk out of the cut: from the pool, down the stream, and up into t
 test('the cut is a narrow winding slot, deep near the pool and gone within 260 m', () => {
   const g = HA.gorge;
   const depth = (x) => Math.min(heightAt(x, gorgeZ(x) + g.halfTop + 6), heightAt(x, gorgeZ(x) - g.halfTop - 6)) - heightAt(x, gorgeZ(x) + 1.5);
-  assert.ok(depth(900) > 15, 'deep near the pool');
+  assert.ok(depth(HA.x - 100) > 15, 'deep near the pool');
   assert.ok(depth(g.endX - 40) < 4, 'run out by its end');
   assert.ok(HA.basin.minX - (g.endX - 40) < 260, 'and not too long');
   let lo = Infinity, hi = -Infinity;
   for (let x = g.endX; x < HA.basin.minX; x += 4) { lo = Math.min(lo, gorgeZ(x)); hi = Math.max(hi, gorgeZ(x)); }
   assert.ok(hi - lo > 4, 'it winds');
   assert.ok(g.halfTop * 2 < 15, 'and is narrow');
+});
+
+test('the world and its backdrop are whole numbers of their grids', () => {
+  const b = WORLD.backdrop;
+  for (const span of [b.maxX - b.minX, b.maxZ - b.minZ]) assert.ok(Number.isInteger(span / 32), `the backdrop spans whole 32 m steps (${span} m)`);
+  for (const span of [WORLD.width, WORLD.length]) assert.ok(Number.isInteger(span / 20), 'and the far forest roof whole 20 m steps');
+  assert.ok(b.minX < 0 && b.minZ < 0 && b.maxX > WORLD.width && b.maxZ > WORLD.length, 'the backdrop reaches past the land on every side');
+  assert.equal(HA.x % 4, 0, 'the cliff and the hidden stair lie on the terrain\'s 4 m grid');
+  assert.equal((HA.hatch.z0 % 4 + 4) % 4, 0);
+  assert.equal(HA.rock.minZ % 4, 0);
 });
 
 test('every landmark stands on dry land inside the world', () => {
@@ -109,28 +119,28 @@ test('every landmark stands on dry land inside the world', () => {
 });
 
 test('camps: many small ones north of home, larger to the south, diggings in the heather', () => {
-  assert.ok(CAMPS.length >= 150, `${CAMPS.length} camps`);
+  assert.equal(CAMPS.length, 100, 'a round hundred camps');
   assert.equal(new Set(CAMPS.map((c) => c.id)).size, CAMPS.length);
   for (const c of CAMPS) {
-    assert.ok(Math.hypot(c.x - HA.x, c.z - HA.z) >= 249, `${c.id} keeps clear of home`);
+    assert.ok(Math.hypot(c.x - HA.x, c.z - HA.z) >= REFUGE + 19, `${c.id} keeps clear of home`);
     assert.ok(heightAt(c.x, c.z) > 1.5 && c.size >= 1 && c.size <= 4 && c.tier >= 1, c.id);
     assert.equal(campNear(c.x, c.z, 5).id, c.id);
     assert.equal(c.kind === 'mine', c.x > haradRoadX(c.z) + 15, `${c.id}: diggings lie east of the road and nowhere else`);
     assert.ok(blightAt(c.x, c.z, () => 1) > 0.9, `${c.id} blights its own ground`);
   }
   const north = CAMPS.filter((c) => c.z < HA.z && c.kind === 'camp');
-  assert.ok(north.length >= 60, `${north.length} camps in the northern hunting ground`);
+  assert.ok(north.length >= 25, `${north.length} camps in the northern hunting ground`);
   assert.ok(north.filter((c) => c.size === 1).length > north.length * 0.75, 'and they are small');
   const meanZ = (f) => { const cs = CAMPS.filter(f); return cs.reduce((n, c) => n + c.z, 0) / cs.length; };
-  assert.ok(meanZ((c) => c.size >= 3) > meanZ((c) => c.size === 1) + 800, 'the great camps lie well to the south');
-  assert.ok(CAMPS.some((c) => c.size === 4), 'there are war-camps');
+  assert.ok(meanZ((c) => c.size >= 3) > meanZ((c) => c.size === 1) + 600, 'the great camps lie well to the south');
+  assert.equal(CAMPS.filter((c) => c.size === 4).length, 3, 'there are three war-camps, as Faramir says');
   // not laid out on a grid: the gaps between neighbours vary widely
   const gaps = north.map((c) => Math.min(...north.filter((o) => o !== c).map((o) => Math.hypot(o.x - c.x, o.z - c.z))));
   assert.ok(Math.max(...gaps) > 2.2 * Math.min(...gaps), `nearest-neighbour gaps from ${Math.min(...gaps).toFixed(0)} to ${Math.max(...gaps).toFixed(0)} m`);
 });
 
 test('old farms and villages leave fields and planted rows', () => {
-  assert.ok(SITES.filter((s) => s.kind === 'farm').length >= 30);
+  assert.ok(SITES.filter((s) => s.kind === 'farm').length >= 20);
   assert.ok(SITES.filter((s) => s.kind === 'hamlet').length >= 4);
   assert.ok(PLANTED_COUNT > 1000);
   const f = SITES[0].fields[0];
@@ -142,17 +152,17 @@ test('old farms and villages leave fields and planted rows', () => {
 });
 
 test('tall thickets grow only east of the Harad Road, with ways between', () => {
-  assert.equal(thicketDensity(800, 2000), 0);
+  assert.equal(thicketDensity(600, 1500), 0);
   let thick = 0, open = 0;
   for (let i = 0; i < 400; i++) {
-    const z = 300 + i * 8, x = haradRoadX(z) + 90 + (i % 7) * 6;
+    const z = 225 + i * 6, x = haradRoadX(z) + 68 + (i % 7) * 5;
     (thicketDensity(x, z) > 0.5 ? thick++ : open++);
   }
   assert.ok(thick > 200 && open > 20, `${thick} thick, ${open} open`);
 });
 
 test('region weights sum to one', () => {
-  for (const [x, z] of [[200, 300], [1000, 1190], [600, 3200], [1650, 2000], [1250, 120]]) {
+  for (const [x, z] of [[150, 225], [HA.x, HA.z], [450, 2400], [1240, 1500], [938, 90]]) {
     const w = regionWeights(x, z);
     const sum = w.river + w.heath + w.central + w.south + w.foothill;
     assert.ok(Math.abs(sum - 1) < 1e-9);
@@ -163,11 +173,11 @@ test('region weights sum to one', () => {
 
 test('danger grows with distance from home', () => {
   assert.equal(dangerTier(HA.x, HA.z), 0);
-  assert.equal(dangerTier(HA.x + 400, HA.z), 1);
-  assert.equal(dangerTier(900, 300), 1, 'the far north is still the hunting ground of a new ranger');
+  assert.equal(dangerTier(HA.x + 300, HA.z), 1);
+  assert.equal(dangerTier(675, 225), 1, 'the far north is still the hunting ground of a new ranger');
   assert.ok(dangerTier(CROSSROADS.x, CROSSROADS.z) >= 3);
-  assert.ok(dangerTier(600, 3400) > dangerTier(900, 2000) && dangerTier(900, 2000) > dangerTier(900, 900), 'danger grows southward');
-  assert.ok(dangerTier(1650, 900) > dangerTier(900, 900), 'and the heather is worse than the woods beside it');
+  assert.ok(dangerTier(450, 2550) > dangerTier(675, 1500) && dangerTier(675, 1500) > dangerTier(675, 675), 'danger grows southward');
+  assert.ok(dangerTier(1240, 675) > dangerTier(675, 675), 'and the heather is worse than the woods beside it');
 });
 
 test('blight lies on occupied camps and lifts when they are cleared', () => {
@@ -185,7 +195,7 @@ test('clearings keep trees off built places', () => {
 });
 
 test('solids act as floors from above and walls from the side', () => {
-  const x = 1200, z = 2404, g = heightAt(x, z);
+  const x = 900, z = 1803, g = heightAt(x, z);
   addSolid({ minX: x - 2, maxX: x + 2, minZ: z - 2, maxZ: z + 2, bottom: g - 1, top: g + 3 });
   assert.ok(blockedBySolid(x - 2.2, z, heightAt(x - 2.2, z), 0.4), 'blocked at ground level');
   assert.equal(groundAt(x, z, g + 3), g + 3, 'stands on top');
@@ -194,7 +204,7 @@ test('solids act as floors from above and walls from the side', () => {
 });
 
 test('a hollow lets a body stand beneath the terrain', () => {
-  const x = 500, z = 3000, g = heightAt(x, z);
+  const x = 375, z = 2250, g = heightAt(x, z);
   addHollow({ minX: x - 5, maxX: x + 5, minZ: z - 5, maxZ: z + 5, ceiling: g - 2 });
   addSolid({ minX: x - 5, maxX: x + 5, minZ: z - 5, maxZ: z + 5, bottom: g - 12, top: g - 8 });
   assert.equal(terrainAt(x, z, g - 7), -Infinity);
@@ -212,7 +222,7 @@ test('a save round-trips', () => {
   assert.equal(store.load(), null);
   const s = newState();
   s.player = { x: 1234.5, y: 30, z: 2345.5, heading: 1.2 };
-  assert.equal(s.version, 5);
+  assert.equal(s.version, 6);
   assert.equal(s.settings.fps, false, 'the frame-rate counter starts off');
   s.items = { draught: 2, orcTrinket: 3 }; s.equipped.body = 'mailShirt'; s.equipped.helm = 'leatherCap'; s.silver = 77; s.quests.done = ['f1']; s.health = 61.5; s.picked = ['h3_4'];
   s.honour = 140; s.renown = 4; s.wear = { rangerSword: 0.5 }; s.honed = { rangerBow: 1 }; s.skills = { repair: true }; s.told = ['c9']; s.stats.bands = 2;
@@ -236,9 +246,13 @@ test('bad saves are rejected or repaired, never thrown', () => {
   assert.equal(migrate(null), null);
   assert.equal(migrate('nonsense'), null);
   assert.equal(migrate({ version: SAVE.version + 1 }), null, 'a save from the future is not trusted');
-  const v4 = migrate({ version: 4, player: { x: 700, z: 1000, heading: 1 }, discovered: ['arch'], cleared: ['c5'], silver: 40, settings: { quality: 'medium' } });
-  assert.ok(v4.discovered.includes('arch') && v4.cleared.includes('c5') && v4.silver === 40 && v4.settings.quality === 'medium' && v4.settings.fps === false, 'a v4 save keeps everything, with the counter off');
-  assert.equal(migrate({ version: 5, settings: { fps: true } }).settings.fps, true, 'and the counter setting is kept');
+  const v6 = migrate({ version: 6, player: { x: 700, z: 1000, heading: 1 }, discovered: ['arch'], cleared: ['c5'], silver: 40, settings: { quality: 'medium' } });
+  assert.ok(v6.discovered.includes('arch') && v6.cleared.includes('c5') && v6.silver === 40 && v6.settings.quality === 'medium' && v6.settings.fps === false, 'a v6 save keeps everything, with the counter off');
+  const v5 = migrate({ version: 5, player: { x: 700, z: 1000, heading: 1 }, discovered: ['arch'], cleared: ['c5'], silver: 40, renown: 9, honour: 400, settings: { quality: 'medium', fps: true } });
+  assert.deepEqual(v5.player, newState().player, 'a save from the larger world before 0.5 begins again at home');
+  assert.deepEqual(v5.cleared, [], 'its camps meant other places');
+  assert.ok(v5.silver === 0 && v5.renown === 0 && !v5.discovered.includes('arch'), 'and its ranger starts anew');
+  assert.ok(v5.settings.quality === 'medium' && v5.settings.fps === true, 'but keeps the settings, the counter among them');
   const old = migrate({ version: 1, player: { x: 3000, z: 6000 }, discovered: ['arch'], cleared: ['c1'], settings: { quality: 'low' } });
   assert.deepEqual(old.player, newState().player, 'a save from the old, larger world starts again at home');
   assert.deepEqual(old.cleared, []);
@@ -248,7 +262,7 @@ test('bad saves are rejected or repaired, never thrown', () => {
   assert.equal(v3.renown, 0);
   assert.deepEqual(v3.equipped, newState().equipped, 'with the starting kit');
   assert.equal(v3.settings.quality, 'high', 'but keeps its settings');
-  const junk = migrate({ version: 4, items: { nonsense: 4, draught: -2, waybread: 3.7 }, equipped: { sword: 'greatBow', bow: null, body: 'mailShirt', helm: 'mailShirt' }, health: 9999,
+  const junk = migrate({ version: 6, items: { nonsense: 4, draught: -2, waybread: 3.7 }, equipped: { sword: 'greatBow', bow: null, body: 'mailShirt', helm: 'mailShirt' }, health: 9999,
     honour: 300, renown: 49, wear: { rangerSword: 7, nonsense: 0.5 }, quests: { active: ['xf9', 'f1'], errands: [{ id: 'xf9' }] } });
   assert.deepEqual(junk.items, { waybread: 3 });
   assert.equal(junk.equipped.sword, 'rangerSword', 'a bow cannot be worn as a sword');
@@ -259,7 +273,7 @@ test('bad saves are rejected or repaired, never thrown', () => {
   assert.equal(junk.renown, 8, 'renown is worked out from the points, not trusted');
   assert.deepEqual(junk.wear, { rangerSword: 1 });
   assert.deepEqual(junk.quests.active, ['f1'], 'a broken errand is dropped');
-  const fixed = migrate({ version: 4, player: { x: 1e9, z: NaN }, discovered: [1, 'arch'], cleared: 'no' });
+  const fixed = migrate({ version: 6, player: { x: 1e9, z: NaN }, discovered: [1, 'arch'], cleared: 'no' });
   assert.deepEqual(fixed.player, newState().player, 'out-of-world position falls back to home');
   assert.deepEqual(fixed.discovered, ['henneth', 'arch']);
   assert.deepEqual(fixed.cleared, []);
@@ -271,7 +285,7 @@ test('bad saves are rejected or repaired, never thrown', () => {
 test('old paths join the places worth finding, and never lead over the cliff', async () => {
   const { PATHS, pathDistance, pathWear } = await import('../src/world/paths.js');
   const { RELICS } = await import('../src/world/relicSites.js');
-  assert.ok(PATHS.length > 80 && RELICS.length >= 30);
+  assert.ok(PATHS.length > 60 && RELICS.length >= 24);
   for (const r of RELICS) assert.ok(pathDistance(r.x, r.z + 7) < 3, `${r.id} is on a path`);
   for (const s of SITES) assert.ok(pathDistance(s.x, s.z + (s.kind === 'hamlet' ? 0 : 9)) < 3, `${s.id} is on a path`);
   assert.ok(pathDistance((HA.hatch.x0 + HA.hatch.x1) / 2, (HA.hatch.z0 + HA.hatch.z1) / 2) > 40, 'no path leads to the hidden stair');
@@ -476,7 +490,7 @@ test('asked again, they give a direction; a third time, they mark it on the map'
   assert.ok(q.remindText(def, s).includes('mark'));
   assert.ok(s.quests.marks.e2, 'the third puts a mark on the map');
   assert.deepEqual(q.tracker(s).target, s.quests.marks.e2, 'and the tracker follows it');
-  assert.equal(q.directionWords(HA.x, HA.z - 2000).slice(0, 12), 'to the north');
+  assert.equal(q.directionWords(HA.x, HA.z - 1500).slice(0, 12), 'to the north');
   // Faramir's map always shows a few camps more than the ranger's
   const scouted = q.scoutedCamps(s);
   assert.equal(scouted.length, 3);
@@ -644,8 +658,8 @@ test('provinces: eight, every camp and place in one, each with a hold, following
   assert.equal(at('fens'), 'forlad');
   assert.equal(at('pier'), 'bridgelands');
   for (const id of ['crossroads', 'osgiliath', 'morgul']) assert.equal(at(id), 'morgul');
-  assert.equal(P.provinceAt(haradRoadX(1000) + 100, 1000), 'gorse');
-  assert.equal(P.provinceAt(haradRoadX(3000) + 100, 3000), 'ash');
+  assert.equal(P.provinceAt(haradRoadX(750) + 100, 750), 'gorse');
+  assert.equal(P.provinceAt(haradRoadX(2250) + 100, 2250), 'ash');
   // the south is held by stockades and war-camps; the north by lesser camps
   assert.equal(P.HOLDS.southwood.size, 4);
   assert.equal(P.HOLDS.morgul.size, 4);

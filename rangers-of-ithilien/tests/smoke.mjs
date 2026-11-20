@@ -8,6 +8,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CAMPS } from '../src/world/campSites.js';
 
 const { chromium, devices } = createRequire(import.meta.url)('playwright');
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -66,9 +67,13 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await ready(page);
   await page.waitForTimeout(1500);
   check(await page.evaluate(() => roi.renderer.info.render.triangles > 1000), 'the scene is drawing');
+  // The browser builds the very same world as Node (a hundred camps, each where Node puts it).
+  const campsHere = await page.evaluate(() => roi.camps.sites.map((c) => `${c.id}:${c.x},${c.z},${c.size}`).join(' '));
+  check(campsHere === CAMPS.map((c) => `${c.id}:${c.x},${c.z},${c.size}`).join(' ') && CAMPS.length === 100, `the browser makes the same hundred camps as Node (${campsHere.split(' ').length})`);
 
   const start = await pos(page);
-  check(Math.abs(start.x - 1022) < 1 && Math.abs(start.z - 1192) < 1, 'starts in the cave at Henneth Annûn');
+  const HA = await page.evaluate(() => roi.HA);
+  check(Math.abs(start.x - HA.spawn.x) < 1 && Math.abs(start.z - HA.spawn.z) < 1, 'starts in the cave at Henneth Annûn');
   check(Math.abs(start.y - 40) < 0.1 && await page.evaluate(() => roi.refuge.isInside(roi.player.pos)), 'stands on the cave floor, under the rock');
   await shot(page, 'cave');
   // Nothing built where it stands (rather than about its own origin) may use a swaying
@@ -86,7 +91,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // The camera can be held for looking about (roi.lookFrom, roi.follow; tools/shoot.mjs), and given back.
   const held = await page.evaluate(async () => {
     const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    roi.lookFrom(1010, 44, 1192, 1020, 41, 1192);
+    roi.lookFrom(roi.HA.x + 10, 44, roi.HA.z + 2, roi.HA.x + 20, 41, roi.HA.z + 2);
     await frame();
     const c = roi.rig.camera.position, at = { x: c.x, y: c.y, z: c.z };
     roi.follow(0, 2, -4);
@@ -96,7 +101,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     await frame();
     return { at, follows, freed: roi.rig.held === null };
   });
-  check(Math.hypot(held.at.x - 1010, held.at.y - 44, held.at.z - 1192) < 0.01 && held.follows && held.freed, 'the camera can be held at a point or behind the ranger, and given back');
+  check(Math.hypot(held.at.x - HA.x - 10, held.at.y - 44, held.at.z - HA.z - 2) < 0.01 && held.follows && held.freed, 'the camera can be held at a point or behind the ranger, and given back');
   const torch = await page.evaluate(() => roi.refuge.torchlight());
   check(torch.on === 1 && torch.burning === torch.of && torch.of === 6, `every torch in the cave is lit at once (${torch.burning} of ${torch.of})`);
 
@@ -172,15 +177,16 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => { roi.rig.wantDist = 6; });
   const stones = await page.evaluate(() => roi.refuge.stones);
   check(stones.length >= 60, `boulders and stones lie round the pool (${stones.length})`);
-  check(stones.every((s) => Math.hypot(s.x - 973, s.z - 1202.3) > 3 && Math.hypot(s.x - 970, s.z - 1194) > 3),
+  check(stones.every((s) => Math.hypot(s.x - (HA.x - 27), s.z - (HA.z + 12.3)) > 3 && Math.hypot(s.x - (HA.x - 30), s.z - (HA.z + 4)) > 3),
     'none of them at the foot of the stair or on the way out down the cut');
 
   // The hidden stair: from the floor of the cut, up along the basin wall and in at the door.
-  await page.evaluate(() => { roi.teleport(973, 1202.3, Math.PI / 2, 31); roi.rig.yaw = Math.PI / 2; });
+  await page.evaluate(() => { roi.teleport(roi.HA.x - 27, roi.HA.z + 12.3, Math.PI / 2, 31); roi.rig.yaw = Math.PI / 2; });
   const foot = await pos(page);
   check(Math.abs(foot.y - 31) < 1.2, 'the foot of the stair is on the floor of the basin');
   await page.keyboard.down('KeyW');
-  await page.waitForFunction(() => roi.player.pos.x > 1004, null, { timeout: 240000 });
+  // (a walk of 31 m: software rendering at this size can manage under a frame a second, and a frame moves at most 0.05 s)
+  await page.waitForFunction(() => roi.player.pos.x > roi.HA.x + 4, null, { timeout: 600000 });
   await page.keyboard.up('KeyW');
   const door = await pos(page);
   check(Math.abs(door.y - 40) < 0.1, `the stair climbs to the cave door (y ${door.y.toFixed(1)})`);
@@ -191,7 +197,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => { const st = roi.refuge.hiddenStair; roi.teleport(st.startX, st.z, Math.PI / 2, 40); roi.rig.yaw = Math.PI / 2; });
   check(Math.abs((await pos(page)).y - 40) < 0.3, 'the hidden stair starts level with the hall');
   await page.keyboard.down('KeyW');
-  const climbed = await page.waitForFunction(() => roi.player.pos.x > roi.refuge.hiddenStair.exitX + 6, null, { timeout: 240000 }).then(() => true, () => false);
+  const climbed = await page.waitForFunction(() => roi.player.pos.x > roi.refuge.hiddenStair.exitX + 6, null, { timeout: 600000 }).then(() => true, () => false);
   await page.keyboard.up('KeyW');
   const up = await pos(page);
   check(climbed && Math.abs(up.y - (await page.evaluate((p) => roi.heightAt(p.x, p.z), up))) < 0.05 && up.y > 48,
@@ -218,7 +224,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     const course = [...roi.streams.find((s) => s.home === 'cut').points, ...roi.streams.find((s) => s.home === 'lower').points.slice(0, 14)]
       .map((p) => ({ x: p.x, z: p.z + 1.6 }));
     window.courseEnd = course[course.length - 1];
-    roi.teleport(970, 1194, -Math.PI / 2, 31);
+    roi.teleport(roi.HA.x - 30, roi.HA.z + 4, -Math.PI / 2, 31);
     roi.input.haste = true;
     window.steer = setInterval(() => {
       const p = roi.player.pos;
@@ -272,7 +278,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(speed > 4 && running.n > 50 && running.worst > 0, `running, they stay over it as it streams back (clear by ${(running.worst * 100).toFixed(1)} cm)`);
 
   // Walk, on the lawns of Cormallen where nothing is in the way.
-  await page.evaluate(() => roi.teleport(337, 1195, 0));
+  await page.evaluate(() => roi.teleport(roi.landmarks.find((l) => l.id === 'cormallen').x, roi.landmarks.find((l) => l.id === 'cormallen').z, 0));
   const a = await pos(page);
   await page.keyboard.down('KeyW');
   await page.waitForFunction((a) => Math.hypot(roi.player.pos.x - a.x, roi.player.pos.z - a.z) > 2, a, { timeout: 30000 });
@@ -300,7 +306,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(unwalled.inWall && unwalled.free && unwalled.moved < 3, `set down inside a wall, the ranger is freed close by (${unwalled.moved.toFixed(1)} m)`);
 
   // The river and the edges of the world stop the ranger.
-  await page.evaluate(() => { roi.teleport(150, 2300, -Math.PI / 2); roi.input.haste = true; });
+  await page.evaluate(() => { roi.teleport(115, 1580, -Math.PI / 2); roi.input.haste = true; });
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(2500);
   await page.keyboard.up('KeyW');
@@ -309,11 +315,12 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate((r) => roi.heightAt(r.x, r.z) > -1.31, r), 'cannot wade into the deep river');
 
   // Discover a ruin, break up a camp.
-  await page.evaluate(() => roi.teleport(860, 1338, 3));
+  await page.evaluate(() => { const a = roi.landmarks.find((l) => l.id === 'arch'); roi.teleport(a.x, a.z + 8, 3); });
   await page.waitForFunction(() => roi.state.discovered.includes('arch'), null, { timeout: 20000 });
   check(true, 'walking up to a ruin discovers it');
   // A tree near where it changes form is drawn in both forms, to fade from one to the other.
   const fade = await page.evaluate(() => {
+    roi.teleport(825, 1200, 0); // in the home woods, with trees all round
     const q = roi.ground.quality, p = roi.player.pos;
     let both = 0, near = 0;
     for (const ch of roi.ground.chunks.values()) for (const g of ch.veg) {
@@ -343,12 +350,12 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
       }
       return { great, under, giants };
     };
-    return { deep: census(700, 3000), home: census(1100, 1600) };
+    return { deep: census(300, 2350), home: census(825, 1200) };
   });
   check(forest.deep.under < forest.deep.great * 0.7 && forest.deep.giants > forest.deep.great * 0.4,
     `the deep woods are old forest: ${forest.deep.great} great trees (${forest.deep.giants} of them giants), ${forest.deep.under} lesser`);
   check(forest.home.under > forest.home.great && forest.home.giants === 0, `the home woods keep their young growth (${forest.home.great} great trees, ${forest.home.under} lesser)`);
-  check(await page.evaluate(() => roi.camps.sites.length >= 100), 'more than a hundred camps exist');
+  check(await page.evaluate(() => roi.camps.sites.length === 100), 'a hundred camps exist');
 
   // Kingsfoil is gathered by walking over it.
   await page.evaluate(() => { const h = roi.herbs.sites[0]; roi.teleport(h.x, h.z, 0); });
@@ -445,7 +452,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.keyboard.press('Digit1');
 
   // A band on the Harad Road marches down it.
-  await page.evaluate(() => { roi.enemies.reset(); roi.teleport(roi.haradRoadX(2000) - 60, 2000, 0); window.band = roi.enemies.spawnPatrol(1960, 1, { list: ['snaga', 'snaga'], host: false }); roi.combat.god = true; });
+  await page.evaluate(() => { roi.enemies.reset(); roi.teleport(roi.haradRoadX(2360) - 60, 2360, 0); window.band = roi.enemies.spawnPatrol(2320, 1, { list: ['snaga', 'snaga'], host: false }); roi.combat.god = true; });
   const z0 = await page.evaluate(() => roi.enemies.list.find((e) => e.camp === band).z);
   const marched = await page.waitForFunction((z0) => { const e = roi.enemies.list.find((e) => e.camp === band); return e && (e.z > z0 + 3 || e.alerted); }, z0, { timeout: 240000 }).then(() => true, () => false);
   check(marched, 'a band can be met on the road, marching or turning on the ranger');
@@ -456,7 +463,9 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // An enemy shut in a roofless house gets out: it jumps, and failing that is set aside.
   const freed = await page.evaluate(() => {
     roi.enemies.reset();
-    const h = roi.sites.find((s) => s.kind === 'farm').houses[0];
+    // a farmhouse with no camp near, so only the one enemy is about, and well away from the falls (where they give up a chase)
+    const h = roi.sites.filter((s) => s.kind === 'farm').map((s) => s.houses[0])
+      .find((h) => Math.hypot(h.x - roi.HA.x, h.z - roi.HA.z) > 300 && roi.camps.sites.every((c) => Math.hypot(c.x - h.x, c.z - h.z) > 150));
     roi.teleport(h.x + h.w / 2 + 9, h.z, -Math.PI / 2);
     roi.combat.god = true;
     roi.enemies.spawnCamp({ id: 'test-house', x: h.x, z: h.z, tier: 1, size: 1 }, ['snaga']);
@@ -466,23 +475,23 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     window.house = h;
     return true;
   });
-  const out2 = await page.waitForFunction(() => { const e = roi.enemies.list.find((e) => e.camp.id === 'test-house'); return e && (Math.abs(e.x - house.x) > house.w / 2 + 0.5 || Math.abs(e.z - house.z) > house.d / 2 + 0.5); }, null, { timeout: 240000 }).then(() => true, () => false);
+  const out2 = await page.waitForFunction(() => { const e = roi.enemies.list.find((e) => e.camp.id === 'test-house'); return e && (Math.abs(e.x - house.x) > house.w / 2 + 0.5 || Math.abs(e.z - house.z) > house.d / 2 + 0.5); }, null, { timeout: 480000 }).then(() => true, () => false);
   check(freed && out2, 'an enemy stuck inside walls finds its way out');
   await page.evaluate(() => { roi.enemies.reset(); roi.combat.god = false; });
 
   // Old places found can be travelled to from the map.
-  await page.evaluate(() => { const r = roi.relics[5]; if (!roi.state.discovered.includes(r.id)) roi.state.discovered.push(r.id); window.dest = r; roi.teleport(700, 1000, 0); });
+  await page.evaluate(() => { const r = roi.relics[5]; if (!roi.state.discovered.includes(r.id)) roi.state.discovered.push(r.id); window.dest = r; roi.teleport(775, 1200, 0); });
   await page.keyboard.press('KeyM');
   await page.waitForSelector('#map:not([hidden])');
   check((await page.textContent('#map-hint')).includes('travel'), 'the map says old places can be travelled to');
   const mbox = await page.locator('#map-canvas').boundingBox();
-  const dest = await page.evaluate(() => ({ x: dest.x / 2000, z: dest.z / 4000 }));
+  const dest = await page.evaluate(() => ({ x: dest.x / roi.WORLD.width, z: dest.z / roi.WORLD.length }));
   await page.mouse.click(mbox.x + mbox.width * dest.x, mbox.y + mbox.height * dest.z);
   const went = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - dest.x, roi.player.pos.z - dest.z) < 25, null, { timeout: 30000 }).then(() => true, () => false);
   check(went && await page.isHidden('#map'), 'clicking a found old place on the map goes there');
 
   // Quick travel home from the menu; beginning anew only at home.
-  await page.evaluate(() => { roi.enemies.reset(); roi.teleport(700, 1000, 0); });
+  await page.evaluate(() => { roi.enemies.reset(); roi.teleport(775, 1200, 0); });
   await page.click('#btn-menu');
   await page.waitForSelector('#menu:not([hidden])');
   check(await page.isVisible('#menu-travel') && await page.isHidden('#menu-new'), 'abroad, the menu offers the way home and not a new game');
@@ -494,7 +503,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.click('#menu-resume');
 
   // Falling: the ranger wakes at home, whole.
-  await page.evaluate(() => roi.teleport(700, 1000, 0));
+  await page.evaluate(() => roi.teleport(775, 1200, 0));
   await page.evaluate(() => roi.combat.hurt(9999));
   check(await page.isVisible('#fallen'), 'at no health the ranger falls');
   await page.waitForFunction(() => roi.state.health === 100 && roi.refuge.isInside(roi.player.pos), null, { timeout: 240000 });
@@ -561,22 +570,22 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // does not mend it; only going home (or very far) does.
   await page.evaluate(() => {
     roi.enemies.reset();
-    window.snipe = roi.camps.sites.find((c) => !c.isCleared && c.size >= 2 && Math.hypot(c.x - 1000, c.z - 1190) > 400);
+    window.snipe = roi.camps.sites.find((c) => !c.isCleared && c.size >= 2 && Math.hypot(c.x - roi.HA.x, c.z - roi.HA.z) > 300);
     roi.teleport(snipe.x + 60, snipe.z, -Math.PI / 2);
   });
   const company = () => page.evaluate(() => { const es = roi.enemies.list.filter((e) => e.camp.id === snipe.id && !e.dead); return { n: es.length, hurt: es.some((e) => e.hp < e.maxHp) }; });
-  await page.waitForFunction(() => roi.enemies.list.filter((e) => e.camp.id === snipe.id).length >= 2, null, { timeout: 30000 });
+  await page.waitForFunction(() => roi.enemies.list.filter((e) => e.camp.id === snipe.id).length >= 2, null, { timeout: 120000 });
   const whole = await company();
   await page.evaluate(() => { const es = roi.enemies.list.filter((e) => e.camp.id === snipe.id); roi.enemies.damage(es[0], 1e9); roi.enemies.damage(es[1], es[1].maxHp * 0.5); });
-  await page.evaluate(() => roi.teleport(snipe.x + 400, snipe.z, 0));
-  await page.waitForFunction(() => !roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 20000 });
+  await page.evaluate(() => roi.teleport(snipe.x + (snipe.x > roi.WORLD.width / 2 ? -400 : 400), snipe.z, 0)); // out of its reach, still in the land
+  await page.waitForFunction(() => !roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 120000 });
   await page.evaluate(() => roi.teleport(snipe.x + 60, snipe.z, 0));
-  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 20000 });
+  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 120000 });
   const worn = await company();
   check(worn.n === whole.n - 1 && worn.hurt, `a camp keeps its dead and wounded when the ranger walks off and comes back (${whole.n} -> ${worn.n})`);
   await page.evaluate(() => roi.goHome('Home.'));
   await page.evaluate(() => roi.teleport(snipe.x + 60, snipe.z, 0));
-  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 20000 });
+  await page.waitForFunction(() => roi.enemies.list.some((e) => e.camp.id === snipe.id), null, { timeout: 120000 });
   const mended = await company();
   check(mended.n === whole.n && !mended.hurt, 'but going home lets it mend');
   await page.evaluate(() => roi.enemies.reset());
@@ -595,7 +604,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   const size = () => page.evaluate(() => { let n = 0; roi.player.figure.traverse((o) => { if (o.isMesh) n += o.geometry.attributes.position.count; }); return n; });
   const plain = await size();
   await page.evaluate(() => {
-    roi.teleport(900, 1300, 0); roi.rig.yaw = Math.PI; roi.rig.pitch = -0.05;
+    roi.teleport(675, 975, 0); roi.rig.yaw = Math.PI; roi.rig.pitch = -0.05;
     for (const id of ['southronScimitar', 'hornBow', 'blackMail', 'gondorHelm', 'ironGreaves']) { roi.inv.addItem(roi.state, id); roi.inv.equip(roi.state, id); }
     roi.refreshHud();
   });
@@ -627,9 +636,9 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
 
   // Provinces: the place line names them, crossing a border is told, breaking a
   // hold with three in four of its camps frees one, and the pack and map show it.
-  await page.evaluate(() => { roi.enemies.reset(); roi.teleport(700, 1000, 0); });
+  await page.evaluate(() => { roi.enemies.reset(); roi.teleport(775, 1200, 0); });
   await page.waitForTimeout(600);
-  await page.evaluate(() => roi.teleport(1080, 1860, 0));
+  await page.evaluate(() => { const b = roi.provinces.PROVINCES.find((p) => p.id === 'bridgelands').label; roi.teleport(b.x, b.z, 0); });
   // the notice waits for a second of game time, and headless frames are slow out in the woods
   const crossed = await page.waitForFunction(() => document.getElementById('place').textContent === 'The Bridgelands' &&
     (roi.hud.queue.some((t) => t.big === 'The Bridgelands') || document.getElementById('toast').textContent.includes('The Bridgelands')), null, { timeout: 180000 }).then(() => true, () => false);
@@ -662,7 +671,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.keyboard.press('KeyM');
 
   // Save, reload, resume.
-  await page.evaluate(() => roi.teleport(700, 1000, 1));
+  await page.evaluate(() => roi.teleport(775, 1200, 1));
   const before = await pos(page);
   check(await page.evaluate(() => roi.save()), 'save succeeds');
   await page.reload();
@@ -700,7 +709,7 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   check(await page.isVisible('#btn-jump') && await page.isVisible('#btn-map'), 'touch buttons are shown');
   check(await page.evaluate(() => innerWidth >= document.documentElement.scrollWidth), 'no horizontal overflow');
 
-  await page.evaluate(() => roi.teleport(337, 1195, 0));
+  await page.evaluate(() => roi.teleport(roi.landmarks.find((l) => l.id === 'cormallen').x, roi.landmarks.find((l) => l.id === 'cormallen').z, 0));
   const a = await pos(page);
   // Left thumb: press, push the stick up, hold.
   const cdp = await page.context().newCDPSession(page);
@@ -796,7 +805,7 @@ await run('testing page', { viewport: { width: 1280, height: 720 } }, async (pag
   await page.waitForSelector('#map:not([hidden])', { timeout: 180000 });
   const box = await page.locator('#map-canvas').boundingBox();
   await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.6);
-  await page.waitForFunction(() => Math.abs(roi.player.pos.x - 800) < 30 && Math.abs(roi.player.pos.z - 2400) < 40, null, { timeout: 30000 });
+  await page.waitForFunction(() => Math.abs(roi.player.pos.x - 0.4 * roi.WORLD.width) < 30 && Math.abs(roi.player.pos.z - 0.6 * roi.WORLD.length) < 40, null, { timeout: 30000 });
   check(await page.isHidden('#map'), 'clicking the map travels there');
   await shot(page, 'dev');
   await page.evaluate(() => roi.save());

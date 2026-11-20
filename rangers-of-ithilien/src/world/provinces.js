@@ -4,7 +4,7 @@
 // The borders follow the land. West of the Harad Road, five streams that run the
 // whole way from the mountains to the Anduin cut the woods into bands from north
 // to south. East of the road the heather is two fells, split where the third of
-// those streams comes down. Along the southern road a strip 200 m deep belongs to
+// those streams comes down. Along the southern road a strip 150 m deep belongs to
 // the Morgul Marches, so the Cross-roads, the eastern shore of Osgiliath and the
 // mouth of the Morgul Vale lie together.
 //
@@ -23,21 +23,21 @@ import { CAMPS } from './campSites.js';
  * give one in our tongue. Forlad (forod + lad, "north plain") is our own coinage.
  */
 export const PROVINCES = [
-  { id: 'forlad', name: 'Forlad', title: 'the North Plain', label: { x: 900, z: 470 },
+  { id: 'forlad', name: 'Forlad', title: 'the North Plain', label: { x: 675, z: 352 },
     blurb: 'Open heath down to the fens. The smoke of every fire is seen for miles.' },
-  { id: 'henneth', name: 'Eryn Henneth', title: 'the Window Woods', label: { x: 640, z: 1060 },
+  { id: 'henneth', name: 'Eryn Henneth', title: 'the Window Woods', label: { x: 480, z: 795 },
     blurb: 'The woods about the falls, from Cair Andros to the Harad Road.' },
-  { id: 'bridgelands', name: 'The Bridgelands', title: '', label: { x: 1080, z: 1860 },
+  { id: 'bridgelands', name: 'The Bridgelands', title: '', label: { x: 810, z: 1395 },
     blurb: 'Old fields and fallen columns about the Old Bridge.' },
-  { id: 'gorse', name: 'The Gorse Fells', title: '', label: { x: 1775, z: 820 },
+  { id: 'gorse', name: 'The Gorse Fells', title: '', label: { x: 1331, z: 615 },
     blurb: 'Heather and gorse over a man’s head, under the mountains.' },
-  { id: 'ithil', name: 'Eryn Ithil', title: 'the Moonwood', label: { x: 880, z: 2700 },
+  { id: 'ithil', name: 'Eryn Ithil', title: 'the Moonwood', label: { x: 660, z: 2025 },
     blurb: 'Deep woods, where the great trees stand far apart. Stockades among them.' },
-  { id: 'southwood', name: 'The Southwood', title: '', label: { x: 560, z: 3170 },
+  { id: 'southwood', name: 'The Southwood', title: '', label: { x: 420, z: 2378 },
     blurb: 'The last of the deep woods, above the southern road. War-camps.' },
-  { id: 'ash', name: 'The Ash Fells', title: '', label: { x: 1775, z: 2950 },
+  { id: 'ash', name: 'The Ash Fells', title: '', label: { x: 1331, z: 2212 },
     blurb: 'The heather gone grey under the mountains. Their captains keep the strongest holds here.' },
-  { id: 'morgul', name: 'The Morgul Marches', title: '', label: { x: 1000, z: 3700 },
+  { id: 'morgul', name: 'The Morgul Marches', title: '', label: { x: 750, z: 2775 },
     blurb: 'The Cross-roads, the eastern shore of Osgiliath, and the mouth of the Morgul Vale.' },
 ];
 export const provinceById = Object.fromEntries(PROVINCES.map((p) => [p.id, p]));
@@ -69,15 +69,16 @@ function tableOf(stream) {
   return t;
 }
 /** Streams that cross the whole land (rising under the mountains, reaching the Anduin). */
-const crossing = STREAMS.filter((s) => s.points[0].x > 1780 && s.points.at(-1).x < 220);
-/** The full-width stream crossing x = 1000 nearest to z. */
+const crossing = STREAMS.filter((s) => s.points[0].x > 1335 && s.points.at(-1).x < 165);
+const MID = Math.round(WORLD.width / 2 / STEP); // the sample at the middle of the land
+/** The full-width stream crossing the middle of the land nearest to z. */
 function streamNear(z) {
-  return crossing.map((s) => ({ s, t: tableOf(s) })).sort((a, b) => Math.abs(a.t[250] - z) - Math.abs(b.t[250] - z))[0];
+  return crossing.map((s) => ({ s, t: tableOf(s) })).sort((a, b) => Math.abs(a.t[MID] - z) - Math.abs(b.t[MID] - z))[0];
 }
 // The five borders, north to south, by roughly where they cross the middle of the land.
-const BORDERS = [740, 1520, 2180, 2990, 3330].map(streamNear);
+const BORDERS = [755, 1324, 1704, 2297, 2694].map(streamNear);
 const FELL_SPLIT = 2; // the fells divide where the third border stream comes down
-const SOUTH_STRIP = 200;
+const SOUTH_STRIP = 150;
 
 const zOn = (t, x) => {
   const f = Math.max(0, Math.min(SAMPLES - 1.001, x / STEP)), i = Math.floor(f);

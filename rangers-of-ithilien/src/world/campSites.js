@@ -5,7 +5,7 @@ import { rng, smoothstep, noise2 } from '../util/noise.js';
 import { WORLD } from '../config.js';
 import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, roadDistance, inClearing } from './layout.js';
 import { heightAt, slopeAt, streamDistance } from './terrain.js';
-import { dangerTier } from './regions.js';
+import { dangerTier, REFUGE } from './regions.js';
 import { houseDistance } from './oldworks.js';
 import { pathDistance } from './paths.js';
 import { relicDistance } from './relicSites.js';
@@ -14,6 +14,8 @@ import { relicDistance } from './relicSites.js';
 export const BLIGHT_RADIUS = [0, 55, 80, 110, 140];
 const MAX_BLIGHT = 140;
 const SPACING = [0, 140, 180, 205, 220]; // typical gap between camps, by danger tier
+/** How many camps there are: a round hundred. The land holds a few more; generate() thins them. */
+export const CAMP_COUNT = 100;
 
 /**
  * Camps are scattered unevenly: each keeps its own distance from the others
@@ -25,9 +27,9 @@ function generate() {
   const rand = rng(WORLD.seed + 202);
   const camps = [];
   const usable = (x, z) => {
-    if (x < bankX(z) + 40 || x > haradRoadX(z) + 150 || z < 90 || z > southRoadZ(x) - 30) return false;
-    if (dangerTier(x, z) === 0 || Math.hypot(x - HA.x, z - HA.z) < 250) return false;
-    if (Math.abs(z - HA.z) < 40 && x > 600 && x < HA.x + 60) return false;
+    if (x < bankX(z) + 40 || x > haradRoadX(z) + 150 || z < 68 || z > southRoadZ(x) - 30) return false;
+    if (dangerTier(x, z) === 0 || Math.hypot(x - HA.x, z - HA.z) < REFUGE + 20) return false;
+    if (Math.abs(z - HA.z) < 40 && x > HA.x - 400 && x < HA.x + 60) return false;
     if (inClearing(x, z) || streamDistance(x, z) < 12 || roadDistance(x, z) < 22 || houseDistance(x, z) < 11) return false;
     if (LANDMARKS.some((l) => Math.hypot(x - l.x, z - l.z) < l.r * 0.5 + 25)) return false;
     if (pathDistance(x, z) < 9 || relicDistance(x, z) < 26) return false;
@@ -36,10 +38,10 @@ function generate() {
   const clearOf = (x, z, gap) => !camps.some((c) => Math.abs(c.x - x) < gap && Math.abs(c.z - z) < gap && Math.hypot(c.x - x, c.z - z) < gap);
   const add = (x, z, size) => {
     const kind = x > haradRoadX(z) + 15 ? 'mine' : 'camp';
-    camps.push({ id: 'c' + (camps.length + 1), x: Math.round(x), z: Math.round(z), tier: dangerTier(x, z), size: kind === 'mine' ? Math.min(size, 3) : size, kind });
+    camps.push({ x: Math.round(x), z: Math.round(z), tier: dangerTier(x, z), size: kind === 'mine' ? Math.min(size, 3) : size, kind });
   };
   for (let tries = 0; tries < 14000; tries++) {
-    const x = 150 + rand() * 1560, z = 90 + rand() * 3790;
+    const x = 112 + rand() * 1170, z = 68 + rand() * 2843;
     if (!usable(x, z)) continue;
     if (noise2(x / 240, z / 240, WORLD.seed + 205) < -0.28) continue; // quiet country
     const tier = dangerTier(x, z);
@@ -55,6 +57,22 @@ function generate() {
       if (usable(px, pz) && clearOf(px, pz, 38)) add(px, pz, 1);
     }
   }
+  // The land holds a few more than CAMP_COUNT. Thin them out where they lie
+  // thickest: the straggler camp nearest another goes, until the count is
+  // right. (Stopping the scatter early instead would leave the closely camped
+  // north short, since its last camps are the ones that fill it in.)
+  while (camps.length > CAMP_COUNT) {
+    let worst = -1, gap = Infinity;
+    camps.forEach((c, i) => {
+      if (c.size !== 1) return;
+      for (const o of camps) {
+        const d = o === c ? Infinity : Math.hypot(o.x - c.x, o.z - c.z);
+        if (d < gap) { gap = d; worst = i; }
+      }
+    });
+    camps.splice(worst, 1);
+  }
+  camps.forEach((c, i) => { c.id = 'c' + (i + 1); });
   return camps;
 }
 

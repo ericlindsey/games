@@ -622,7 +622,7 @@ export function buildVegetation(cx, cz, quality) {
       const gx = cx * gn + i, gz = cz * gn + j;
       const x = (gx + H(gx, gz, 21)) * GC, z = (gz + H(gx, gz, 22)) * GC;
       const roll = H(gx, gz, 20);
-      const thick = x > 1400 ? thicketDensity(x, z) : 0;
+      const thick = x > 1050 ? thicketDensity(x, z) : 0;
       if (!(thick > 0 && roll < thick * 0.9)) continue;
       if (campNear(x, z, 8) || inClearing(x, z)) continue;
       const h = heightAt(x, z);
@@ -640,7 +640,7 @@ export function buildVegetation(cx, cz, quality) {
       const x = (gx + H(gx, gz, 31)) * CC, z = (gz + H(gx, gz, 32)) * CC;
       const roll = H(gx, gz, 30);
       if (roll > 0.62 * quality.cover) continue;
-      if (x > 1400 && thicketDensity(x, z) > 0.35) continue;
+      if (x > 1050 && thicketDensity(x, z) > 0.35) continue;
       if (inClearing(x, z) || roadDistance(x, z) < 4.5 || campNear(x, z, 4) || pathDistance(x, z) < 1.2) continue;
       const h = heightAt(x, z);
       if (h < 0.05 || h > 180) continue;

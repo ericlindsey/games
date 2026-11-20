@@ -14,13 +14,13 @@ export const WATER_LEVEL = 0; // the Anduin's surface
 /** Land east of the river before any stamps. `x` must be >= the bank. */
 function eastLand(x, z, bx) {
   const dx = x - bx;
-  const e = dx / 1500;
+  const e = dx / 1125; // the land rises from the river to the mountains
   const base = 2.5 + 95 * Math.pow(e, 1.25);
   const amp = Math.min(1, base / 28) * (0.75 + 0.5 * Math.min(e, 1.2));
   let h = base + fbm(x / 270, z / 270, 4, S) * 24 * amp + fbm(x / 80, z / 80, 2, S + 50) * 4 * amp;
 
   // The Ephel Dúath: a wall along the east, with a gap where the Morgul road enters.
-  const m = Math.min(x - (1690 + 45 * noise2(z / 310, 7.3, S + 9)), 760);
+  const m = Math.min(x - (1268 + 34 * noise2(z / 310, 7.3, S + 9)), 760);
   if (m > 0) {
     const gap = 1 - smoothstep(40, 150, Math.abs(z - southRoadZ(x)));
     const ridge = 0.8 + 0.45 * fbm(x / 200, z / 200, 3, S + 90);
@@ -121,7 +121,7 @@ function tracingHeight(x, z) {
   }
   return h;
 }
-const nearHenneth = (x, z) => x > 600 && x < HA.x + 90 && Math.abs(z - HA.z) < 70;
+const nearHenneth = (x, z) => x > HA.x - 400 && x < HA.x + 90 && Math.abs(z - HA.z) < 70;
 
 /**
  * Streams: { points: [{x, z, bed, cut}], joins } where `bed` is the level of
@@ -213,7 +213,7 @@ function buildStreams() {
   // The home stream. Above the fall it keeps the course it always had: down
   // from the mountains, then dead straight across the shelf to the lip.
   const upper = [];
-  for (let x = 1840; x > HA.x + 50; x -= 9) {
+  for (let x = 1380; x > HA.x + 50; x -= 9) {
     const m = (30 * Math.sin(x / 165 + 1.7) + 8 * Math.sin(x / 61 + 0.3)) * smoothstep(HA.x + 50, HA.x + 260, x);
     upper.push({ x, z: HA.z + m });
   }
@@ -239,9 +239,11 @@ function buildStreams() {
   STREAMS.push({ ...lower, home: 'lower', noJoin: true }); // the home stream runs to the river on its own
 
   // The others: springs along the foot of the mountains, and a few in the lowlands.
+  // (Chosen so that five streams cross the whole land where the province borders
+  // want them: world/provinces.js. Move one and check the borders and camps.)
   const springs = [];
-  for (const z of [250, 470, 700, 930, 1480, 1760, 2040, 2320, 2600, 2880, 3160, 3440, 3700]) springs.push([1835 + noise2(z / 100, 3.3, S + 710) * 20, z]);
-  springs.push([1250, 620], [1180, 2460], [1300, 3280], [820, 2900], [760, 1620]);
+  for (const z of [195, 309, 588, 719, 1176, 1307, 1565, 1747, 1914, 2142, 2393, 2631, 2745]) springs.push([1376 + noise2(z / 100, 3.3, S + 710) * 15, z]);
+  springs.push([938, 465], [885, 1845], [975, 2460], [615, 2175], [570, 1215]);
   for (const [x, z] of springs) {
     const s = trace(x, z, -1, 0);
     if (s && s.points.length > 6) STREAMS.push(s);
@@ -376,7 +378,7 @@ function southWallEdge(x, top) {
 /**
  * The hidden pool and the cut at Henneth Annûn: a basin walled by cliffs just
  * west of the fall, drained by a deep narrow gorge. The gorge floor falls
- * gently to x = 650, where the traced stream takes over with the same bed, so
+ * gently to the end of the cut (HA.gorge.endX - 20), where the traced stream takes over with the same bed, so
  * the floor runs on without a step into the open valley: that is the way out.
  */
 function cutHenneth(x, z, h) {

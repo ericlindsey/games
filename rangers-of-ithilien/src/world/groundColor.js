@@ -81,9 +81,9 @@ export function groundColor(x, z, h, slope, out) {
 
   // Bare rock on steep ground; the mountains are dark stone.
   if (slope > 0.45) mix(out, C.rock, smoothstep(0.45, 0.85, slope));
-  if (x > 1640) {
+  if (x > 1230) {
     const morgul = 1 - smoothstep(60, 220, Math.abs(z - southRoadZ(x)));
-    mix(out, C.darkRock, smoothstep(1700, 1880, x) * (0.75 + 0.25 * morgul));
+    mix(out, C.darkRock, smoothstep(1275, 1410, x) * (0.75 + 0.25 * morgul));
   }
 }
 
