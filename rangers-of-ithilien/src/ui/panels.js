@@ -254,7 +254,7 @@ export class MapPanel {
       ctx.strokeStyle = s.holdCleared ? '#3f6b3a' : '#8a2a22'; ctx.lineWidth = 2;
       ctx.strokeRect(x - 7, y - 7, 14, 14);
     }
-    // the provinces' names, over the marks, with how far each is from free
+    // the provinces' names, over the marks (green once free)
     ctx.textAlign = 'center';
     PROVINCES.forEach((p, i) => {
       const s = status[i], x = p.label.x * scale, y = p.label.z * scale, fell = p.id === 'gorse' || p.id === 'ash';
@@ -263,10 +263,11 @@ export class MapPanel {
       ctx.fillStyle = s.freed ? 'rgba(40,90,30,0.9)' : 'rgba(110,40,28,0.8)';
       ctx.strokeStyle = 'rgba(239,228,200,0.85)'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
       words.forEach((wd, k) => { const ty = y + (k - (words.length - 1) / 2) * 13; ctx.strokeText(wd, x, ty); ctx.fillText(wd, x, ty); });
-      ctx.font = 'italic 11px Palatino, Georgia, serif';
-      const note = s.freed ? 'free' : `${s.cleared} of ${s.need}`;
-      const ny = y + (words.length / 2) * 13 + 4;
-      ctx.strokeText(note, x, ny); ctx.fillText(note, x, ny);
+      if (s.freed) { // (how many camps are broken is in the pack, not written over the map)
+        ctx.font = 'italic 11px Palatino, Georgia, serif';
+        const ny = y + (words.length / 2) * 13 + 4;
+        ctx.strokeText('free', x, ny); ctx.fillText('free', x, ny);
+      }
     });
     ctx.textAlign = 'start';
     // ways back by the old roads: a ring round each place the ranger can travel to
