@@ -47,8 +47,8 @@ export function unequip(state, slot) {
 export function condition(state, id) { return state.wear?.[id] ?? 1; }
 /** How many times it has been honed (a sword) or restrung (a bow): 0 to 3. */
 export function honed(state, id) { return state.honed?.[id] ?? 0; }
-/** A worn blade or string does a little over half its work. */
-export function wearFactor(c) { return 0.6 + 0.4 * c; }
+/** A weapon does as much of its work as it is sound: at 70% sound, 70% of its damage (never under a tenth). */
+export function wearFactor(c) { return Math.max(0.1, c); }
 
 /** Damage a weapon does as it is now. */
 export function weaponDamage(state, id) {
@@ -68,12 +68,14 @@ export function stats(state) {
   };
 }
 
-// A sword loses its edge over about 300 strokes that land; a string wears over about 300 shots.
-export const WEAR_PER_USE = 1 / 300;
+// A sword loses its edge over about 120 strokes that land; a string wears out over about 120 shots
+// (since v0.6a: it was 300, and there was little reason to learn to mend).
+export const WEAR_PER_USE = 1 / 120;
 
 /**
- * The weapon in a slot is used once. Returns 'dull' or 'worn' the moment it
- * crosses half or a fifth of its condition (so the ranger can be told), else null.
+ * The weapon in a slot is used once. Returns how sound it now is, as a whole
+ * tenth (90, 80, ... 0), the moment it falls past one, so the ranger can be
+ * told; else null.
  */
 export function wearOnce(state, slot) {
   const id = state.equipped[slot];
@@ -81,9 +83,8 @@ export function wearOnce(state, slot) {
   state.wear ??= {};
   const before = condition(state, id), after = Math.max(0, before - WEAR_PER_USE);
   state.wear[id] = after;
-  if (before > 0.2 && after <= 0.2) return 'worn';
-  if (before > 0.5 && after <= 0.5) return 'dull';
-  return null;
+  const tenth = (c) => Math.ceil(c * 10 - 1e-9);
+  return tenth(after) < tenth(before) ? Math.max(0, tenth(after)) * 10 + 0 : null;
 }
 
 /** What Mablung asks to put a weapon right; 0 if it needs nothing. */
@@ -153,9 +154,15 @@ export function quickHeal(state) {
 
 // ---- trade ----
 
+/**
+ * What Mablung will not buy: trophies (kept for Faramir's count, and found only
+ * while he has asked for them), and plants and seed (Éowyn's). Everything else
+ * has a price.
+ */
+export function sellable(id) { return !!ITEMS[id] && !['trophy', 'seed', 'herb'].includes(ITEMS[id].kind); }
 export function sellPrice(id) {
   const it = ITEMS[id];
-  return ['goods', 'trophy', 'seed', 'herb'].includes(it.kind) ? it.value : Math.max(1, Math.floor(it.value / 2));
+  return it.kind === 'goods' ? it.value : Math.max(1, Math.floor(it.value / 2));
 }
 export function buyPrice(entry) { return entry.price ?? ITEMS[entry.item].value; }
 
@@ -181,7 +188,7 @@ export function buy(state, entry) {
 }
 
 export function sell(state, id) {
-  if (!removeItem(state, id)) return false;
+  if (!sellable(id) || !removeItem(state, id)) return false;
   state.silver += sellPrice(id);
   return true;
 }
@@ -203,25 +210,43 @@ const GEAR_DROPS = {
 };
 
 /**
- * Loot from a fallen enemy: a list of [id, count]. `rand` gives floats in [0, 1).
- * Kept lean on purpose. `onRoad` is true for a band met on the road: only
- * their archers still carry the blackened arrowheads.
+ * The trophies an errand in hand still wants: { id: how many more }. Trophies
+ * are found only then (since v0.6a), so the pack is not full of them otherwise.
  */
-export function enemyLoot(type, tier, rand, onRoad = false) {
+export function wantedTrophies(state) {
+  const want = {};
+  for (const e of state.quests?.errands ?? []) {
+    const o = e.objective;
+    if (o?.type === 'gather' && ITEMS[o.item]?.kind === 'trophy' && state.quests.active.includes(e.id)) {
+      const more = o.count - count(state, o.item);
+      if (more > 0) want[o.item] = (want[o.item] ?? 0) + more;
+    }
+  }
+  return want;
+}
+
+/**
+ * Loot from a fallen enemy: a list of [id, count]. `rand` gives floats in [0, 1).
+ * Kept lean on purpose: coin and things worth selling, food, now and then gear.
+ * Trophies come only if an errand wants them (`want`, from wantedTrophies).
+ * `onRoad` is true for a band met on the road: only their archers still carry
+ * the blackened arrowheads.
+ */
+export function enemyLoot(type, tier, rand, onRoad = false, want = {}) {
   const loot = [];
   if (rand() < 0.4) loot.push(['silver', 1 + Math.floor(rand() * (2 + tier * 2.5))]);
   if (type === 'archer' ? rand() < 0.6 : rand() < 0.12) loot.push(['arrows', 1 + Math.floor(rand() * (type === 'archer' ? 3 : 2))]);
   if (rand() < 0.25) loot.push([type === 'haradrim' ? (rand() < 0.4 ? 'haradGold' : 'blackCoin') : rand() < 0.75 ? 'orcTrinket' : 'blackCoin', 1]);
-  // trophies for Faramir's count
-  if ((type === 'snaga' || type === 'uruk') && rand() < 0.18) loot.push(['orcBlade', 1]);
-  if (type === 'uruk' && rand() < 0.35) loot.push(['redEye', 1]);
-  if (type === 'archer' && onRoad && rand() < 0.75) loot.push(['arrowheads', 1 + Math.floor(rand() * 2)]);
+  // trophies for Faramir's count, while he has asked for them
+  if (want.orcBlade && (type === 'snaga' || type === 'uruk') && rand() < 0.3) loot.push(['orcBlade', 1]);
+  if (want.redEye && (type === 'uruk' || type === 'chief') && rand() < 0.45) loot.push(['redEye', 1]);
+  if (want.arrowheads && type === 'archer' && onRoad && rand() < 0.75) loot.push(['arrowheads', Math.min(want.arrowheads, 1 + Math.floor(rand() * 2))]);
   if (type !== 'haradrim' && type !== 'chief' && rand() < 0.22) loot.push(['orcBread', 1]); // their own rations
   if (rand() < 0.04) loot.push(['waybread', 1]);
   for (const [id, p] of GEAR_DROPS[type] ?? []) if (rand() < p) { loot.push([id, 1]); break; }
   if (type === 'chief') {
-    loot.push(['silver', 16 + Math.floor(rand() * 19)], ['captainToken', 1]);
-    if (rand() < 0.5) loot.push(['redEye', 1]);
+    loot.push(['silver', 16 + Math.floor(rand() * 19)]);
+    if (want.captainToken) loot.push(['captainToken', 1]);
     if (rand() < 0.5) loot.push(['draught', 1]);
   }
   return loot;

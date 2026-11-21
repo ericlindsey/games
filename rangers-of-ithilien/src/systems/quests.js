@@ -238,7 +238,6 @@ function buildFaramir(kind, n, state, E) {
     const carried = {
       redEye: open.some((c) => c.size >= 2 || c.tier >= 3), // Uruks
       captainToken: open.some((c) => c.size >= 3),
-      haradGold: open.some((c) => c.tier >= 3), // Southrons
     };
     const L = E.trophies.length;
     const pick = [...Array(L).keys()].map((k) => E.trophies[(n + k) % L]).find(([id]) => carried[id] ?? true);

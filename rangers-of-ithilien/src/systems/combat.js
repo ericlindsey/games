@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { rng } from '../util/noise.js';
 import { pointBlocked, trunkAt } from '../world/collision.js';
 import { heightAt } from '../world/terrain.js';
-import { stats, addItem, describeLoot, enemyLoot, quickHeal, useItem, wearOnce, BASE_HEALTH } from './inventory.js';
+import { stats, addItem, describeLoot, enemyLoot, wantedTrophies, quickHeal, useItem, wearOnce, BASE_HEALTH } from './inventory.js';
 import { ITEMS } from '../data/items.js';
 import { GeoBuilder } from '../world/build.js';
 
@@ -76,10 +76,15 @@ export class Combat {
 
   /** The weapon in hand is used once; say so when it grows dull. */
   wear(slot) {
-    const said = wearOnce(this.state, slot);
-    if (!said) return;
-    const what = slot === 'sword' ? (said === 'worn' ? 'Your blade is badly blunted' : 'Your blade is losing its edge') : (said === 'worn' ? 'Your bowstring is fraying' : 'Your bowstring is wearing slack');
-    this.hud.toast('', `${what}. ${this.state.skills?.repair ? (slot === 'sword' ? 'A whetstone will mend it.' : 'A spare string will mend it.') : 'Mablung can put it right.'}`);
+    const pct = wearOnce(this.state, slot);
+    if (pct === null) return;
+    const blade = slot === 'sword';
+    const what = pct <= 20 ? (blade ? 'Your blade is badly blunted' : 'Your bowstring is fraying')
+      : pct <= 50 ? (blade ? 'Your blade is losing its edge' : 'Your bowstring is wearing slack')
+      : (blade ? 'Your blade is dulling' : 'Your bowstring is stretching');
+    const hurt = blade ? `it cuts at only ${Math.max(10, pct)}% of its strength` : `your arrows strike at only ${Math.max(10, pct)}% of their strength`;
+    const mend = this.state.skills?.repair ? (blade ? 'A whetstone will mend it.' : 'A spare string will mend it.') : 'Mablung can put it right, or teach you to.';
+    this.hud.toast('', `${what}: ${pct}% sound, and ${hurt}. ${mend}`);
   }
 
   /** The ranger is struck. */
@@ -112,7 +117,7 @@ export class Combat {
   }
 
   dropLoot(e) {
-    const loot = enemyLoot(e.type, e.camp.tier, this.rand, !!e.camp.patrol);
+    const loot = enemyLoot(e.type, e.camp.tier, this.rand, !!e.camp.patrol, wantedTrophies(this.state));
     if (!loot.length) return;
     const mesh = new THREE.Mesh(this.bagGeo, this.bagMat);
     mesh.position.set(e.x, e.y, e.z);

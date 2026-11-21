@@ -5,6 +5,9 @@ import { SAVE, WORLD } from '../config.js';
 import { HA } from '../world/layout.js';
 import { ITEMS, SLOTS } from '../data/items.js';
 import { levelFor } from './renown.js';
+import { QUESTS } from '../data/quests.js';
+
+const TOLD = new Set(QUESTS.map((q) => q.id));
 
 export function newState() {
   return {
@@ -87,7 +90,8 @@ export function migrate(raw) {
     s.quests.done = strings(q.done);
     if (Array.isArray(q.errands)) s.quests.errands = q.errands.filter((e) => e && typeof e.id === 'string' && typeof e.giver === 'string' && e.objective?.type && e.reward);
     const ids = new Set(s.quests.errands.map((e) => e.id));
-    s.quests.active = strings(q.active).filter((id) => !id.startsWith('x') || ids.has(id));
+    // (a told task that no longer exists, as the counts of fires removed in v0.6a, is dropped)
+    s.quests.active = strings(q.active).filter((id) => (id.startsWith('x') ? ids.has(id) : TOLD.has(id)));
     for (const k of ['count', 'asked']) if (q[k] && typeof q[k] === 'object') for (const [id, v] of Object.entries(q[k])) if (num(v)) s.quests[k][id] = Math.floor(v);
     if (q.marks && typeof q.marks === 'object') for (const [id, m] of Object.entries(q.marks)) if (num(m?.x) && num(m?.z)) s.quests.marks[id] = { x: m.x, z: m.z };
   }
