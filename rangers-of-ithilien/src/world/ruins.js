@@ -12,6 +12,8 @@ import { plantTrees } from './vegetation.js';
 import { rng } from '../util/noise.js';
 
 export const STONE = 0xc9c1aa, WORN = 0xa8a08c, MOSS = 0x7f8f5a, DARK = 0x4b484c;
+/** Old stone gone grey with weather (not green: the moss is laid on by the surface, on top). */
+export const AGED = 0x9d9a86;
 const IVY = 0x4f7a34;
 
 const _M = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) =>
@@ -136,7 +138,7 @@ export function archStones(b, cx, y, cz, span, rise, depth, thick, n, ry = 0, co
     const shape = new THREE.Shape([new THREE.Vector2(...pts[0]), new THREE.Vector2(...pts[1]), new THREE.Vector2(...pts[3]), new THREE.Vector2(...pts[2])]);
     const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 1 });
     const m = new THREE.Matrix4().makeRotationY(ry).setPosition(cx, y, cz).multiply(new THREE.Matrix4().makeTranslation(0, 0, -depth / 2));
-    b.add(g, i % 4 === 1 ? MOSS : (i === Math.floor(n / 2) ? WORN : color), m, false);
+    b.add(g, i % 4 === 1 ? AGED : (i === Math.floor(n / 2) ? WORN : color), m, false);
   }
 }
 
@@ -145,7 +147,7 @@ export function rubble(b, rand, x, z, n, spread) {
     const rx = x + (rand() - 0.5) * spread, rz = z + (rand() - 0.5) * spread;
     const s = 0.35 + rand() * 0.65;
     // fallen ashlar, chipped at the edges
-    addRock(b, rx, heightAt(rx, rz) - 0.12, rz, s * 1.4, rand() < 0.3 ? MOSS : WORN, Math.floor(rand() * 1e5), { detail: 1, sx: 1.25, sy: 0.6, sz: 0.85, cuts: 9, rough: 0.08, tilt: 0.4 });
+    addRock(b, rx, heightAt(rx, rz) - 0.12, rz, s * 1.4, rand() < 0.3 ? AGED : WORN, Math.floor(rand() * 1e5), { detail: 1, sx: 1.25, sy: 0.6, sz: 0.85, cuts: 9, rough: 0.08, tilt: 0.4 });
   }
 }
 
@@ -228,7 +230,7 @@ const KINDS = {
     const steps = 12, rise = 0.45, run = 0.9, w = 3.2;
     for (let i = 0; i < steps; i++) {
       const x0 = l.x - 6 + i * run, top = y + (i + 1) * rise;
-      b.box(run + 0.02, (i + 1) * rise + 0.5, w, x0 + run / 2, y - 0.5, l.z, i % 5 === 2 ? MOSS : STONE);
+      b.box(run + 0.02, (i + 1) * rise + 0.5, w, x0 + run / 2, y - 0.5, l.z, i % 5 === 2 ? AGED : STONE);
       addSolid({ minX: x0, maxX: x0 + run, minZ: l.z - w / 2, maxZ: l.z + w / 2, bottom: y - 2, top });
     }
     const lx = l.x - 6 + steps * run, top = y + steps * rise;
@@ -244,7 +246,7 @@ const KINDS = {
     for (let i = 0; i < 16; i++) {
       if (i % 4 === 0) continue; // four ways in
       const a = (i / 16) * Math.PI * 2, x = l.x + Math.cos(a) * 9, z = l.z + Math.sin(a) * 9;
-      b.box(3.3, 0.7 + (i % 3) * 0.25, 0.6, x, y, z, i % 5 === 1 ? MOSS : STONE, -a + Math.PI / 2);
+      b.box(3.3, 0.7 + (i % 3) * 0.25, 0.6, x, y, z, i % 5 === 1 ? AGED : STONE, -a + Math.PI / 2);
       addCircle(x, z, 1);
     }
     b.cyl(2.5, 2.7, 0.75, l.x, y, l.z, STONE, 12);

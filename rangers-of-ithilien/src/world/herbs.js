@@ -46,25 +46,31 @@ function plantGeometry(kind) {
   return b.geometry();
 }
 
-function glintTexture() {
+function glintTexture(core = false) {
   const c = document.createElement('canvas');
   c.width = c.height = 32;
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
   g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+  if (core) g.addColorStop(0.28, 'rgba(255,255,255,1)'); // a solid bright middle, then a short glow
+  g.addColorStop(core ? 0.45 : 0.3, 'rgba(255,255,255,0.6)');
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 32, 32);
   return new THREE.CanvasTexture(c);
 }
 
+/** How high each kind's glimmer hangs: just over the plant (they are drawn 2.1 times their model size). */
+const GLINT_AT = { athelas: 1.0, thymeSeed: 1.1, poppySeed: 1.8, baySeed: 2.2, oliveStone: 2.35 };
+/** And how big: larger over the bushes, where it is seen against leaves. */
+const GLINT_SIZE = { athelas: 1.1, thymeSeed: 0.8, poppySeed: 0.8, baySeed: 0.9, oliveStone: 0.9 };
+
 export class Herbs {
   constructor(scene, picked) {
     this.sites = herbSites().filter((s) => !picked.includes(s.id));
     this.dummy = new THREE.Object3D();
     this.kinds = new Map(); // kind -> { mesh, glint, glintPos, sites }
-    const tex = glintTexture();
+    const tex = glintTexture(), dot = glintTexture(true);
     for (const kind of new Set(this.sites.map((s) => s.kind))) {
       const sites = this.sites.filter((s) => s.kind === kind);
       const mesh = new THREE.InstancedMesh(plantGeometry(kind), materials.flatDouble, sites.length);
@@ -75,20 +81,22 @@ export class Herbs {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(glintPos, 3));
       const glint = new THREE.Points(geo, new THREE.PointsMaterial({
-        map: tex, size: kind === 'athelas' ? 1.1 : 0.9, color: kind === 'athelas' ? 0xe6fff0 : 0xffe9a8,
-        transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending,
+        map: kind === 'athelas' ? tex : dot, size: GLINT_SIZE[kind], color: kind === 'athelas' ? 0xe6fff0 : 0xffd85a,
+        // kingsfoil a soft pale halo; seed a small bright gold dot, which shows against leaves too
+        transparent: true, opacity: 0.8, depthWrite: false, blending: kind === 'athelas' ? THREE.AdditiveBlending : THREE.NormalBlending,
       }));
       glint.frustumCulled = false;
       glint.renderOrder = 9;
       const entry = { mesh, glint, glintPos, sites };
-      sites.forEach((s, i) => { s.i = i; s.entry = entry; this.place(s, 2.1); glintPos.set([s.x, heightAt(s.x, s.z) + 1.0 + (kind === 'athelas' ? 0 : 0.6), s.z], i * 3); });
+      // (over the top of each: a bush's glimmer used to hang inside it, unseen)
+      sites.forEach((s, i) => { s.i = i; s.entry = entry; this.place(s, 2.1); glintPos.set([s.x, heightAt(s.x, s.z) + GLINT_AT[kind], s.z], i * 3); });
       scene.add(mesh, glint);
       this.kinds.set(kind, entry);
     }
   }
 
   update(time) {
-    for (const [kind, e] of this.kinds) e.glint.material.opacity = 0.55 + 0.3 * Math.sin(time * 2.2 + (kind === 'athelas' ? 0 : 1.7));
+    for (const [kind, e] of this.kinds) e.glint.material.opacity = kind === 'athelas' ? 0.55 + 0.3 * Math.sin(time * 2.2) : 0.8 + 0.2 * Math.sin(time * 2.2 + 1.7);
   }
 
   place(s, scale) {

@@ -15,10 +15,12 @@ import { houseDistance } from './oldworks.js';
  */
 export const PLANTS = {
   athelas: { cell: 55, rate: 0.34, salt: 600, grows: (x, z, d) => d <= 0.93 },
-  thymeSeed: { cell: 70, rate: 0.3, salt: 640, grows: (x, z, d) => d < 0.45 && z < 1725 },
-  baySeed: { cell: 70, rate: 0.3, salt: 660, grows: (x, z, d) => d > 0.45 && d < 0.88 && z > 525 && z < 2175 },
-  poppySeed: { cell: 50, rate: 0.5, salt: 680, grows: (x, z, d, h) => h > 8 && h < 70 },
-  oliveStone: { cell: 70, rate: 0.35, salt: 700, grows: (x, z, d) => d < 0.9 && z > 1725 },
+  // (since v0.6a about twice as many seed plants as before: they were hard to
+  // find. A higher rate keeps every plant that stood before, so saved ids hold.)
+  thymeSeed: { cell: 70, rate: 0.62, salt: 640, grows: (x, z, d) => d < 0.45 && z < 1725 },
+  baySeed: { cell: 70, rate: 0.62, salt: 660, grows: (x, z, d) => d > 0.45 && d < 0.88 && z > 525 && z < 2175 },
+  poppySeed: { cell: 50, rate: 0.9, salt: 680, grows: (x, z, d, h) => h > 8 && h < 70 },
+  oliveStone: { cell: 70, rate: 0.72, salt: 700, grows: (x, z, d) => d < 0.9 && z > 1725 },
 };
 
 /** Where they grow: [{ id, kind, x, z }]. Fixed by the world seed. Pure. */

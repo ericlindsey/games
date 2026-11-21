@@ -4,6 +4,9 @@ import { HA } from '../world/layout.js';
 
 const $ = (id) => document.getElementById(id);
 
+/** The most notices on the screen at once. */
+const MAX_NOTES = 5;
+
 export class Hud {
   constructor() {
     this.root = $('hud');
@@ -49,6 +52,7 @@ export class Hud {
 
   /** Queue a notice. `small` is an optional second line. */
   toast(big, small = '') {
+    if (!big && !small) return;
     this.queue.push({ big, small });
   }
 
@@ -160,21 +164,28 @@ export class Hud {
       this.callouts = this.callouts.filter((c) => c.t > 0);
     }
 
+    // Notices stack: each new one comes in below the others (a little apart, so
+    // a burst can be read), stays a while and fades; more than five at once and
+    // the oldest goes. They used to wait their turn one by one.
+    this.notes ??= [];
     this.toastTimer -= dt;
-    if (this.toastTimer <= 0) {
-      const next = this.queue.shift();
-      if (next) {
-        this.toastEl.innerHTML = `<div class="big"></div><div class="small"></div>`;
-        this.toastEl.firstChild.textContent = next.big;
-        this.toastEl.lastChild.textContent = next.small;
-        this.toastEl.classList.add('show');
-        this.toastTimer = this.queue.length ? 2.4 : 4.2; // hurry when more is waiting
-        this.showing = true;
-      } else if (this.showing) {
-        this.toastEl.classList.remove('show');
-        this.showing = false;
-        this.toastTimer = 0.5;
-      }
+    if (this.toastTimer <= 0 && this.queue.length) {
+      const next = this.queue.shift(), el = document.createElement('div');
+      el.className = 'note';
+      if (next.big) { const b = document.createElement('div'); b.className = 'big'; b.textContent = next.big; el.append(b); }
+      if (next.small) { const s = document.createElement('div'); s.className = 'small'; s.textContent = next.small; el.append(s); }
+      this.toastEl.append(el);
+      this.notes.push({ el, t: 5.5 + Math.min(3, (next.small.length + next.big.length) / 40) });
+      this.toastTimer = 0.35;
+      const live = this.notes.filter((n) => n.t > 0.6);
+      for (const n of live.slice(0, Math.max(0, live.length - MAX_NOTES))) n.t = 0.6; // too many: the oldest fade now
     }
+    for (const n of this.notes) {
+      n.t -= dt;
+      n.el.classList.toggle('old', n !== this.notes[this.notes.length - 1]);
+      if (n.t < 0.6) n.el.classList.add('out');
+      if (n.t <= 0) n.el.remove();
+    }
+    this.notes = this.notes.filter((n) => n.t > 0);
   }
 }

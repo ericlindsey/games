@@ -387,10 +387,19 @@ async function boot() {
   /** Lie down on the mats in the cave: an hour's sleep, and the ranger rises whole. */
   const rest = () => {
     if (state.health >= 100) { hud.toast('', 'You are not weary. There is work to do.'); return; }
-    state.health = 100;
-    hud.setHealth(state.health);
-    hud.toast('You rest', 'An hour on the mats, with the falls loud outside the window. You rise whole.');
-    save();
+    // the screen fades to black, the hour passes, and it fades back in
+    const veil = document.getElementById('sleep');
+    if (veil.classList.contains('dark')) return;
+    veil.classList.add('dark');
+    setTimeout(() => {
+      state.health = 100;
+      hud.setHealth(state.health);
+      save();
+      setTimeout(() => {
+        veil.classList.remove('dark');
+        hud.toast('You rest', 'An hour on the mats, with the falls loud outside the window. You rise whole.');
+      }, 900);
+    }, 1200);
   };
 
   const found = (id, title, blurb) => {
@@ -528,7 +537,7 @@ async function boot() {
     const down = combat.fallen > 0;
     const fight = combat.update(dt, time, input.attack && !down);
     // Aim mode: toggled (R, or the Aim button), or held on the right mouse button.
-    const aiming = (combat.aim || (input.aimMouse && input.enabled && state.weapon === 'bow')) && !down;
+    const aiming = (combat.aim || (input.aimMouse && input.enabled && state.weapon === 'bow' && !combat.shaken)) && !down;
     $('btn-aim').classList.toggle('on', combat.aim);
     rig.aiming = state.weapon === 'bow' && (!input.touch || combat.aim) && rig.wantDist > 0.5;
     rig.zoomed = aiming;

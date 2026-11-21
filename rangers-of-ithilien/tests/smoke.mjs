@@ -407,6 +407,9 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await shot(page, 'bow');
 
   // Taking aim: the view closes in, and a chosen shot to the head kills outright.
+  // Hold the camp still first: a blow now would (rightly) knock the ranger out of the aim.
+  await page.evaluate(() => { for (const e of roi.enemies.list) if (!e.dead) { e.def = { ...e.def, speed: 0 }; e.state = 'strike'; e.timer = 99; } });
+  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 30000 });
   await page.keyboard.press('KeyR');
   await page.waitForFunction(() => roi.combat.aim && roi.rig.zoom > 0.8, null, { timeout: 20000 });
   check(await page.evaluate(() => roi.rig.camera.fov < 45), 'aim mode narrows the view');
@@ -647,7 +650,26 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.evaluate(() => { const b = roi.refuge.beds[2]; roi.teleport(b.x, b.z, 0, 40); });
   await page.waitForFunction(() => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes('Rest a while'), null, { timeout: 120000 });
   await page.keyboard.press('KeyE');
+  check(await page.waitForFunction(() => document.getElementById('sleep').classList.contains('dark'), null, { timeout: 20000 }).then(() => true, () => false), 'resting fades the screen to black');
   check(await page.waitForFunction(() => roi.state.health === 100, null, { timeout: 60000 }).then(() => true, () => false), 'resting on a mat in the cave makes the ranger whole');
+  check(await page.waitForFunction(() => !document.getElementById('sleep').classList.contains('dark'), null, { timeout: 20000 }).then(() => true, () => false), 'and the light comes back');
+  // a burst of notices shows together, stacked, no more than five at once
+  await page.evaluate(() => { for (let i = 1; i <= 7; i++) roi.hud.toast('', `Notice ${i}`); });
+  const stacked = await page.waitForFunction(() => document.querySelectorAll('#toast .note:not(.out)').length >= 3, null, { timeout: 30000 }).then(() => true, () => false);
+  let most = 0;
+  for (let i = 0; i < 10; i++) { most = Math.max(most, await page.evaluate(() => document.querySelectorAll('#toast .note:not(.out)').length)); await page.waitForTimeout(300); }
+  check(stacked && most <= 5, `notices stack, at most five at once (${most})`);
+  // a blow knocks the ranger out of the aim
+  const knocked = await page.evaluate(() => {
+    roi.state.arrows = Math.max(roi.state.arrows, 5);
+    roi.combat.setAim(true);
+    const was = roi.combat.aim;
+    roi.combat.hurt(4);
+    const out = !roi.combat.aim && !roi.combat.drawing && roi.combat.draw === 0;
+    roi.state.health = 100; roi.hud.setHealth(100);
+    return was && out;
+  });
+  check(knocked, 'being struck knocks the ranger out of aiming');
   await page.evaluate(() => { if (!roi.state.quests.done.includes('e1')) roi.state.quests.done.push('e1'); roi.state.items.athelas = 7; roi.state.items.draught = 0; });
   await talkTo('eowyn');
   await choose('6 kingsfoil for 3 draughts');
