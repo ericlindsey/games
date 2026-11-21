@@ -926,6 +926,42 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
   plants near the new village may have moved, so a few picked plants may stand
   again.)
 
+### v0.6a: after the v0.6 playtest
+
+- **Resting** on the mats fades the screen to black and back (`#sleep`).
+- **Old places**: no more wholly green blocks (the moss colour is gone from
+  blocks, arch stones, rubble and field stones: `AGED` grey instead; the surface
+  lays moss on top where it would grow). The **barrow** is a bell-shaped mound
+  that rises out of the ground (a lathe of a Gaussian), its door set into it. The
+  **chapel's** window mullion stands on the sill instead of floating above it.
+- **Weapons wear faster** (120 strokes or shots from sound to worn out; was 300),
+  and a weapon does damage **in proportion to how sound it is** (70% sound, 70% of
+  its damage; never under a tenth). It used to keep 60% at worst. The ranger is
+  told at every tenth ("Your blade is dulling: 80% sound, and it cuts at only 80%
+  of its strength"), and the pack and Mablung's bench say the same.
+- **Trophies are for errands only**: the orc blades, red Eye badges, blackened
+  arrowheads and captain's tokens drop only while an errand asks for them, and
+  only as many as it still wants (`wantedTrophies`). Faramir's trophy errands ask
+  for these alone; trinkets, coin of Mordor and gold of Harad are plain loot, to
+  sell. The pack keeps trophies, plants and seed apart ("Gathered for tasks"), and
+  **Mablung buys none of them** (`sellable`).
+- **Seed plants are about twice as many** (thyme 92, bay 89, poppy 78, olive 53;
+  kingsfoil 200 as before). Their ids are unchanged. Each now has a small bright gold
+  dot just above it (it was a faint halo, and over bay and olive bushes it hung
+  inside them, unseen); kingsfoil keeps its pale halo.
+- **Notices stack**: each comes in below the last, a third of a second apart, and
+  fades after five seconds or so; at most five are shown at once, the oldest
+  going first. They used to wait their turn one at a time.
+- **Faramir's story follows the provinces**: after the road (f3) he asks for the
+  Gorse Fells (f16), the road bands' orders (f9), the Old Bridge (f17), the
+  Cross-roads (f5) and Osgiliath (f6), the Moonwood (f18), the Southwood (f19),
+  the war-camps (f11), the Ash Fells (f20), the Morgul Marches (f21), and last every
+  camp (f8). Gone: "The stockade" (every hold is one now), "Five captains" and the
+  counts of fifteen, thirty and fifty fires (the bounty errand covers counting).
+  Their gear rewards moved onto the provinces at about the same renown. A save with
+  a removed task in hand drops it. Éowyn's chain (old places, villages, seed) is
+  unchanged: it is her map, not a count.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp

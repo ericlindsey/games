@@ -348,11 +348,23 @@ test('the pack: carrying, wearing, using, buying and selling', async () => {
     for (let i = 0; i < 50; i++) for (const [id, c] of inv.enemyLoot(type, 3, rand, i % 2 === 0)) assert.ok((id === 'silver' || id === 'arrows' || ITEMS[id]) && c > 0);
   }
   let heads = 0;
+  const want = { arrowheads: 3 };
   for (let i = 0; i < 200; i++) {
-    heads += inv.enemyLoot('archer', 3, rand, true).some(([id]) => id === 'arrowheads') ? 1 : 0;
-    assert.ok(!inv.enemyLoot('archer', 3, rand, false).some(([id]) => id === 'arrowheads'), 'only archers on the road carry the arrowheads');
+    heads += inv.enemyLoot('archer', 3, rand, true, want).some(([id]) => id === 'arrowheads') ? 1 : 0;
+    assert.ok(!inv.enemyLoot('archer', 3, rand, false, want).some(([id]) => id === 'arrowheads'), 'only archers on the road carry the arrowheads');
   }
   assert.ok(heads > 100, 'and most of those do');
+  // trophies only while an errand wants them; plain loot is only things worth silver, food and gear
+  for (const type of ['snaga', 'archer', 'uruk', 'haradrim', 'chief']) for (let i = 0; i < 200; i++) {
+    for (const [id] of inv.enemyLoot(type, 3, rand, true)) assert.notEqual(ITEMS[id]?.kind, 'trophy', `${type} drops ${id} with no errand for it`);
+  }
+  const t = newState();
+  assert.deepEqual(inv.wantedTrophies(t), {});
+  t.quests.errands = [{ id: 'xf1', giver: 'faramir', objective: { type: 'gather', item: 'orcBlade', count: 3 } }]; t.quests.active = ['xf1'];
+  t.items.orcBlade = 1;
+  assert.deepEqual(inv.wantedTrophies(t), { orcBlade: 2 }, 'an errand in hand wants what it still lacks');
+  assert.ok(!inv.sellable('orcBlade') && !inv.sellable('baySeed') && !inv.sellable('athelas') && inv.sellable('blackCoin'), 'Mablung buys no trophies, plants or seed');
+  assert.ok(!inv.sell(t, 'orcBlade') && t.items.orcBlade === 1);
   for (const c of CAMPS) for (const [id, k] of inv.stashLoot(c, rand)) assert.ok((id === 'silver' || id === 'arrows' || ITEMS[id]) && k > 0);
 });
 
@@ -386,10 +398,14 @@ test('weapons wear, and can be mended, honed and restrung', async () => {
   const s = newState();
   const full = inv.stats(s).sword;
   let said = [];
-  for (let i = 0; i < 1 / inv.WEAR_PER_USE + 5; i++) { const w = inv.wearOnce(s, 'sword'); if (w) said.push(w); }
-  assert.deepEqual(said, ['dull', 'worn'], 'the ranger is told twice as the edge goes');
+  for (let i = 0; i < 1 / inv.WEAR_PER_USE + 5; i++) { const w = inv.wearOnce(s, 'sword'); if (w !== null) said.push(w); }
+  assert.deepEqual(said, [90, 80, 70, 60, 50, 40, 30, 20, 10, 0], 'the ranger is told at every tenth as the edge goes');
+  assert.ok(1 / inv.WEAR_PER_USE <= 150, 'and it goes quickly enough that mending is worth learning');
   assert.equal(inv.condition(s, 'rangerSword'), 0);
-  assert.ok(inv.stats(s).sword < full * 0.65 && inv.stats(s).sword > full * 0.55, 'a worn blade does a little over half');
+  assert.ok(Math.abs(inv.stats(s).sword - full * 0.1) < 1e-9, 'a worn-out blade does a tenth');
+  s.wear.rangerSword = 0.7;
+  assert.ok(Math.abs(inv.stats(s).sword - full * 0.7) < 1e-9, 'at 70% sound it does 70%');
+  s.wear.rangerSword = 0;
   s.silver = 100;
   const price = inv.repairPrice(s, 'rangerSword');
   assert.ok(price > 0 && inv.repair(s, 'rangerSword'));
@@ -751,7 +767,26 @@ test('Faramir asks for the home country to be freed before he sends you further'
   assert.ok(q.isComplete(def, s));
   assert.ok(q.turnIn(s, 'f14'));
   assert.equal(q.offerFrom('faramir', s).id, 'f15', 'then Forlad, before the road and the stockades');
-  assert.ok(q.byId.f3.requires.includes('f15') && q.byId.f4.requires.includes('f15'));
+  assert.ok(q.byId.f3.requires.includes('f15'));
+});
+
+test('Faramir\'s story follows the provinces, with no standalone counts or stockades', async () => {
+  const { QUESTS } = await import('../src/data/quests.js');
+  const { CAMPAIGN } = await import('../src/world/provinces.js');
+  const chain = QUESTS.filter((q) => q.giver === 'faramir');
+  for (const gone of ['f4', 'f7', 'f10', 'f12', 'f13']) assert.ok(!chain.some((q) => q.id === gone), `${gone} is gone`);
+  assert.ok(!chain.some((q) => q.objective.type === 'clearCount' && q.objective.count !== 'all' && q.objective.count > 5), 'no counts of fires but the first five and the last');
+  assert.ok(!chain.some((q) => q.objective.type === 'clearWhere' && q.objective.where === 'stockade'), 'no stockade asked for on its own');
+  const freed = chain.filter((q) => q.objective.type === 'freed').map((q) => q.objective.province);
+  assert.deepEqual(freed, CAMPAIGN, 'every province is freed in his story, in the order of the campaign');
+  for (const q of chain) for (const r of q.requires ?? []) assert.ok(chain.some((o) => o.id === r), `${q.id} needs ${r}, which exists`);
+  // and every gear reward the removed tasks gave is still given somewhere
+  const given = new Set(QUESTS.flatMap((q) => Object.keys(q.reward.items ?? {})));
+  for (const id of ['falchion', 'whiteCompanyMail', 'greatBow', 'anorianSword', 'gondorHelm']) assert.ok(given.has(id), `${id} is still a reward`);
+  // and a save holding a removed task drops it
+  const { migrate, newState: fresh } = await import('../src/systems/save.js');
+  const old = fresh(); old.quests.active = ['f4', 'f7', 'f3'];
+  assert.deepEqual(migrate(JSON.parse(JSON.stringify(old))).quests.active, ['f3']);
 });
 
 test('orcs carry orc bread, which mends less than waybread', async () => {

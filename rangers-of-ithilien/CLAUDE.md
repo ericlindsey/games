@@ -189,6 +189,11 @@ Rules of thumb:
   the refuge, never for being far from its camp, and rouses any company at rest
   within `CHASE.rouse` (35 m) of it (data/enemies.js). Keep camps' companies
   further apart than that at rest (a unit test checks).
+- Trophies (`kind: 'trophy'`) drop only while an errand asks for them
+  (`wantedTrophies`); ordinary loot is coin, things to sell, food and gear.
+  Mablung buys no trophies, plants or seed (`sellable`).
+- A weapon does damage in proportion to how sound it is (`wearFactor`); the
+  ranger is told at every tenth it loses.
 - Wounds never mend by themselves. Health comes back only from healing items,
   resting on the mats in the cave (`refuge.beds`), and waking at home after a fall.
 - Errands keep to the working province (`workingProvince()` in
@@ -240,7 +245,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.6`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.6a`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

@@ -430,11 +430,18 @@ export class PackPanel {
       if (!it) { row(gear, `No ${SLOT_NAMES[slot].toLowerCase()}`, 'Nothing worn.'); continue; }
       const up = inv.honed(st, id);
       const buttons = slot === 'sword' || slot === 'bow' ? [] : [['Take off', () => { inv.unequip(st, slot); this.h.onChange(); this.draw(); }]];
-      const el = row(gear, it.name + (up ? ` +${up}` : ''), itemNote(it), buttons);
+      const pct = Math.round(inv.condition(st, id) * 100);
+      const worn = it.damage && pct < 100 ? ` ${pct}% sound: it does ${Math.max(10, pct)}% of its damage until mended.` : '';
+      const el = row(gear, it.name + (up ? ` +${up}` : ''), itemNote(it) + worn, buttons);
       if (it.damage) condBar(el, inv.condition(st, id));
     }
     const items = $('pack-items'); items.replaceChildren();
-    const ids = Object.keys(st.items);
+    const keep = $('pack-keep'); keep.replaceChildren();
+    // trophies, plants and seed are kept apart: they are for Faramir and Éowyn, not for selling
+    const kept = (id) => ['trophy', 'seed', 'herb'].includes(ITEMS[id]?.kind);
+    for (const id of Object.keys(st.items).filter(kept)) row(keep, st.items[id] > 1 ? `${ITEMS[id].name} \u00d7${st.items[id]}` : ITEMS[id].name, ITEMS[id].text);
+    if (!Object.keys(st.items).some(kept)) empty(keep, 'Nothing yet.');
+    const ids = Object.keys(st.items).filter((id) => !kept(id));
     for (const id of ids) {
       const it = ITEMS[id], n = st.items[id], buttons = [];
       if (it.slot) buttons.push([it.slot === 'armour' ? 'Wear' : 'Wield', () => { inv.equip(st, id); this.h.onChange(); this.draw(); }]);
@@ -481,7 +488,8 @@ export class TradePanel {
       const price = inv.repairPrice(st, id), step = inv.honeStep(st, id), up = inv.honed(st, id);
       const buttons = [[price ? `Mend \u00b7 ${price}` : 'Sound', () => { inv.repair(st, id); redraw(); }, !price || st.silver < price]];
       if (step) buttons.push([`${slot === 'sword' ? 'Hone' : 'Restring'} +${up + 1} \u00b7 ${step.price}`, () => { inv.hone(st, id); redraw(); }, st.renown < step.renown || st.silver < step.price]);
-      const note = `${Math.round(inv.condition(st, id) * 100)}% sound. ` + (step ? (st.renown < step.renown ? `He will ${slot === 'sword' ? 'hone it' : 'fit a better string'} when your renown reaches ${step.renown}.` : `${slot === 'sword' ? 'A finer edge' : 'A better string'}: +1 damage.`) : 'It is as good as he can make it.');
+      const pc = Math.round(inv.condition(st, id) * 100);
+      const note = `${pc}% sound${pc < 100 ? `, so it does ${Math.max(10, pc)}% of its damage` : ''}. ` + (step ? (st.renown < step.renown ? `He will ${slot === 'sword' ? 'hone it' : 'fit a better string'} when your renown reaches ${step.renown}.` : `${slot === 'sword' ? 'A finer edge' : 'A better string'}: +1 damage.`) : 'It is as good as he can make it.');
       const el = row(bench, it.name + (up ? ` +${up}` : ''), note, buttons);
       condBar(el, inv.condition(st, id));
     }
@@ -499,7 +507,7 @@ export class TradePanel {
     const next = SHOP.find((e) => e.renown > st.renown);
     if (next) empty(buy, `More when your renown reaches ${next.renown}.`);
     const sell = $('trade-sell'); sell.replaceChildren();
-    const ids = Object.keys(st.items);
+    const ids = Object.keys(st.items).filter((id) => inv.sellable(id));
     for (const id of ids) {
       const it = ITEMS[id];
       row(sell, st.items[id] > 1 ? `${it.name} \u00d7${st.items[id]}` : it.name, it.text, [[`Sell \u00b7 ${inv.sellPrice(id)}`, () => { inv.sell(st, id); this.h.onChange(); this.draw(); }]]);
