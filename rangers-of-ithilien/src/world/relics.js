@@ -8,7 +8,7 @@ import { addSolid, addCircle } from './collision.js';
 import { GeoBuilder, SURF, materials } from './build.js';
 import { addRock } from './rocks.js';
 import { ATLAS } from './surface.js';
-import { column, fallenColumn, wall, rubble, archStones, STONE, WORN, MOSS } from './ruins.js';
+import { column, fallenColumn, wall, rubble, archStones, STONE, WORN, AGED } from './ruins.js';
 import { rng } from '../util/noise.js';
 
 /** Beyond this the small things about a ruin are not drawn. */
@@ -51,12 +51,12 @@ function moss(d, x, y, z, w, dd) {
 function stones(d, rand, x, z, spread, n, color = WORN) {
   for (let i = 0; i < n; i++) {
     const px = x + (rand() - 0.5) * spread, pz = z + (rand() - 0.5) * spread;
-    addRock(d, px, heightAt(px, pz) - 0.08, pz, 0.25 + rand() * 0.4, rand() < 0.3 ? MOSS : color, Math.floor(rand() * 1e5), { detail: 0, sy: 0.6, cuts: 5 });
+    addRock(d, px, heightAt(px, pz) - 0.08, pz, 0.25 + rand() * 0.4, rand() < 0.3 ? AGED : color, Math.floor(rand() * 1e5), { detail: 0, sy: 0.6, cuts: 5 });
   }
 }
 /** A dressed block lying where it fell, half sunk, sometimes mossed. */
 function block(b, rand, x, z, w = 0.9, h = 0.45, dd = 0.55) {
-  b.box(w, h, dd, x, heightAt(x, z) - h * 0.3, z, rand() < 0.3 ? MOSS : WORN, rand() * 3, (rand() - 0.5) * 0.25, (rand() - 0.5) * 0.25);
+  b.box(w, h, dd, x, heightAt(x, z) - h * 0.3, z, rand() < 0.3 ? AGED : WORN, rand() * 3, (rand() - 0.5) * 0.25, (rand() - 0.5) * 0.25);
 }
 
 const BUILD = {
@@ -158,11 +158,18 @@ const BUILD = {
   },
 
   barrow(b, d, r, y, rand) {
+    // a long low mound that swells out of the ground like a bell, no edge to it
     b.kind = SURF.leaf;
-    b.lump(7.5, r.x, y - 0.6, r.z, TURF, 1, 0.5, 1, 3, 0.06);
+    const H = 3.4, SIG = 5.4, pts = [];
+    for (let i = 0; i <= 22; i++) { const rr = (i / 22) * 11.5; pts.push(new THREE.Vector2(rr, H * Math.exp(-((rr / SIG) ** 2)) - 0.25 * (i / 22) ** 2)); }
+    pts.reverse(); // (from the rim to the crown, so the faces look out)
+    pts.push(new THREE.Vector2(0, pts[pts.length - 1].y));
+    const mound = new THREE.LatheGeometry(pts, 28);
+    mound.computeVertexNormals();
+    b.add(mound, TURF, new THREE.Matrix4().makeTranslation(r.x, y - 0.12, r.z), true);
     b.kind = SURF.masonry;
-    addCircle(r.x, r.z, 6.2);
-    const dz = 6.6; // the door faces south, down a short sunken way lined with stones
+    addCircle(r.x, r.z, 3.8);
+    const dz = 4.1; // the door faces south, set into the mound, down a short sunken way lined with stones
     b.box(0.7, 2.2, 0.8, r.x - 1.1, y - 0.3, r.z + dz, GREY);
     b.box(0.7, 2.2, 0.8, r.x + 1.1, y - 0.3, r.z + dz, GREY);
     b.box(3.2, 0.6, 1.0, r.x, y + 1.9, r.z + dz, GREY);
@@ -225,7 +232,7 @@ const BUILD = {
     // the floor, its slabs heaved by roots
     for (let i = 0; i < 26; i++) {
       const x = r.x + (rand() - 0.5) * (w - 1), z = r.z + (rand() - 0.5) * (dd - 1);
-      d.box(1.0 + rand() * 0.4, 0.12, 0.9 + rand() * 0.3, x, y - 0.06, z, rand() < 0.3 ? MOSS : WORN, rand() * 0.3, (rand() - 0.5) * 0.1);
+      d.box(1.0 + rand() * 0.4, 0.12, 0.9 + rand() * 0.3, x, y - 0.06, z, rand() < 0.3 ? AGED : WORN, rand() * 0.3, (rand() - 0.5) * 0.1);
     }
     // the east end stands tall, with a window in it
     wall(b, r.x - 2.9, r.z - dd / 2, y, 2.2, 8, 0.8);
@@ -233,7 +240,7 @@ const BUILD = {
     b.box(3.6, 1.2, 0.8, r.x, y + 5.3, r.z - dd / 2, STONE);
     wall(b, r.x, r.z - dd / 2, y, 3.6, 1.6, 0.8, WORN);
     archStones(b, r.x, y + 4.1, r.z - dd / 2, 1.6, 1.0, 0.85, 0.35, 7); // the window's head, its tracery gone
-    b.box(0.18, 2.6, 0.5, r.x, y + 1.6, r.z - dd / 2, WORN);           // but for the mullion
+    b.box(0.18, 3.3, 0.5, r.x, y + 0.9, r.z - dd / 2, WORN);           // but for the mullion, standing on the sill
     ivyDown(d, rand, r.x - 2.9, y + 7.6, r.z - dd / 2 + 0.42, 2, 5, 0, 1);
     for (const s of [-1, 1]) { // side walls, broken down toward the west, with a buttress or two
       for (let i = 0; i < 4; i++) {
@@ -254,7 +261,7 @@ const BUILD = {
     d.add(new THREE.CylinderGeometry(0.25, 0.6, 0.9, 10, 1, true), 0x5c6a58, new THREE.Matrix4().makeRotationZ(1.3).setPosition(bx, y + 0.5, bz));
     for (let i = 0; i < 4; i++) {
       const z = r.z - 1 + i * 2.2;
-      for (const s of [-1, 1]) if (rand() < 0.7) { b.box(2.2, 0.45, 0.5, r.x + s * 1.9, y - 0.05, z, rand() < 0.5 ? MOSS : WORN, (rand() - 0.5) * 0.15); }
+      for (const s of [-1, 1]) if (rand() < 0.7) { b.box(2.2, 0.45, 0.5, r.x + s * 1.9, y - 0.05, z, rand() < 0.5 ? AGED : WORN, (rand() - 0.5) * 0.15); }
     }
     rubble(b, rand, r.x, r.z + 2, 14, 12);
     litter(d, rand, r.x, r.z, w - 1, dd - 1, 40);
@@ -306,7 +313,7 @@ const BUILD = {
       for (let k = 0; k < 6; k++) {
         const x = r.x + s * (11.5 + k * 1.4), gy = heightAt(x, r.z);
         if (rand() < 0.25) continue;
-        b.box(1.2, 0.35, 0.9, x, gy - 0.22, r.z + (rand() - 0.5) * 0.2, k % 3 ? WORN : MOSS, (rand() - 0.5) * 0.2);
+        b.box(1.2, 0.35, 0.9, x, gy - 0.22, r.z + (rand() - 0.5) * 0.2, k % 3 ? WORN : AGED, (rand() - 0.5) * 0.2);
       }
     }
     // the arch has lost a stone or two from one side; they lie below it
@@ -375,7 +382,7 @@ const BUILD = {
       for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
         if (rand() < 0.18) continue;
         const sx = x - w / 2 + (i + 0.5) * (w / nx), sz = z - dd / 2 + (j + 0.5) * (dd / nz);
-        d.box(w / nx - 0.08, 0.08, dd / nz - 0.08, sx, top - 0.02 + (rand() < 0.15 ? 0.05 : 0), sz, rand() < 0.25 ? MOSS : WORN, 0, (rand() - 0.5) * 0.04, (rand() - 0.5) * 0.04);
+        d.box(w / nx - 0.08, 0.08, dd / nz - 0.08, sx, top - 0.02 + (rand() < 0.15 ? 0.05 : 0), sz, rand() < 0.25 ? AGED : WORN, 0, (rand() - 0.5) * 0.04, (rand() - 0.5) * 0.04);
       }
     }
     for (const s of [-1, 1]) {
@@ -401,7 +408,7 @@ const BUILD = {
     for (let i = 0; i < 40; i++) {
       const x = r.x + (rand() - 0.5) * (2 * hw - 0.6), z = r.z + (rand() - 0.5) * (2 * hd - 3);
       if (Math.abs(x - r.x) < 3.3 && Math.abs(z - r.z) < 4.8) continue;
-      d.box(1.1 + rand() * 0.3, 0.1, 0.9 + rand() * 0.3, x, floor - 0.04, z, rand() < 0.3 ? MOSS : WORN, rand() * 0.2);
+      d.box(1.1 + rand() * 0.3, 0.1, 0.9 + rand() * 0.3, x, floor - 0.04, z, rand() < 0.3 ? AGED : WORN, rand() * 0.2);
     }
     // the pool: a kerb you can step over, and leaves where the water was, heaped deepest in the middle
     const pw = 3, pd = 4.4;
@@ -431,7 +438,7 @@ const BUILD = {
     // the foot of the walk outside, where the land falls to meet it
     for (let i = 0; i < 26; i++) {
       const a = (i / 26) * Math.PI * 2, x = r.x + Math.cos(a) * (hw + walk + 0.6) * 1.08, z = r.z + Math.sin(a) * (hd + walk + 0.6) * 1.06;
-      addRock(d, x, heightAt(x, z) - 0.2, z, 0.5 + rand() * 0.5, rand() < 0.4 ? MOSS : WORN, 2000 + i, { detail: 0, sy: 0.6, cuts: 5 });
+      addRock(d, x, heightAt(x, z) - 0.2, z, 0.5 + rand() * 0.5, rand() < 0.4 ? AGED : WORN, 2000 + i, { detail: 0, sy: 0.6, cuts: 5 });
     }
   },
 };

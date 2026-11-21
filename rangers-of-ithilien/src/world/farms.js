@@ -9,7 +9,7 @@ import { wall as ashlar, rubble } from './ruins.js';
 import { addRock } from './rocks.js';
 import { rng } from '../util/noise.js';
 
-const WALL = [0xa9a394, 0x8f8a7c, 0x9c9686, 0x7d8f5a];   // field stone, some mossed
+const WALL = [0xa9a394, 0x8f8a7c, 0x9c9686, 0x8e8d7a];   // field stone, some darker with weather
 const HOUSE = [0xcbc4b0, 0xb5ae9a, 0xc2bba6];
 
 /** A straight run of wall as a blocking box. */
