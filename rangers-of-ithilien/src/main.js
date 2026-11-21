@@ -537,7 +537,7 @@ async function boot() {
     const down = combat.fallen > 0;
     const fight = combat.update(dt, time, input.attack && !down);
     // Aim mode: toggled (R, or the Aim button), or held on the right mouse button.
-    const aiming = (combat.aim || (input.aimMouse && input.enabled && state.weapon === 'bow')) && !down;
+    const aiming = (combat.aim || (input.aimMouse && input.enabled && state.weapon === 'bow' && !combat.shaken)) && !down;
     $('btn-aim').classList.toggle('on', combat.aim);
     rig.aiming = state.weapon === 'bow' && (!input.touch || combat.aim) && rig.wantDist > 0.5;
     rig.zoomed = aiming;

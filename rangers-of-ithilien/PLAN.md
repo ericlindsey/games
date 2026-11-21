@@ -929,6 +929,9 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
 ### v0.6a: after the v0.6 playtest
 
 - **Resting** on the mats fades the screen to black and back (`#sleep`).
+- **A blow spoils the aim**: struck while aiming or drawing, the ranger drops out
+  of aim mode and lets the arrow down unloosed ("Struck! Your aim is lost."), and
+  cannot aim or draw again until the controls have been let go.
 - **Old places**: no more wholly green blocks (the moss colour is gone from
   blocks, arch stones, rubble and field stones: `AGED` grey instead; the surface
   lays moss on top where it would grow). The **barrow** is a bell-shaped mound

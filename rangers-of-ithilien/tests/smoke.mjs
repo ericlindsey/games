@@ -656,6 +656,17 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   let most = 0;
   for (let i = 0; i < 10; i++) { most = Math.max(most, await page.evaluate(() => document.querySelectorAll('#toast .note:not(.out)').length)); await page.waitForTimeout(300); }
   check(stacked && most <= 5, `notices stack, at most five at once (${most})`);
+  // a blow knocks the ranger out of the aim
+  const knocked = await page.evaluate(() => {
+    roi.state.arrows = Math.max(roi.state.arrows, 5);
+    roi.combat.setAim(true);
+    const was = roi.combat.aim;
+    roi.combat.hurt(4);
+    const out = !roi.combat.aim && !roi.combat.drawing && roi.combat.draw === 0;
+    roi.state.health = 100; roi.hud.setHealth(100);
+    return was && out;
+  });
+  check(knocked, 'being struck knocks the ranger out of aiming');
   await page.evaluate(() => { if (!roi.state.quests.done.includes('e1')) roi.state.quests.done.push('e1'); roi.state.items.athelas = 7; roi.state.items.draught = 0; });
   await talkTo('eowyn');
   await choose('6 kingsfoil for 3 draughts');

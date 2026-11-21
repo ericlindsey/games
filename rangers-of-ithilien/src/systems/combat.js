@@ -93,6 +93,13 @@ export class Combat {
     this.state.health -= amount * (1 - stats(this.state).defence);
     this.sinceHurt = 0;
     this.hud.flashHurt();
+    // A blow spoils the aim: out of aim mode, the arrow let down unloosed, and
+    // no aiming or drawing again until the controls have been let go.
+    if (this.aim || this.drawing || this.autoShot || this.input?.aimMouse) {
+      if (this.drawing || this.aim || this.input?.aimMouse) this.hud.callout('Struck! Your aim is lost.', 'hurt');
+      this.aim = false; this.drawing = false; this.draw = 0; this.autoShot = null;
+      this.shaken = true;
+    }
     if (this.state.health <= 0) {
       this.state.health = 0;
       this.fallen = 2.6;
@@ -191,6 +198,10 @@ export class Combat {
       attack = false;
     } // (wounds do not mend by themselves: food, draughts, or rest on the mats at Henneth Annûn)
 
+    if (this.shaken) { // knocked out of the aim: wait for the controls to be let go
+      if (!attack && !this.input?.aimMouse) this.shaken = false;
+      else attack = false;
+    }
     if (this.aim && (st.weapon !== 'bow' || st.arrows <= 0 || this.fallen > 0)) this.setAim(false);
     if (touch && this.aim) {
       // Aim mode by touch: the bow bends by itself while you line up the shot with
