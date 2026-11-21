@@ -917,6 +917,11 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
   `SURF.drystone` (its own texture, `uStones`: rough stones in uneven courses with
   dark gaps), cope-stones, and stones fallen at its foot. On a slope it is built in
   steps; none stands in a stream. Houses keep their laid stone.
+- **Drawing a bow** looks like it: the archer turns side-on to the mark (body and
+  cloak), the bow arm held out at it with the bow upright, and the string hand
+  draws back along the arrow to an anchor under the jaw, its elbow up and out to
+  the side (`drawBow` in figure.js: both arms solved as two-bone IK, the bow turned
+  in the hand so its string runs to the anchor). The same for enemy archers.
 - Saves are still version 6: nothing saved changed shape. (Kingsfoil and seed
   plants near the new village may have moved, so a few picked plants may stand
   again.)
@@ -938,8 +943,7 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
 - Medium ran at 30-50 fps on an iPhone, dipping into the 20s in the deep woods,
   before v0.3a's second round lightened it. If it is still slow, lower `grass`,
   `treeNear` and `treeMid` in config.js, or `minPixelRatio`.
-- Arms bend only forward (no twist), so the drawing arm reaches forward rather
-  than out to the side as a real archer's does.
+- Arms bend only forward (no twist) except in a bow's draw, which sets them freely.
 - Field walls and houses are axis-aligned. Osgiliath is plain blocks.
 - **The old farms are the costliest thing drawn** in many places: 52 meshes, one
   per farmstead or hamlet, each 100-400 m across with its fields' walls (so they

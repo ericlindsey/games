@@ -395,7 +395,7 @@ export class Enemies {
         case 'aim': {
           e.timer -= dt;
           this.face(e, dx / dist, dz / dist, dt);
-          pose.armL = -1.5; pose.elbowL = 0; pose.armR = -1.4; pose.elbowR = -0.5 - 2 * Math.min(1, 1 - e.timer / 0.8);
+          pose.bow = Math.min(1, 1 - e.timer / 0.8); // (figure.js: side-on, the string drawn to the jaw)
           if (e.timer <= 0) {
             const lead = Math.min(1, dist / 26);
             this.api.shoot({ x: e.x, y: e.y + 1.4 * e.def.scale, z: e.z },
