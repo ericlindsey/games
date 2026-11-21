@@ -54,6 +54,25 @@ function natural(x, z) {
 
 // Sites that level the ground around them. Heights are filled in on first use.
 const FLATS = LANDMARKS.filter((l) => l.flat).map((l) => ({ x: l.x, z: l.z, r0: l.flat, r1: l.flat * 1.8, h: null }));
+/** Ground levelled for places placed later (levelGround), and courts dug into it. */
+const LATE_FLATS = [], DIGS = [];
+
+/**
+ * Places placed after this module has loaded (relicSites.js: the lesser ruins)
+ * level their own ground: each `{ x, z, r0, r1 }` is flat to r0 and blends back
+ * into the land by r1, as the landmarks are. A `dig` ({ hw, hd, depth }) also
+ * sinks a rectangle round the middle `depth` below that level, its sides
+ * falling within a few tenths of a metre (a sunken court; its walls are built
+ * by whoever asked for it). Anything placed on the ground before this was
+ * called was placed on the land as it stood, so callers keep their r1 short of it.
+ */
+export function levelGround(list) {
+  for (const f of list) {
+    const flat = { x: f.x, z: f.z, r0: f.r0, r1: f.r1, h: null };
+    LATE_FLATS.push(flat);
+    if (f.dig) DIGS.push({ x: f.x, z: f.z, hw: f.dig.hw, hd: f.dig.hd, flat, depth: f.dig.depth, edge: 0.35 });
+  }
+}
 
 /** The land with the rock shelf of Henneth Annûn raised on it. */
 function shelved(x, z) {
@@ -402,6 +421,28 @@ function cutHenneth(x, z, h) {
 
 /** Height of the ground at (x, z), in metres. */
 export function heightAt(x, z) {
+  let h = carvedHeight(x, z);
+  // Levelled after the streams have cut the land, so the level holds; but not
+  // in a stream's own bed, which is left as it is (the places keep 20 m off).
+  for (const f of LATE_FLATS) {
+    const dx = x - f.x, dz = z - f.z;
+    if (Math.abs(dx) > f.r1 || Math.abs(dz) > f.r1) continue;
+    if (f.h === null) f.h = Math.max(carvedHeight(f.x, f.z), 1.5);
+    const k = (1 - smoothstep(f.r0, f.r1, Math.hypot(dx, dz))) * smoothstep(4, 10, streamDistance(x, z));
+    if (k > 0) h = lerp(h, f.h, k);
+  }
+  for (const d of DIGS) {
+    const ex = Math.abs(x - d.x) - d.hw, ez = Math.abs(z - d.z) - d.hd;
+    if (ex > d.edge || ez > d.edge) continue;
+    if (d.flat.h === null) d.flat.h = Math.max(carvedHeight(d.x, d.z), 1.5);
+    const floor = d.flat.h - d.depth;
+    h = Math.min(h, lerp(floor, h, smoothstep(0, d.edge, Math.max(ex, ez))));
+  }
+  return h;
+}
+
+/** The ground with the streams and the cut at Henneth Annûn carved into it. */
+function carvedHeight(x, z) {
   let h = baseHeight(x, z);
   if (nearestStream(x, z)) {
     const target = _near.cut + valleyProfile(_near.d);

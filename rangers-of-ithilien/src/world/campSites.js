@@ -32,7 +32,7 @@ function generate() {
     if (Math.abs(z - HA.z) < 40 && x > HA.x - 400 && x < HA.x + 60) return false;
     if (inClearing(x, z) || streamDistance(x, z) < 12 || roadDistance(x, z) < 22 || houseDistance(x, z) < 11) return false;
     if (LANDMARKS.some((l) => Math.hypot(x - l.x, z - l.z) < l.r * 0.5 + 25)) return false;
-    if (pathDistance(x, z) < 9 || relicDistance(x, z) < 26) return false;
+    if (pathDistance(x, z, true) < 9 || relicDistance(x, z) < 26) return false;
     return heightAt(x, z) >= 2 && slopeAt(x, z) <= 0.28;
   };
   const clearOf = (x, z, gap) => !camps.some((c) => Math.abs(c.x - x) < gap && Math.abs(c.z - z) < gap && Math.hypot(c.x - x, c.z - z) < gap);

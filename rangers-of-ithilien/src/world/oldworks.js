@@ -7,7 +7,7 @@ import { WORLD, CHUNK } from '../config.js';
 import { HA, LANDMARKS, bankX, haradRoadX, southRoadZ, roadDistance, inClearing } from './layout.js';
 import { heightAt, slopeAt, streamDistance } from './terrain.js';
 
-const rand = rng(WORLD.seed + 101);
+let rand = rng(WORLD.seed + 101);
 const between = (a, b) => a + (b - a) * rand();
 
 function buildable(x, z, margin = 0) {
@@ -82,8 +82,8 @@ function farm(x, z, i) {
   return site;
 }
 
-function hamlet(x, z, i) {
-  const site = { id: 'hamlet' + i, kind: 'hamlet', x, z, houses: [], fields: [], lanes: [] };
+function hamlet(x, z, i, id = 'hamlet' + i) {
+  const site = { id, kind: 'hamlet', x, z, houses: [], fields: [], lanes: [] };
   const n = 7 + Math.floor(rand() * 4);
   for (let k = 0; k < n; k++) {
     const a = (k / n) * Math.PI * 2 + between(-0.2, 0.2), r = between(20, 38);
@@ -118,6 +118,34 @@ function scatter(count, spacing, make, margin) {
 }
 scatter(4, 450, hamlet, 30);
 scatter(26, 175, farm, 0);
+
+// The village of the Window Woods (since v0.6): the first Éowyn asks for, where
+// the settlers who land at Cair Andros are to make their home. The scatter put
+// none in Eryn Henneth, so it is placed here, after the rest: the nearest open
+// ground to a spot between Cair Andros and the falls, well clear of every other
+// site, and laid out with its own generator so that nothing else in the world
+// moves (paths.js joins it last for the same reason). `added` marks it.
+{
+  const tx = 600, tz = 1240;
+  let best = null;
+  for (let z = 820; z <= 1260; z += 10) {
+    for (let x = bankX(z) + 90; x < HA.x - 170; x += 10) {
+      if (!buildable(x, z, 30) || SITES.some((s) => Math.hypot(s.x - x, s.z - z) < (s.kind === 'hamlet' ? 450 : 165))) continue;
+      const d = Math.hypot(x - tx, z - tz);
+      if (!best || d < best.d) best = { x, z, d };
+    }
+  }
+  if (best) {
+    const keep = rand;
+    rand = rng(WORLD.seed + 107);
+    const site = Object.assign(hamlet(best.x, best.z, SITES.length, 'hamlet4'), { added: true });
+    // its fields give way to the farms' older ones where they would cross
+    const cross = (f, g) => f.minX < g.maxX + 6 && f.maxX > g.minX - 6 && f.minZ < g.maxZ + 6 && f.maxZ > g.minZ - 6;
+    site.fields = site.fields.filter((f) => !SITES.some((o) => o.fields.some((g) => cross(f, g)) || o.houses.some((h) => cross(f, { minX: h.x - 8, maxX: h.x + 8, minZ: h.z - 8, maxZ: h.z + 8 }))));
+    SITES.push(site);
+    rand = keep;
+  }
+}
 
 // ---- lookups ----
 const CELL = 64;

@@ -204,6 +204,7 @@ const uncleared = (state) => CAMPS.filter((c) => !state.cleared.includes(c.id));
  */
 export function errandFrom(giver, state) {
   if (state.quests.errands.some((e) => e.giver === giver)) return null;
+  if (giver === 'faramir' && !state.quests.done.includes('f1')) return null; // the nearest fire first
   const E = ERRANDS[giver], n = state.quests.count[giver] ?? 0;
   for (let k = 0; k < E.kinds.length; k++) {
     const kind = E.kinds[(n + k) % E.kinds.length];
@@ -214,6 +215,7 @@ export function errandFrom(giver, state) {
     if (giver === 'faramir' && n % 2 === 1) reward.arrows = 10;
     if (giver === 'eowyn' && n % 2 === 1) reward.items.draught = 1;
     if (extra) Object.assign(reward.items, extra);
+    if (kind === 'bounty') { reward.silver = Math.round(reward.silver * 1.5); reward.honour = Math.round(reward.honour * 1.5); }
     if (n % 5 === 4) { // now and then, something worth having
       const gift = E.gifts.find((id) => !owns(state, id));
       if (gift) reward.items[gift] = 1; else reward.silver += 30;
@@ -244,13 +246,14 @@ function buildFaramir(kind, n, state, E) {
     const c = item === 'captainToken' ? 1 + Math.floor(n / 14) : base + Math.floor(n / 6);
     return { params: { itemName: ITEMS[item].name, count: c, hint: TROPHY_HINTS[item] }, objective: { type: 'gather', item, count: c } };
   }
-  if (kind === 'region') {
-    if (!open.length) return null;
-    const c = Math.min(open.length, 1 + Math.floor(n / 4), 5);
-    const where = 'province:' + pid;
-    return { params: { region: provinceById[pid].name, count: c }, objective: { type: 'clearSince', where, count: c, base: clearedWhere(state, where) } };
+  if (kind === 'bounty') { // a purse for every five to ten camps broken, anywhere
+    const left = uncleared(state).length;
+    if (left < 5) return null;
+    const c = Math.min(10, 5 + Math.floor(n / 4), left);
+    return { params: { count: c }, objective: { type: 'clearSince', where: 'any', count: c, base: state.cleared.length } };
   }
   if (kind === 'bands') {
+    if (!state.quests.done.includes('f3')) return null; // not until he has sent you to the road
     const c = Math.min(3, 1 + Math.floor(n / 8));
     return { params: { count: c }, objective: { type: 'bands', count: c, base: state.stats.bands ?? 0 } };
   }

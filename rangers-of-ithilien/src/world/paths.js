@@ -17,7 +17,7 @@ const node = (x, z, road = false) => nodes.push({ x, z, road });
 // (No path leads to the hidden stair: the old ways start where the stream leaves the cut.)
 const outOfCut = STREAMS.find((s) => s.home === 'lower').points[3];
 node(outOfCut.x, outOfCut.z + 5); // where the stream runs out of the cut
-for (const s of SITES) node(s.x, s.z + (s.kind === 'hamlet' ? 0 : 9));
+for (const s of SITES) if (!s.added) node(s.x, s.z + (s.kind === 'hamlet' ? 0 : 9));
 for (const l of LANDMARKS) if (l.kind && l.kind !== 'morgul' && l.kind !== 'osgiliath' && l.kind !== 'crossroads') node(l.x, l.z + (l.flat ?? 10) * 0.6);
 node(LANDMARKS.find((l) => l.id === 'cormallen').x, HA.z + 30);
 for (const r of RELICS) node(r.x, r.z + 7);
@@ -65,9 +65,22 @@ const links = [];
   }
 }
 
+// A site added after the scatter (oldworks.js: the Window Woods village) is
+// joined last, to the two nearest places, so no other link changes; these
+// late links are marked so that camps, placed as before, ignore them.
+const late = new Set();
+for (const s of SITES) {
+  if (!s.added) continue;
+  const i = nodes.length;
+  node(s.x, s.z);
+  const near = nodes.map((n, j) => [j, j === i || n.road ? Infinity : cost(nodes[i], n)]).sort((a, b) => a[1] - b[1]).slice(0, 2);
+  for (const [j, c] of near) if (c < Infinity) { links.push([j, i]); late.add(links.length - 1); }
+}
+
 /** The paths as polylines: arrays of [x, z]. Each wanders a little between its ends. */
 export const PATHS = [];
-for (const [ia, ib] of links) {
+const LATE = new Set(); // the polylines of late links
+for (const [k, [ia, ib]] of links.entries()) {
   const a = nodes[ia], b = nodes[ib];
   if (a.road && b.road) continue; // that stretch is the road itself
   const len = Math.hypot(b.x - a.x, b.z - a.z), n = Math.max(2, Math.round(len / 9));
@@ -79,7 +92,7 @@ for (const [ia, ib] of links) {
     const x = a.x + (b.x - a.x) * t + nx * off, z = a.z + (b.z - a.z) * t + nz * off;
     if (x > bankX(z) + 8) pts.push([x, z]);
   }
-  if (pts.length > 1) PATHS.push(pts);
+  if (pts.length > 1) { PATHS.push(pts); if (late.has(k)) LATE.add(pts); }
 }
 
 // ---- lookup: distance to the nearest path ----
@@ -87,7 +100,7 @@ const CELL = 32, REACH = 12;
 const grid = new Map();
 for (const pts of PATHS) {
   for (let i = 0; i < pts.length - 1; i++) {
-    const seg = [pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]];
+    const seg = [pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], LATE.has(pts)];
     const x0 = Math.floor((Math.min(seg[0], seg[2]) - REACH) / CELL), x1 = Math.floor((Math.max(seg[0], seg[2]) + REACH) / CELL);
     const z0 = Math.floor((Math.min(seg[1], seg[3]) - REACH) / CELL), z1 = Math.floor((Math.max(seg[1], seg[3]) + REACH) / CELL);
     for (let cz = z0; cz <= z1; cz++) for (let cx = x0; cx <= x1; cx++) {
@@ -98,12 +111,14 @@ for (const pts of PATHS) {
   }
 }
 
-/** Distance to the nearest path centre line, or Infinity if none within about 12 m. */
-export function pathDistance(x, z) {
+/** Distance to the nearest path centre line, or Infinity if none within about 12 m.
+ * `early`: leave out the paths to sites added after the scatter (for campSites). */
+export function pathDistance(x, z, early = false) {
   const list = grid.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL));
   if (!list) return Infinity;
   let best = REACH * REACH;
   for (const s of list) {
+    if (early && s[4]) continue;
     const dx = s[2] - s[0], dz = s[3] - s[1];
     let t = ((x - s[0]) * dx + (z - s[1]) * dz) / (dx * dx + dz * dz);
     t = t < 0 ? 0 : t > 1 ? 1 : t;

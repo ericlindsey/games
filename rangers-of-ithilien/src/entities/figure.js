@@ -147,8 +147,9 @@ function swordGeometries(o) {
 
 /** A bow in the left hand: grip at the hand, limbs up and down, the string on the archer's side. */
 const BOW_HAND = -0.34; // the hand, in the forearm's frame
+const BOW_C = 0.17;     // how far the string stands from the grip, at rest
 function bowParts(o) {
-  const L = o.bowLong ? 0.8 : 0.66, c = 0.17, wood = o.heldBow ?? 0x6b4a2a;
+  const L = o.bowLong ? 0.8 : 0.66, c = BOW_C, wood = o.heldBow ?? 0x6b4a2a;
   const b = new GeoBuilder(4, 0.02);
   b.kind = SURF.wood;
   const tips = [];
@@ -546,10 +547,99 @@ export function animateFigure(fig, speed, dt, time, pose) {
     l.cloak.position.z = -0.03 + Math.sin(l.body.rotation.x) * 0.6;
     bendCloak(cu, cu.stream * 1.35);
   }
+  // the archer's turn, eased in and out; the arms and bow are set from it below
+  const ud = fig.userData;
+  ud.turn = (ud.turn ?? 0) + (((pose?.bow !== undefined) ? DRAW_TURN : 0) - (ud.turn ?? 0)) * Math.min(1, dt * 10);
+  l.body.rotation.y = ud.turn;
+  if (l.cloak) l.cloak.rotation.y = ud.turn;
+  for (const k of ['armL', 'armR']) { // arms swing from where the shoulders are, with no twist but in a draw
+    const rest = (l[k].userData.rest ??= l[k].position.clone());
+    l[k].position.set(rest.x * Math.cos(ud.turn) + rest.z * Math.sin(ud.turn), rest.y, -rest.x * Math.sin(ud.turn) + rest.z * Math.cos(ud.turn));
+    l[k].rotation.y = 0; l[k].rotation.z = 0;
+  }
+  for (const k of ['elbowL', 'elbowR']) { l[k].rotation.y = 0; l[k].rotation.z = 0; }
+  if (fig.heldBow) { fig.heldBow.position.set(0, 0, 0); fig.heldBow.quaternion.identity(); }
   if (pose) {
     if (pose.armR !== undefined) { l.armR.rotation.x = pose.armR; l.elbowR.rotation.x = pose.elbowR ?? -0.1; }
     if (pose.armL !== undefined) { l.armL.rotation.x = pose.armL; l.elbowL.rotation.x = pose.elbowL ?? 0; }
+    if (pose.bow !== undefined) drawBow(fig, pose.bow);
   }
+}
+
+// ---- drawing a bow ----
+// The archer turns side-on to the mark (the body and cloak turn DRAW_TURN), the
+// bow arm held out at it, the bow upright in the hand. The string hand draws
+// from the bow back along the arrow's line to an anchor under the jaw, its
+// elbow out to the side at shoulder height and pulled back behind the line.
+// Both arms are set by solving the shoulder and elbow for where the hand must
+// be (two-bone IK), in the figure's own frame (it faces +z, the bow arm is armL).
+const DRAW_TURN = 0.7, UPPER = 0.29, FORE = -BOW_HAND; // the shoulder to the elbow, the elbow to the closed hand
+const ANCHOR = new THREE.Vector3(0.05, 0.74, 0.09); // under the jaw on the string hand's side, from the body's pivot
+const _S = new THREE.Vector3(), _T = new THREE.Vector3(), _E = new THREE.Vector3(), _H = new THREE.Vector3(), _A = new THREE.Vector3();
+const _u = new THREE.Vector3(), _w = new THREE.Vector3(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3();
+const _qa = new THREE.Quaternion(), _qf = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _mb = new THREE.Matrix4();
+
+/** A rotation (figure frame) whose -y runs along `dir` and whose z leans toward `toward`. */
+function along(dir, toward, out) {
+  _y.copy(dir).normalize().negate();
+  _z.copy(toward).addScaledVector(_y, -toward.dot(_y));
+  if (_z.lengthSq() < 1e-6) _z.set(0, 0, 1).addScaledVector(_y, -_y.z);
+  _z.normalize();
+  _x.crossVectors(_y, _z);
+  return out.setFromRotationMatrix(_mb.makeBasis(_x, _y, _z));
+}
+/**
+ * Set an arm so its hand reaches toward T from shoulder S, the elbow bending
+ * toward `pole`. Returns where the hand ended up (in _H) and the forearm's
+ * rotation in the figure frame (in _qf).
+ */
+function reach(arm, fore, S, T, pole) {
+  _u.subVectors(T, S);
+  const d = Math.min(UPPER + FORE - 0.001, Math.max(Math.abs(UPPER - FORE) + 0.01, _u.length()));
+  _u.normalize();
+  const ca = (UPPER * UPPER + d * d - FORE * FORE) / (2 * UPPER * d), sa = Math.sqrt(Math.max(0, 1 - ca * ca));
+  _w.copy(pole).addScaledVector(_u, -pole.dot(_u)).normalize();
+  _E.copy(S).addScaledVector(_u, UPPER * ca).addScaledVector(_w, UPPER * sa);
+  _H.copy(S).addScaledVector(_u, d);
+  along(_T.subVectors(_E, S), _w, _qa);
+  arm.quaternion.copy(_qa);
+  along(_T.subVectors(_H, _E), _w, _qf);
+  fore.quaternion.copy(_qa).invert().multiply(_qf);
+}
+const POLE_BOW = new THREE.Vector3(-0.3, -1, 0), POLE_STRING = new THREE.Vector3(1, 0.15, -0.9), UP = new THREE.Vector3(0, 1, 0);
+const _grip = new THREE.Vector3(), _axis = new THREE.Vector3(), _bowHand = new THREE.Vector3(), _q2 = new THREE.Quaternion();
+
+function drawBow(fig, f) {
+  f = Math.max(0, Math.min(1, f));
+  const l = fig.limbs, t = fig.userData.turn, c = Math.cos(t), sn = Math.sin(t);
+  const turnV = (v, out) => out.set(v.x * c + v.z * sn, v.y, -v.x * sn + v.z * c);
+  // the anchor, turned with the head
+  turnV(ANCHOR, _A).add(l.body.position);
+  // the bow hand: held out toward the mark, level with the anchor, as far as the arm reaches
+  _S.copy(l.armL.position);
+  _T.set(_A.x, _A.y + 0.02, _A.z + 0.72);
+  reach(l.armL, l.elbowL, _S, _T, POLE_BOW);
+  _bowHand.copy(_H);
+  if (fig.heldBow) {
+    // the bow stands upright in the hand (canted a little), its string toward the anchor
+    _axis.subVectors(_A, _bowHand).normalize();
+    _z.set(-0.12, 1, 0);
+    _y.copy(_axis);
+    _z.addScaledVector(_y, -_z.dot(_y)).normalize();
+    _x.crossVectors(_y, _z);
+    _qb.setFromRotationMatrix(_mb.makeBasis(_x, _y, _z));
+    _q2.copy(_qf).invert().multiply(_qb); // in the forearm's frame
+    fig.heldBow.quaternion.copy(_q2);
+    _grip.set(0, BOW_HAND, 0).applyQuaternion(_q2);
+    fig.heldBow.position.set(0, BOW_HAND, 0).sub(_grip); // the grip stays in the hand
+  }
+  // the string hand: on the string, from near the bow at the start of the draw to the anchor at full
+  _axis.subVectors(_A, _bowHand);
+  const full = _axis.length();
+  _axis.normalize();
+  const nock = Math.min(full, BOW_C + f * 0.52);
+  _T.copy(_bowHand).addScaledVector(_axis, nock);
+  reach(l.armR, l.elbowR, l.armR.position, _T, POLE_STRING);
 }
 
 /**

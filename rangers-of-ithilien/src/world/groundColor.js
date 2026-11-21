@@ -7,6 +7,7 @@ import { regionWeights } from './regions.js';
 import { forestDensity } from './forest.js';
 import { inField } from './oldworks.js';
 import { pathWear } from './paths.js';
+import { inCourt } from './relicSites.js';
 import { roadDistance, ROAD_HALF_WIDTH, bankX, southRoadZ, HA, gorgeZ } from './layout.js';
 import { streamDistance } from './terrain.js';
 
@@ -57,6 +58,7 @@ export function groundColor(x, z, h, slope, out) {
     const wear = pathWear(x, z);
     if (wear > 0) mix(out, C.track, Math.min(1, wear * 1.1));
   }
+  if (inCourt(x, z)) mix(out, [0.36, 0.29, 0.17], 0.85); // the sunken courts: old leaves, dark earth
 
   // Roads: pale paving, broken up by grass.
   const rd = roadDistance(x, z);

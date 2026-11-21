@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { CAMPS } from './campSites.js';
+import { HOLDS } from './provinces.js';
 import { heightAt } from './terrain.js';
 import { addCircle } from './collision.js';
 import { GeoBuilder, SURF, materials } from './build.js';
@@ -11,6 +12,7 @@ import { addRock } from './rocks.js';
 import { rng } from '../util/noise.js';
 
 const HIDES = [0xb08a5a, 0x9a4a32, 0xc2a070, 0x8a6a4a], CHAR = 0x26221f, RAG = 0xb3261e, BONE = 0xd8d2c0, STAKE = 0x4d3d2c, ROCK = 0x7d776c;
+const HOLD_IDS = new Set(Object.values(HOLDS).map((h) => h.id));
 const SMOKE_PER_CAMP = 14, SMOKE_CAMPS = 14, SMOKE_RANGE = 520;
 
 export class Camps {
@@ -77,8 +79,10 @@ export class Camps {
         const bx = c.x + (rand() - 0.5) * 7, bz = c.z + (rand() - 0.5) * 7;
         occupied.box(0.5, 0.07, 0.08, bx, at(bx, bz) + 0.02, bz, BONE, rand() * 3);
       }
-      if (c.size >= 3 && c.kind !== 'mine') { // a stockade of sharpened stakes
-        const R = c.size === 4 ? 17 : 11.5, gate = rand() * 6.28;
+      // A stockade of sharpened stakes, round every stockade and war-camp, and
+      // (since v0.6) round every province's hold, even where the hold is only a band.
+      if ((c.size >= 3 || HOLD_IDS.has(c.id)) && c.kind !== 'mine') {
+        const R = c.size === 4 ? 17 : c.size === 3 ? 11.5 : 10.5, gate = rand() * 6.28;
         for (let a = 0; a < 6.28; a += 0.98 / R) {
           // three gates, so the company inside can come out at whoever troubles them
           let off = (((a - gate) % 2.094) + 2.094) % 2.094; off = Math.min(off, 2.094 - off);

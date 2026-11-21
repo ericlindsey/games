@@ -87,7 +87,7 @@ src/
     ruins.js          named ruins and large landmarks
     farms.js          builds the old farms and hamlets from oldworks.js
     camps.js          builds the camps from campSites.js
-    relics.js         builds the lesser ruins and the waymarks on paths
+    relics.js         builds the lesser ruins (each a LOD: the small things only near) and the waymarks on paths
     herbs.js          draws kingsfoil and the seed plants; gathering
     build.js          GeoBuilder (parts with a surface kind, smooth or faceted, leaf cards) and the shared materials
     surface.js        generated detail textures and leaf atlas; the material patch (triplanar grain, bump, moss, wind, leaf glow, the cave's torchlight)
@@ -185,6 +185,10 @@ Rules of thumb:
   (`world/regions.js`) are kinds of country. Do not mix them up: the place line
   and the tasks speak of provinces, plants and looks follow regions. How a
   province stands is worked out from the saved state, never stored.
+- A roused company chases until the ranger is `CHASE.lost` (100 m) off or in
+  the refuge, never for being far from its camp, and rouses any company at rest
+  within `CHASE.rouse` (35 m) of it (data/enemies.js). Keep camps' companies
+  further apart than that at rest (a unit test checks).
 - Wounds never mend by themselves. Health comes back only from healing items,
   resting on the mats in the cave (`refuge.beds`), and waking at home after a fall.
 - Errands keep to the working province (`workingProvince()` in
@@ -206,7 +210,14 @@ Rules of thumb:
 - Water runs downhill. Stream beds come from `STREAMS` in terrain.js and never
   rise along a stream; draw water from those beds, never from a formula of your own.
 - Anything built on the ground is levelled to the ground as it stands there
-  (`FLATS` in terrain.js). tests/unit.test.js checks no ruin sits in a bowl.
+  (`FLATS` in terrain.js for landmarks; `levelGround()` for things placed after
+  terrain.js loads, as the lesser ruins are, which may also dig a court down).
+  tests/unit.test.js checks no ruin sits in a bowl and the lesser ones are level.
+  Anything long built on unlevelled ground (field walls, houses) stands on the
+  lowest ground under it or steps with the slope, so no end hangs in the air.
+- The world placed before v0.6 must not move (saves name camps by number): a new
+  site is added after the scatter with its own generator (see the Window Woods
+  village in oldworks.js), and checked to leave the camps and ruins as they were.
 - What you see must match what stops you. Rock skins and bulges stand proud of
   a wall only above head height near where people walk; colliders of rocks and
   trunks are as wide as what is drawn at body height. If anyone ever ends up
@@ -229,7 +240,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.5`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.6`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

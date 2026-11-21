@@ -847,12 +847,84 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
 - **Saves are version 6.** A save from before 0.5 keeps its settings only: its
   places, camps and plants were in another land, so the ranger begins again.
 - Province holds and stockades: Forlad and Eryn Henneth still have none (their
-  holds are bands); the Bridgelands and the Gorse Fells have one each.
+  holds are bands); the Bridgelands and the Gorse Fells have one each. (Since
+  v0.6 their holds are drawn inside stakes all the same.)
 - **An enemy shut in a house gets out** however it lies: an enemy is now judged
   stuck by how far it has got *toward* where it is going in a second, not how far
   it has moved. One trapped against the inside of a wall used to slide from
   corner to corner, always moving, so it never jumped or was set aside. (The
   smoke test's house in the new land showed it.)
+
+### v0.6: after the v0.5 playtest
+
+- **Talk**: Faramir and Éowyn no longer have buttons for telling about the land
+  ("What would you have me do?", "Tell me of the land", "What grows here?",
+  "What of the camps?"). What they said there now opens their first tasks
+  (f1, f2, f14, e1, e2), which say more about the work and why. Faramir keeps
+  "How goes the clearing?".
+- **Faramir's errands** follow the story: no errands until the nearest fire is
+  out; the old "break 1 camp in Eryn Henneth" (`region`), which read oddly just
+  after five camps and beside his call to free the whole province, is gone. In
+  its place a **bounty**: a purse for every 5 more camps broken anywhere (rising
+  to 10 as errands go on), worth half as much again as other errands. Trophies,
+  scout's reports and captains are worded as the hunt for whoever is holding the
+  remnants together (the Marshal, still unnamed). Road bands are asked for only
+  once he has sent you to the road (f3).
+- **Éowyn's first village (e3)** is the village of the Window Woods, where the
+  settlers who land at Cair Andros are to live (`seek villages@henneth`). The
+  scatter had put none in Eryn Henneth, so one is now added after it
+  (`oldworks.js`, `hamlet4`, about 200 m south-west of the falls) with its own
+  generator, joined to the old paths last, so nothing else in the world moved:
+  the same 100 camps and 27 ruins. Eryn Henneth now has 14 old places.
+- **The map** names the provinces without the count of camps broken ("free"
+  still shows on a freed one); the count is in the pack.
+- **The chase**: a roused company follows the ranger wherever they go, however far
+  from its camp, until the ranger is 100 m off or inside the refuge at Henneth
+  Annûn (`CHASE` in data/enemies.js). The old leash of 80 m from the camp made
+  them turn back and forth at its edge. A camp is not forgotten while any of its
+  company is on the chase. **Chasers rouse anyone at rest within 35 m** of them
+  ("Another camp takes up the chase!"). No two camps' companies stand within
+  35 m of each other at rest (the nearest are 41 m apart), so a camp roused at
+  home never draws in its neighbour by itself; a unit test keeps it so.
+- **Every hold has a stockade**, Forlad's and Eryn Henneth's too, though they are
+  only bands (stakes at 10.5 m).
+- **The lesser ruins stand on level ground** (`levelGround` in terrain.js, called
+  by relicSites.js; `RELIC_FLAT` per kind): they were built on the height at their
+  middle, so on a slope the far end of a long one hung in the air (the Gateway to
+  Nothing south of the falls). Levelled after the streams cut the land, but not in
+  a stream's own bed, and short of every camp. The aqueduct still strides over
+  the ground on piers.
+- **A farmhouse's gable** rests on a whole, tall end wall (it used to be set at
+  2.6 m whatever stood under it: the floating wall 100 m south of the falls), and
+  a house stands on the lowest ground under it.
+- **The sunken court is sunken**: the ground is dug 1.5 m down (`DIGS`); a paved
+  walk runs round it at the old level, a stair goes down at the south end, a kerbed
+  pool in the middle is heaped with leaves, with leaf drifts in the corners, ivy
+  over the walls, niches, a spout and its stain, and a fallen column. Nothing grows
+  in it (`inCourt`).
+- **More in every old place**, drawn only within 150 m (each ruin is a `THREE.LOD`
+  of the ruin and its small things): leaf litter, moss, ivy, lichen, loose stones,
+  and per kind a lintel on the standing stones and an altar hollow; the statue's
+  stepped plinth, name-panel, sceptre and crown of flowers; the aqueduct's footings,
+  dry channel, stains and cistern; the barrow's lined way, kerb, capstone and
+  flowers at the door; the rotunda's steps, pedestal and urn, cornice and fallen
+  beams; the chapel's floor, window mullion, buttresses, altar step, benches and
+  bell; the waystone's letters, bench and trough; the gateway's threshold, paving,
+  imposts and the footing of its vanished wall; the tower's batter, slits, broken
+  stair and nests.
+- **Field walls are rough stone**: mostly low lines of tumbled field stone, and in
+  runs a taller broken dry-stone wall (1 to 1.7 m) with a new surface,
+  `SURF.drystone` (its own texture, `uStones`: rough stones in uneven courses with
+  dark gaps), cope-stones, and stones fallen at its foot. On a slope it is built in
+  steps; none stands in a stream. Houses keep their laid stone.
+- **Drawing a bow** looks like it: the archer turns side-on to the mark (body and
+  cloak), the bow arm held out at it with the bow upright, and the string hand
+  draws back along the arrow to an anchor under the jaw, its elbow up and out to
+  the side (`drawBow` in figure.js: both arms solved as two-bone IK, the bow turned
+  in the hand so its string runs to the anchor). The same for enemy archers.
+- Saves are still version 6: nothing saved changed shape. (Kingsfoil and seed
+  plants near the new village may have moved, so a few picked plants may stand
+  again.)
 
 ### Known gaps to pick up
 
@@ -871,8 +943,7 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
 - Medium ran at 30-50 fps on an iPhone, dipping into the 20s in the deep woods,
   before v0.3a's second round lightened it. If it is still slow, lower `grass`,
   `treeNear` and `treeMid` in config.js, or `minPixelRatio`.
-- Arms bend only forward (no twist), so the drawing arm reaches forward rather
-  than out to the side as a real archer's does.
+- Arms bend only forward (no twist) except in a bow's draw, which sets them freely.
 - Field walls and houses are axis-aligned. Osgiliath is plain blocks.
 - **The old farms are the costliest thing drawn** in many places: 52 meshes, one
   per farmstead or hamlet, each 100-400 m across with its fields' walls (so they
@@ -905,7 +976,7 @@ province's **hold** is its strongest camp, nearest the middle of its camps.
 | Province | Landmarks | Camps | Stockades + war-camps | Old places |
 |---|---|---|---|---|
 | **Forlad**, the North Plain | the Northern Fens, the Broken Watch | 26 | 0 | 12 |
-| **Eryn Henneth**, the Window Woods | Henneth Annûn, Cair Andros, the Field of Cormallen, the Mossy Arch | 20 | 0 | 13 |
+| **Eryn Henneth**, the Window Woods | Henneth Annûn, Cair Andros, the Field of Cormallen, the Mossy Arch | 20 | 0 | 14 |
 | **The Bridgelands** | the Old Bridge, the Fallen Colonnade | 10 | 1 | 10 |
 | **The Gorse Fells** | (heather, east of the road) | 10 | 1 | 0 |
 | **Eryn Ithil**, the Moonwood | the Roofless Shrine, the Stair to Nowhere | 13 | 4 | 13 |

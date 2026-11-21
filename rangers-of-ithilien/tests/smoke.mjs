@@ -479,6 +479,27 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(freed && out2, 'an enemy stuck inside walls finds its way out');
   await page.evaluate(() => { roi.enemies.reset(); roi.combat.god = false; });
 
+  // A chase is not given up for being far from home, and those on it rouse others they pass.
+  const chase = await page.evaluate(() => {
+    roi.enemies.reset();
+    const h = window.house, x = h.x + 40, z = h.z;
+    roi.teleport(x + 6, z, -Math.PI / 2);
+    roi.combat.god = true;
+    roi.enemies.spawnCamp({ id: 'test-far', x: x - 110, z, tier: 1, size: 1 }, ['snaga']);
+    roi.enemies.spawnCamp({ id: 'test-near', x: x - 20, z: z + 18, tier: 1, size: 1 }, ['snaga']);
+    const e = roi.enemies.list.find((e) => e.camp.id === 'test-far');
+    e.x = x; e.z = z; e.y = roi.heightAt(x, z);
+    e.alerted = true; e.state = 'chase';
+    const o = roi.enemies.list.find((e) => e.camp.id === 'test-near'); // out of the ranger's sight (27 m), within the chaser's call (35 m)
+    o.x = o.home.x = x - 20; o.z = o.home.z = z + 18; o.y = roi.heightAt(o.x, o.z);
+    return Math.hypot(o.x - x - 6, o.z - z) > 30;
+  });
+  const rousedNear = await page.waitForFunction(() => roi.enemies.list.find((e) => e.camp.id === 'test-near')?.alerted, null, { timeout: 60000 }).then(() => true, () => false);
+  const stillOn = await page.evaluate(() => roi.enemies.list.find((e) => e.camp.id === 'test-far')?.alerted === true);
+  check(chase && stillOn, 'a roused enemy keeps up the chase 110 m from its camp');
+  check(rousedNear, 'and rouses a camp it passes near');
+  await page.evaluate(() => { roi.enemies.reset(); roi.combat.god = false; });
+
   // Old places found can be travelled to from the map.
   await page.evaluate(() => { const r = roi.relics[5]; if (!roi.state.discovered.includes(r.id)) roi.state.discovered.push(r.id); window.dest = r; roi.teleport(775, 1200, 0); });
   await page.keyboard.press('KeyM');

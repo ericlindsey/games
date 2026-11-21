@@ -14,10 +14,9 @@ const GRAVITY = 9, SWING = 0.5, FULL_DRAW = 0.8;
 const ARROW_BODY = 0.75, ARROW_LIMB = 0.6;
 const _v = new THREE.Vector3(), _d = new THREE.Vector3();
 
-/** Arms for drawing a bow: the left held out straight, the right drawing the string back to the cheek. */
+/** Drawing a bow, f of the way (figure.js turns the archer side-on and sets both arms). */
 function drawPose(f) {
-  f = Math.max(0, Math.min(1, f));
-  return { armL: -1.5, elbowL: 0, armR: -1.45 + f * 0.25, elbowR: -0.5 - f * 2.0 };
+  return { bow: Math.max(0, Math.min(1, f)) };
 }
 
 export class Combat {
@@ -267,7 +266,7 @@ export class Combat {
       if (this.swing <= 0) this.cooldown = 0.08;
     }
     // just after loosing, the bow arm stays up a moment before the bow goes back over the shoulder
-    if (pose.armL === undefined && st.weapon === 'bow' && this.sinceLoose < 0.6) Object.assign(pose, drawPose(0));
+    if (pose.bow === undefined && pose.armL === undefined && st.weapon === 'bow' && this.sinceLoose < 0.6) Object.assign(pose, drawPose(0));
     if (this.pendingSwap && this.swing <= 0 && !this.drawing) {
       this.swap(this.pendingSwap);
     }
