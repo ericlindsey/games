@@ -9,8 +9,8 @@ import { wall as ashlar, rubble } from './ruins.js';
 import { addRock } from './rocks.js';
 import { rng } from '../util/noise.js';
 
-const WALL = [0xa9a394, 0x8f8a7c, 0x9c9686, 0x8e8d7a];   // field stone, some darker with weather
-const HOUSE = [0xcbc4b0, 0xb5ae9a, 0xc2bba6];
+export const WALL = [0xa9a394, 0x8f8a7c, 0x9c9686, 0x8e8d7a];   // field stone, some darker with weather
+export const HOUSE = [0xcbc4b0, 0xb5ae9a, 0xc2bba6];
 
 /** A straight run of wall as a blocking box. */
 function solidWall(b, x, z, w, d, y, h, color) {
@@ -32,6 +32,7 @@ function house(b, rand, hs) {
     { ew: false, x: x0, z: hs.z, len: hs.d }, { ew: false, x: x1, z: hs.z, len: hs.d },
   ];
   const doorSide = long ? (rand() < 0.5 ? 0 : 1) : (rand() < 0.5 ? 2 : 3);
+  hs.y = y; hs.door = doorSide; // (for world/villages.js, which mends the house when people come back to it)
   // One gable may still stand above the rest: an end wall (never the door's),
   // whole and tall, with the gable resting on it. (It used to be set at a fixed
   // height over whatever stood below, and over a low wall it hung in the air.)

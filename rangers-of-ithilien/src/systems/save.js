@@ -6,6 +6,7 @@ import { HA } from '../world/layout.js';
 import { ITEMS, SLOTS } from '../data/items.js';
 import { levelFor } from './renown.js';
 import { QUESTS } from '../data/quests.js';
+import { settlementBySite, homesteadBySite } from '../world/settlements.js';
 
 const TOLD = new Set(QUESTS.map((q) => q.id));
 
@@ -36,6 +37,12 @@ export function newState() {
     quests: { active: [], done: [], errands: [], count: {}, asked: {}, marks: {} },
     told: [],   // camps Faramir has marked from his own map
     picked: [], // plants already gathered
+    // the settlements (since v0.7): whose people have been led home, which
+    // farmsteads a family has been promised, and settlers on their way home
+    // ({ site, x, z, following }: where they are, and whether they follow the ranger)
+    settled: [],
+    homesteads: [],
+    escort: null,
   };
 }
 
@@ -95,6 +102,13 @@ export function migrate(raw) {
     for (const k of ['count', 'asked']) if (q[k] && typeof q[k] === 'object') for (const [id, v] of Object.entries(q[k])) if (num(v)) s.quests[k][id] = Math.floor(v);
     if (q.marks && typeof q.marks === 'object') for (const [id, m] of Object.entries(q.marks)) if (num(m?.x) && num(m?.z)) s.quests.marks[id] = { x: m.x, z: m.z };
   }
+  // v6 -> v7 (release 0.7) added the settlements and rebuilt the tasks round the
+  // provinces. Everything carries over; tasks that are gone are dropped from hand
+  // above, and the new ones read the progress already made.
+  s.settled = strings(raw.settled).filter((id) => settlementBySite[id]);
+  s.homesteads = strings(raw.homesteads).filter((id) => homesteadBySite[id]);
+  const e = raw.escort;
+  if (e && settlementBySite[e.site] && !s.settled.includes(e.site) && num(e.x) && num(e.z)) s.escort = { site: e.site, x: e.x, z: e.z, following: false };
   s.told = strings(raw.told);
   s.picked = strings(raw.picked);
   s.savedAt = num(raw.savedAt) ? raw.savedAt : 0;

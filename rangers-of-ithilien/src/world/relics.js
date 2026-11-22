@@ -16,6 +16,20 @@ const NEAR_DETAIL = 150;
 const GREY = 0x8f8a80, TURF = 0x6f9148, IVY = 0x4f7a34, IVY2 = 0x5a8a3c, LICHEN = 0xb7b48f;
 const LEAVES = [0xa3803f, 0x8c6a34, 0xb39553, 0x7d6a3a, 0x9a7a3c, 0x6f6232];
 
+/**
+ * How far the barrow's mound stands above the ground at (dx, dz) from its middle:
+ * a bell that sinks away at its rim, and nothing in the cut before the door,
+ * which faces south (+z). Shared by the drawing and the floor.
+ */
+function barrowRise(dx, dz) {
+  const rr = Math.hypot(dx, dz);
+  if (rr > 11.5) return 0;
+  const bell = 3.4 * Math.exp(-((rr / 5.4) ** 2)) - 0.25 * (rr / 11.5) ** 2;
+  const s = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const cut = (1 - s(1.6, 2.3, Math.abs(dx))) * s(3.45, 3.75, dz);
+  return Math.max(0, bell) * (1 - cut) - 0.1 * cut;
+}
+
 // ---- small things, drawn only near (the `d` builder: see buildRelics) ----
 
 /** Fallen leaves lying flat, n of them over a w x dd patch about (x, z). */
@@ -158,17 +172,34 @@ const BUILD = {
   },
 
   barrow(b, d, r, y, rand) {
-    // a long low mound that swells out of the ground like a bell, no edge to it
+    // A long low mound that swells out of the ground like a bell, no edge to it,
+    // with a sunken way cut into its south side down to the door. Built as a
+    // field of heights (barrowRise), and the same heights are a floor the ranger
+    // walks on, up and over it (since v0.7: it used to be drawn only, and the
+    // ranger sank into its flanks); the cut's sides stop them.
     b.kind = SURF.leaf;
-    const H = 3.4, SIG = 5.4, pts = [];
-    for (let i = 0; i <= 22; i++) { const rr = (i / 22) * 11.5; pts.push(new THREE.Vector2(rr, H * Math.exp(-((rr / SIG) ** 2)) - 0.25 * (i / 22) ** 2)); }
-    pts.reverse(); // (from the rim to the crown, so the faces look out)
-    pts.push(new THREE.Vector2(0, pts[pts.length - 1].y));
-    const mound = new THREE.LatheGeometry(pts, 28);
+    const R = 11.5, step = 0.5, n = Math.round((2 * R) / step), Y = (h) => y - 0.12 + h;
+    const pos = [], index = [], rise = [];
+    for (let j = 0; j <= n; j++) {
+      for (let i = 0; i <= n; i++) {
+        const x = r.x - R + i * step, z = r.z - R + j * step, h = barrowRise(x - r.x, z - r.z);
+        pos.push(x, Y(h), z); rise.push(h);
+      }
+    }
+    const at = (i, j) => j * (n + 1) + i;
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        if (Math.max(rise[at(i, j)], rise[at(i + 1, j)], rise[at(i, j + 1)], rise[at(i + 1, j + 1)]) <= 0.02) continue; // (only where it stands above the ground)
+        index.push(at(i, j), at(i, j + 1), at(i + 1, j + 1), at(i, j), at(i + 1, j + 1), at(i + 1, j));
+      }
+    }
+    const mound = new THREE.BufferGeometry();
+    mound.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    mound.setIndex(index);
     mound.computeVertexNormals();
-    b.add(mound, TURF, new THREE.Matrix4().makeTranslation(r.x, y - 0.12, r.z), true);
+    b.add(mound, TURF, null, true);
+    addSolid({ minX: r.x - R, maxX: r.x + R, minZ: r.z - R, maxZ: r.z + R, bottom: y - 3, top: (x, z) => Y(barrowRise(x - r.x, z - r.z)) });
     b.kind = SURF.masonry;
-    addCircle(r.x, r.z, 3.8);
     const dz = 4.1; // the door faces south, set into the mound, down a short sunken way lined with stones
     b.box(0.7, 2.2, 0.8, r.x - 1.1, y - 0.3, r.z + dz, GREY);
     b.box(0.7, 2.2, 0.8, r.x + 1.1, y - 0.3, r.z + dz, GREY);

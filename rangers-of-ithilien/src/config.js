@@ -41,6 +41,6 @@ export const QUALITY = {
   high:   { loadRadius: 360, fogFar: 3200, shadows: true,  shadowMap: 2048, pixelRatio: 2, minPixelRatio: 1.5, trees: 1,   under: 1,   cover: 1,   motes: 200, terrainSegments: 80, treeNear: 115, treeMid: 330, shrubNear: 70, shrubMid: 220, coverFar: 72, grass: 82, grassNear: 42, grassSpacing: 0.62 },
 };
 
-export const VERSION = '0.6a';
+export const VERSION = '0.7';
 
-export const SAVE = { key: 'rangers-of-ithilien.save', version: 6, autosaveSeconds: 30 };
+export const SAVE = { key: 'rangers-of-ithilien.save', version: 7, autosaveSeconds: 30 };

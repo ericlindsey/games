@@ -318,7 +318,7 @@ export class Combat {
             const up = (a.y - e.y) / tall, off = Math.hypot(a.x - e.x, a.z - e.z);
             let dmg = a.damage * ARROW_BODY, mark = '';
             if (a.aimed) {
-              if (up > 0.8 && off < 0.32) { dmg = e.type === 'chief' ? a.damage * 3 : 1e6; mark = e.type === 'chief' ? 'His helm turns it!' : 'Head!'; }
+              if (up > 0.8 && off < 0.32) { const helm = e.type === 'chief' || e.type === 'marshal'; dmg = helm ? a.damage * 3 : 1e6; mark = helm ? 'His helm turns it!' : 'Head!'; }
               else if (up > 0.42 && up <= 0.8 && off < 0.3) { dmg = a.damage * 1.6; mark = 'Heart'; }
               else if (up < 0.42) dmg = a.damage * ARROW_LIMB;
             }

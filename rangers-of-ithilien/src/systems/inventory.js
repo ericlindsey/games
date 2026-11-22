@@ -207,6 +207,7 @@ const GEAR_DROPS = {
   uruk: [['urukBlade', 0.025], ['orcHauberk', 0.02], ['orcGreaves', 0.02], ['orcHelm', 0.02]],
   haradrim: [['southronScimitar', 0.03], ['southronBow', 0.025], ['scaleCoat', 0.02], ['southronHelm', 0.02]],
   chief: [['captainsBlade', 0.07], ['blackBow', 0.05]],
+  marshal: [['captainsBlade', 1]],
 };
 
 /**
@@ -239,13 +240,13 @@ export function enemyLoot(type, tier, rand, onRoad = false, want = {}) {
   if (rand() < 0.25) loot.push([type === 'haradrim' ? (rand() < 0.4 ? 'haradGold' : 'blackCoin') : rand() < 0.75 ? 'orcTrinket' : 'blackCoin', 1]);
   // trophies for Faramir's count, while he has asked for them
   if (want.orcBlade && (type === 'snaga' || type === 'uruk') && rand() < 0.3) loot.push(['orcBlade', 1]);
-  if (want.redEye && (type === 'uruk' || type === 'chief') && rand() < 0.45) loot.push(['redEye', 1]);
+  if (want.redEye && (type === 'uruk' || type === 'chief' || type === 'marshal') && rand() < 0.45) loot.push(['redEye', 1]);
   if (want.arrowheads && type === 'archer' && onRoad && rand() < 0.75) loot.push(['arrowheads', Math.min(want.arrowheads, 1 + Math.floor(rand() * 2))]);
-  if (type !== 'haradrim' && type !== 'chief' && rand() < 0.22) loot.push(['orcBread', 1]); // their own rations
+  if (type !== 'haradrim' && type !== 'chief' && type !== 'marshal' && rand() < 0.22) loot.push(['orcBread', 1]); // their own rations
   if (rand() < 0.04) loot.push(['waybread', 1]);
   for (const [id, p] of GEAR_DROPS[type] ?? []) if (rand() < p) { loot.push([id, 1]); break; }
-  if (type === 'chief') {
-    loot.push(['silver', 16 + Math.floor(rand() * 19)]);
+  if (type === 'chief' || type === 'marshal') {
+    loot.push(['silver', type === 'marshal' ? 80 : 16 + Math.floor(rand() * 19)]);
     if (want.captainToken) loot.push(['captainToken', 1]);
     if (rand() < 0.5) loot.push(['draught', 1]);
   }

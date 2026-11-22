@@ -15,6 +15,7 @@ import { plantedIn, houseDistance } from './oldworks.js';
 import { campNear } from './campSites.js';
 import { pathDistance } from './paths.js';
 import { relicDistance, inCourt } from './relicSites.js';
+import { inPlot } from './settlements.js';
 
 const S = WORLD.seed;
 const BARK = 0x5e4832, DARK_BARK = 0x4a3b2c;
@@ -565,7 +566,7 @@ export function buildVegetation(cx, cz, quality) {
   const H = (gx, gz, k) => hash2(gx, gz, S + k);
 
   // Trees planted in rows long ago.
-  for (const p of plantedIn(cx, cz)) put(p.species, p.x, heightAt(p.x, p.z) - 0.2, p.z, p.x * 1.7, p.scale, 0.95, 0.95, 0.92);
+  for (const p of plantedIn(cx, cz)) if (!inPlot(p.x, p.z, 3)) put(p.species, p.x, heightAt(p.x, p.z) - 0.2, p.z, p.x * 1.7, p.scale, 0.95, 0.95, 0.92);
 
   // The great trees: one candidate per 16 m cell. Density 1 closes the roof.
   const TC = 16, tn = size / TC;
@@ -576,7 +577,7 @@ export function buildVegetation(cx, cz, quality) {
       const density = forestDensity(x, z);
       if (H(gx, gz, 3) > Math.max(density, 0.03) * quality.trees) continue;
       if (inClearing(x, z) || streamDistance(x, z) < 5 || roadDistance(x, z) < 7 || houseDistance(x, z) < 6 || campNear(x, z, 9)) continue;
-      if (pathDistance(x, z) < 3 || relicDistance(x, z) < 10 || inCourt(x, z)) continue;
+      if (pathDistance(x, z) < 3 || relicDistance(x, z) < 10 || inCourt(x, z) || inPlot(x, z, 5)) continue; // (nor in a field the settlers have cleared)
       const h = heightAt(x, z);
       if (h < 0.8 || h > 150 || slopeAt(x, z) > 0.5) continue;
       regionWeights(x, z, w);
@@ -603,7 +604,7 @@ export function buildVegetation(cx, cz, quality) {
       const x = (gx + H(gx, gz, 11)) * UC, z = (gz + H(gx, gz, 12)) * UC;
       if (r > (0.14 + 0.42 * forestDensity(x, z)) * quality.under) continue;
       if (inClearing(x, z) || streamDistance(x, z) < 4 || roadDistance(x, z) < 6 || campNear(x, z, 8)) continue;
-      if (pathDistance(x, z) < 2.4 || relicDistance(x, z) < 8 || inCourt(x, z)) continue;
+      if (pathDistance(x, z) < 2.4 || relicDistance(x, z) < 8 || inCourt(x, z) || inPlot(x, z, 2.5)) continue;
       const h = heightAt(x, z);
       if (h < 1.2 || h > 150 || slopeAt(x, z) > 0.6) continue;
       regionWeights(x, z, w);
@@ -641,7 +642,7 @@ export function buildVegetation(cx, cz, quality) {
       const roll = H(gx, gz, 30);
       if (roll > 0.62 * quality.cover) continue;
       if (x > 1050 && thicketDensity(x, z) > 0.35) continue;
-      if (inClearing(x, z) || roadDistance(x, z) < 4.5 || campNear(x, z, 4) || pathDistance(x, z) < 1.2 || inCourt(x, z)) continue;
+      if (inClearing(x, z) || roadDistance(x, z) < 4.5 || campNear(x, z, 4) || pathDistance(x, z) < 1.2 || inCourt(x, z) || inPlot(x, z, 0.5)) continue;
       const h = heightAt(x, z);
       if (h < 0.05 || h > 180) continue;
       regionWeights(x, z, w);

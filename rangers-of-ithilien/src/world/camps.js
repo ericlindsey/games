@@ -27,24 +27,69 @@ export class Camps {
       const always = new GeoBuilder(Math.round(c.z), 0.1);
       occupied.kind = always.kind = SURF.wood;
       let fx = c.x, fz = c.z; // where the fire is
+      let ox = c.x, oz = c.z, facing = null; // where their gear lies about (a mine's, in front of the cut, the way it faces)
 
       if (c.kind === 'mine') {
-        // An old digging in the hillside: a heap of rock with a black mouth, shored
-        // with timber. They lair inside and keep their fire out front.
-        const a = rand() * 6.28, mx = c.x + Math.cos(a) * 7, mz = c.z + Math.sin(a) * 7, my = at(mx, mz);
-        addRock(always, mx, my - 1.2, mz, 13, ROCK, Math.round(c.x), { detail: 3, sy: 0.62, sx: 1.1, cuts: 8, strata: 0.7 });
-        addRock(always, mx + Math.cos(a + 1.4) * 5, my - 0.8, mz + Math.sin(a + 1.4) * 5, 8, 0x8a8478, Math.round(c.z), { detail: 2, sy: 0.6, cuts: 7 });
-        addRock(always, mx + Math.cos(a - 1.3) * 5, my - 0.8, mz + Math.sin(a - 1.3) * 5, 7, 0x7f8270, Math.round(c.x + c.z), { detail: 2, sy: 0.55, cuts: 7 });
-        addCircle(mx, mz, 6);
-        const ex = c.x + Math.cos(a) * 2.2, ez = c.z + Math.sin(a) * 2.2, ey = at(ex, ez); // the mouth, facing the fire
-        always.box(2.6, 2.6, 2.6, ex + Math.cos(a) * 1.6, ey - 0.1, ez + Math.sin(a) * 1.6, 0x0c0b0a, -a);
-        for (const s of [-1, 1]) always.box(0.3, 2.9, 0.3, ex - Math.sin(a) * 1.45 * s, ey - 0.1, ez + Math.cos(a) * 1.45 * s, 0x5a4530);
-        always.box(0.35, 0.35, 3.4, ex, ey + 2.7, ez, 0x5a4530, -a);
-        for (let k = 0; k < 7; k++) { // the spoil heap
-          const sx = c.x - Math.cos(a) * 5 + (rand() - 0.5) * 3, sz = c.z - Math.sin(a) * 5 + (rand() - 0.5) * 3;
-          addRock(always, sx, at(sx, sz) - 0.15, sz, 0.5 + rand() * 0.8, 0x8a8070, k + Math.round(c.x), { detail: 1, sy: 0.6, cuts: 5 });
+        // An old mine in the hillside (since v0.7): a cut into the hill, walled
+        // with rock on either hand, runs up to a timbered adit, its frames going
+        // back into the dark; a tramway of rails comes out of it, with a tipped
+        // cart, and the spoil lies heaped at the mouth of the cut. They lair
+        // inside and keep their fire in the cut.
+        const a = rand() * 6.28, ux = Math.cos(a), uz = Math.sin(a), vx = -uz, vz = ux; // u: into the hill; v: across
+        const P = (du, dv) => [c.x + ux * du + vx * dv, c.z + uz * du + vz * dv];
+        const along = -a, across = -(a + Math.PI / 2); // turn a rock's long side along u, or across it
+        { // the hill: a long ridge of rock across the end of the cut, and its shoulders
+          const [hx, hz] = P(12.5, 0);
+          addRock(always, hx, at(hx, hz) - 1.4, hz, 18, ROCK, Math.round(c.x), { detail: 3, sx: 1.35, sy: 0.6, sz: 0.85, cuts: 8, strata: 0.7 }, across);
+          for (const s of [-1, 1]) {
+            const [sx, sz] = P(8.5, s * 8.5);
+            addRock(always, sx, at(sx, sz) - 0.9, sz, 11, s > 0 ? 0x8a8478 : 0x7f8270, Math.round(c.z) + (s > 0 ? 1 : 0), { detail: 2, sy: 0.6, cuts: 7, strata: 0.5 });
+          }
+          addCircle(hx, hz, 7);
         }
-        fx = c.x - Math.cos(a) * 1.5; fz = c.z - Math.sin(a) * 1.5;
+        for (const s of [-1, 1]) { // the sides of the cut, high by the adit and lower toward the mouth of the cut
+          [[4.2, 5.6, 0.95], [0.6, 4.2, 0.8], [-2.6, 3.2, 0.66], [-4.8, 2.2, 0.55]].forEach(([du, size, sy], k) => {
+            const [wx, wz] = P(du, s * (1.55 + size * 0.42));
+            addRock(always, wx, at(wx, wz) - 0.35, wz, size, ROCK, Math.round(c.x) + k * 7 + (s > 0 ? 3 : 0), { detail: 2, sx: 1.5, sy, sz: 0.85, cuts: 7, strata: 0.6 }, along);
+            addCircle(wx, wz, size * 0.36);
+          });
+        }
+        // the adit: frames of timber going back into the dark, roofed with lagging, under a brow of rock
+        const [mx, mz] = P(3.4, 0), my = at(mx, mz);
+        const [kx, kz] = P(4.6, 0);
+        always.box(2.4, 2.6, 2.0, kx, my - 0.3, kz, 0x0b0a09, -a + Math.PI / 2);
+        for (let k = 0; k < 2; k++) {
+          const [fx0, fz0] = P(3.4 + k * 1.1, 0), sh = k ? 0.3 : 0;
+          for (const s of [-1, 1]) always.box(0.34, 2.9 - sh, 0.34, fx0 + vx * s * 1.3, my - 0.25, fz0 + vz * s * 1.3, k ? 0x2e2418 : 0x5a4530, -a);
+          always.box(0.4, 0.4, 3.3, fx0, my + 2.6 - sh, fz0, k ? 0x2e2418 : 0x5a4530, -a);
+        }
+        for (let i = -2; i <= 2; i++) { const [lx, lz] = P(4.0, i * 0.6); always.box(1.6, 0.08, 0.5, lx, my + 3.0, lz, 0x4a3828, -a); } // lagging over the frames
+        { const [tx, tz] = P(3.2, 0); always.box(0.5, 0.3, 3.9, tx, my + 3.0, tz, 0x5a4530, -a); } // the heavy lintel
+        { const [bx, bz] = P(5.4, 0); addRock(always, bx, my + 2.6, bz, 6.5, ROCK, Math.round(c.x) + 77, { detail: 2, sx: 1.3, sy: 0.7, sz: 0.9, cuts: 7, strata: 0.6 }, across); } // the brow of the hill over it
+        addCircle(...P(4.6, 0), 1.6);
+        // the tramway: two rails on sleepers, out of the dark and down the cut, in short lengths that keep to the ground
+        for (let d0 = 4.2; d0 > -5; d0 -= 0.8) {
+          const [sx, sz] = P(d0, 0);
+          always.box(0.25, 0.1, 1.5, sx, at(sx, sz) - 0.02, sz, 0x4a3a2a, -a);
+        }
+        for (const s of [-1, 1]) {
+          for (let d0 = 4.2; d0 > -5; d0 -= 1.6) {
+            const [x0, z0] = P(d0, s * 0.5), [x1, z1] = P(d0 - 1.6, s * 0.5), [rx, rz] = P(d0 - 0.8, s * 0.5);
+            const y0 = at(x0, z0), y1 = at(x1, z1);
+            always.box(1.62, 0.08, 0.07, rx, (y0 + y1) / 2 + 0.06, rz, 0x5a5a5e, -a, 0, Math.atan2(y0 - y1, 1.6));
+          }
+        }
+        { // a cart, tipped off the rails
+          const [cx2, cz2] = P(-2.6, 1.2), cy2 = at(cx2, cz2);
+          always.box(1.1, 0.75, 1.6, cx2, cy2 + 0.2, cz2, 0x5a4530, -a + 0.3, 0, 0.35);
+          for (const s of [-1, 1]) always.cyl(0.24, 0.24, 0.1, cx2 + vx * s * 0.6, cy2 + 0.1, cz2 + vz * s * 0.6, 0x3a3a3e, 8, 0, Math.PI / 2);
+        }
+        for (let k = 0; k < 9; k++) { // the spoil heap, at the mouth of the cut
+          const sx = c.x - ux * 6 + vx * (3.5 + rand() * 3) * (k % 2 ? 1 : -1) + (rand() - 0.5) * 2, sz = c.z - uz * 6 + vz * (3.5 + rand() * 3) * (k % 2 ? 1 : -1) + (rand() - 0.5) * 2;
+          addRock(always, sx, at(sx, sz) - 0.15, sz, 0.5 + rand() * 0.9, 0x8a8070, k + Math.round(c.x), { detail: 1, sy: 0.6, cuts: 5 });
+        }
+        fx = c.x - ux * 8.5; fz = c.z - uz * 8.5; // their fire, out in front of the cut
+        ox = fx - ux * 1.5; oz = fz - uz * 1.5; facing = a + Math.PI;
       }
       const y = at(fx, fz);
       for (let i = 0; i < 9; i++) { // fire ring
@@ -57,26 +102,26 @@ export class Camps {
       // Hide shelters: bigger and paler than the woods, so a camp can be picked out.
       const shelters = c.kind === 'mine' ? c.size - 1 : [2, 3, 5, 8][c.size - 1];
       for (let i = 0; i < shelters; i++) {
-        const a = rand() * 6.28, d = 4.6 + rand() * (1.5 + c.size * 1.4);
-        const sx = c.x + Math.cos(a) * d, sz = c.z + Math.sin(a) * d, big = 1.2 + rand() * 0.5;
+        const a = facing === null ? rand() * 6.28 : facing + (rand() - 0.5) * 2.2, d = facing === null ? 4.6 + rand() * (1.5 + c.size * 1.4) : 3.5 + rand() * 2;
+        const sx = ox + Math.cos(a) * d, sz = oz + Math.sin(a) * d, big = 1.2 + rand() * 0.5;
         const m = new THREE.Matrix4().makeRotationY(a).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2)).scale(new THREE.Vector3(big, big, big));
         m.setPosition(sx, at(sx, sz) + 0.75 * big, sz);
         occupied.kind = SURF.cloth;
         occupied.add(new THREE.CylinderGeometry(1.5, 1.5, 3.2, 3, 2), HIDES[Math.floor(rand() * HIDES.length)], m);
         occupied.kind = SURF.wood;
       }
-      const px = c.x + 3, pz = c.z - 3.5, py = at(px, pz);
+      const px = ox + 3, pz = oz - 3.5, py = at(px, pz);
       if (c.size > 1) { // a standard, red on a tall pole
         occupied.box(0.16, 6, 0.16, px, py - 0.2, pz, 0x3a3028, 0, 0.05);
         occupied.box(0.06, 2, 1.5, px, py + 3.8, pz + 0.85, RAG);
         occupied.box(0.07, 0.7, 0.6, px, py + 4.4, pz + 0.9, CHAR);
       }
       for (let i = 0; i < Math.min(3, c.size); i++) { // their stores
-        const sx = c.x - 3.2 - i * 1.1, sz = c.z + 2.6 + i * 0.8;
+        const sx = ox - 3.2 - i * 1.1, sz = oz + 2.6 + i * 0.8;
         occupied.box(1.1 - i * 0.15, 0.8 - i * 0.15, 0.8, sx, at(sx, sz) - 0.05, sz, 0x6a5236, 0.5 + i);
       }
       for (let i = 0; i < 3 + c.size * 2; i++) {
-        const bx = c.x + (rand() - 0.5) * 7, bz = c.z + (rand() - 0.5) * 7;
+        const bx = ox + (rand() - 0.5) * 7, bz = oz + (rand() - 0.5) * 7;
         occupied.box(0.5, 0.07, 0.08, bx, at(bx, bz) + 0.02, bz, BONE, rand() * 3);
       }
       // A stockade of sharpened stakes, round every stockade and war-camp, and

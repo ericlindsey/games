@@ -1,10 +1,12 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.5: a smaller world, 1.5 by 3 km, with a hundred camps.** The land, the enemy, fighting, gear, tasks and trade are built and
+Status: **v0.7: the story by province, and the first settlers.** The land, the enemy, fighting, gear, tasks and trade are built and
 have had several rounds of playtest; v0.3 reworked how all of it looks (section 4); v0.4 laid
-eight provinces over the land (section 11). v0.5 shrinks the land by a quarter each way for a
-quicker pace, with everything in it scaled to match ("v0.5" in section 10). Next: playtest the
-pace of the smaller world, then the rest of M6 (section 11.7) and the gaps listed at the end of section 10.
+eight provinces over the land (section 11); v0.5 shrank the land to 1.5 by 3 km with a hundred
+camps. v0.7 rebuilds the tasks round the provinces (Faramir frees them and ends on the Marshal;
+Éowyn maps them and the ranger brings their settlers home) and adds the settlements, which grow
+as their people are helped ("v0.7" in section 10). Next: playtest a province from freeing to a
+grown village, then the rest of M6 (section 11.7) and the gaps listed at the end of section 10.
 
 ---
 
@@ -472,16 +474,16 @@ story is expanded into three acts.
 - **The enemy grows with renown**: health +1.2% and damage +0.9% a level; from
   renown 15 each camp of size 2 or more holds one more for each 15, small camps
   one more from 25, and road bands one more for each 20.
-- **Told tasks** (`QUESTS`): Faramir's chain runs to 15 (the nearest fire, the
-  home woods, the Window Woods and Forlad freed, the heather, the stockade, the
-  road bands, the Cross-roads, Osgiliath, fifteen fires, five captains, thirty
-  fires, the three war-camps, half the fires (fifty), every camp). Éowyn's runs
-  to 8 (kingsfoil, the old places, a village, seed for the gardens, ten places,
-  every village, twenty places, every place). (Before v0.5 the counts were 30,
-  60 and 100 fires, and 15 and 30 places.)
+- **Told tasks** (`QUESTS`): since v0.7, two threads by province (see "v0.7" below
+  for the whole order). Faramir's runs to 13: the nearest fire, the hold of the
+  Window Woods found, each province freed in `CAMPAIGN` order (with the road and the
+  road bands between the north and the middle), the Marshal last, and then every
+  camp. Éowyn's runs to 15: kingsfoil, then for each of the six provinces of the
+  woods its map (old places there and its settlement's site) and its settlers led
+  home, then every old place, and every settlement grown.
 - **Errands** (`ERRANDS`, built in `systems/quests.js`): lesser work that never
   runs out, one in hand from each giver at a time, each a little bigger than the
-  last. Faramir: trophies for the count (orc blades, trinkets, Red Eye badges,
+  last, and (since v0.7) only when the giver has no told task to offer. Faramir: trophies for the count (orc blades, trinkets, Red Eye badges,
   blackened arrowheads that only road archers carry, coins, captains' tokens,
   gold), camps broken in a named region, bands on the road, a scout's report of
   one camp, another captain. Éowyn: seed of a kind, more kingsfoil, a ruin of a
@@ -965,6 +967,125 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
   a removed task in hand drops it. Éowyn's chain (old places, villages, seed) is
   unchanged: it is her map, not a count.
 
+### v0.7: the story by province, and the settlers
+
+After the v0.6 playtest: three provinces freed, and nothing to show for it on the
+ground. The tasks were an audit's worth of leftovers from v0.2 (counts of places,
+sights to visit) beside a province story that did not lead anywhere. Now every
+told task feeds one of two threads, and freeing a province leads to people
+living in it.
+
+- **Removed**: Faramir's "The Cross-roads" and "The broken city" (sights to visit,
+  no part of the story; the set-piece fights there are still to come, 11.6) and
+  "The war-camps" (two of the three lie in the Southwood, whose freeing now covers
+  them as the Marshal's lieutenants); Éowyn's "The old places" (four anywhere),
+  "Ten" and "Twenty old places", "Every village" and "Seed for the gardens" (two of
+  each of four seeds, which sent a new ranger to the far south for olives). Their
+  gear moved: the Helm of Gondor to Forlad, the Sword of Anórien to the Southwood,
+  the Riddermark sword and the Lebennin bow to the settlers of Heathwick and Moonhallow.
+  A save holding a removed task drops it; new tasks read the progress already made,
+  so a ranger with provinces freed is offered their maps and settlers at once.
+- **Faramir** (`f1, f2, f14, f15, f3, f9, f16, f17, f18, f19, f20, f21, f8`): the
+  nearest fire; "Who leads them" (find the hold of the Window Woods and break five
+  camps there; it was "five camps anywhere"); then each province freed. The Marshal
+  grows through the done-texts: an unknown mark on the first captain's ring
+  (Window Woods), the same on the second (Forlad), orders under the mark sending
+  the bands to the Old Bridge (road bands), his name (Gorse Fells), orders falling
+  back to the Moonwood (Bridgelands), his lieutenants in the war-camps (Southwood),
+  his flank (Ash Fells), and **the Marshal** himself, a new enemy (`marshal`: 360
+  health, 27 damage, the Morgul hold's captain, `MARSHAL_CAMP`), in "The Marshal"
+  (free the Morgul Marches). "The last fires" (every camp) follows.
+- **Éowyn**: kingsfoil; then for each province of the woods, in Faramir's order,
+  **the map** (`m-<province>`: four of its old places, two in the Marches, and the
+  village or farmstead its settlers will have) and **the settlers** (`s-<province>`,
+  offered once the province is free and its map handed in): their boat is drawn up
+  on the Anduin bank (across from Cair Andros for the Window Woods; elsewhere west
+  of the site); the settlers wait there until the ranger comes, then follow the
+  ranger's trail, each a little further behind; more than 45 m ahead and they stop
+  and wait ("Go back for them"); in a fight they stand still. Within 24 m of home
+  they are settled. Then "The whole of it" (every old place) and "The garden of
+  Gondor" (every settlement grown). Her first map's offer and "How goes the
+  settling?" (new) spell out the pattern: Faramir frees, she maps, you bring them in,
+  then they grow it. Faramir's "How goes the clearing?" now speaks of provinces, the
+  working one's state, the Marshal, and sends you to her when one is free.
+- **The settlements** (`world/settlements.js`): Beechwell (Window Woods), Heathwick
+  (Forlad), Bridgefold (Bridgelands), Moonhallow (Eryn Ithil), and two farmsteads,
+  Olivegarth (Southwood) and Marchstead (Morgul Marches), each with a reeve or
+  goodwife who speaks for them, two crops, and two plots of 34 x 26 m (the corner of
+  an old field near the houses, or new ground beside them). Placed after everything
+  else; nothing in the world moved. Its people ask four things in turn (an errand
+  run of their own, `ERRANDS.village`): seed of their first crop, the nearest camp
+  still standing in their province (or, with none left, an old place nearby), seed
+  of their second crop, and kingsfoil for their healer (it is never a crop). Each
+  done is a **stage** (`systems/settlement.js`): arrived (three houses roofed,
+  smoke, the well roofed, their cart and bundles, people on the green); the first
+  plot cleared, fenced and sown in rows of their crop (drawn like the wild plant,
+  larger; not gatherable), and its seed on sale from the reeve (2 for 4 silver);
+  six houses mended; the second plot sown, its seed sold too; every house mended,
+  the market cross set up again, flowers before the doors. Crops are chosen so a
+  southern farm needs northern seed (Olivegarth thyme, Marchstead bay), which the
+  northern villages sell. A sown plot clears its woods and grass (`inPlot`; the
+  chunks and grass tiles over it are rebuilt at once).
+- **Homesteads**: Éowyn's farmstead errand ("A farm for a family") names an
+  unfound farm, in a free province if one has any, else where Faramir works. Handed
+  in, the farm is promised (`state.homesteads`); once its province is free a family
+  lives there: the house roofed, a plot sown with the province's first crop, smoke,
+  two people who greet the ranger.
+- **Errands are fewer and follow the story**: offered only when the giver has no
+  told task to offer. Faramir's kinds are a scout's report (a camp in the working
+  province), the bounty, trophies (now one kind in five, worded as tracing the
+  Marshal), the road and a captain. Éowyn's are a farm for a family, kingsfoil, and
+  a ruin of a kind in the province she is mapping; no seed (the settlers ask).
+- **Notices** are all one size, close together, up to ten; a few words lead in
+  colour, by kind (gold for news, green-gold for the great news, blue for a task,
+  orange for a warning). The fight's call-outs ("They have seen you!", "Orc
+  felled") go up the same stack in their own colours, instead of a second list lower down.
+- **The barrow** is a field of heights that is also its floor: the ranger walks up
+  and over it (it used to be drawn only, and they sank into its sides), and the earth
+  is cut away down to the door (there was turf heaped in front of it).
+- **Mines in the fells** are a cut into the hill, walled with rock on either side,
+  ending at a timbered adit (two frames going into the dark, lagging, a heavy
+  lintel, a brow of rock over it), with a tramway on sleepers, a tipped cart and the
+  spoil heap; their fire, shelters and stores lie out in front of the cut.
+- **Resting** fades out and back in about a second (was about three).
+- **Aiming upright on a phone**: the over-the-shoulder camera moves only as far
+  aside as keeps the bow just inside the left edge (`side` in `CameraRig.update`;
+  0.75 m on a wide screen, as before).
+- **Cost**: Beechwell grown in full, seen from above on medium, adds about 86k
+  triangles (50k of them its two fields, a third of the plants beyond 70 m) and 70 draw
+  calls (mostly its people), on about 1.2 million; people and fields are drawn only
+  within 260 m. (Counted in headless Chromium; not a frame rate.)
+- Saves are version 7 (`settled`, `homesteads`, `escort`); a v6 save carries over whole.
+
+**How the tasks come, in order** (the review asked for after the rebuild):
+
+| When | Faramir | Éowyn | Settlers |
+|---|---|---|---|
+| Start | The nearest fire | Kingsfoil; the map of the Window Woods | |
+| First fire out | Who leads them (the hold, five camps) | | |
+| Hold seen | The Window Woods freed | the map of Forlad (after the first map) | |
+| Window Woods free | Smoke on the heath (Forlad) | The landing at Cair Andros | Beechwell's four tasks |
+| Forlad free | The road; then the bands and the Gorse Fells | The folk of Heathwick; map of the Bridgelands | Heathwick's |
+| Fells free, bands broken | The Old Bridge | | |
+| Bridgelands free | The Moonwood | Bridgefold; map of the Moonwood | Bridgefold's |
+| Moonwood free | The Southwood (the lieutenants) | Moonhallow; map of the Southwood | Moonhallow's |
+| Southwood free | The Ash Fells | Olivegarth; map of the Marches | Olivegarth's |
+| Ash Fells free | The Marshal (the Morgul Marches) | | |
+| Marches free | The last fires | Marchstead; the whole of it | Marchstead's |
+| All home | | The garden of Gondor | |
+
+It hangs together: each province's freeing opens its settlers, so the reward
+for Faramir's work is seen on the ground, and the settlers' remnant task sends
+the ranger back after the last quarter of camps. The two map tasks a ranger may
+hold at once (the one just freed, the next ahead) send them ahead of Faramir into
+occupied land to find ruins, which suits exploration first. The fells have no
+settlement, so the Gorse and Ash Fells are Faramir's alone; that is deliberate (no
+one would live there), and they come between settlements so there is always
+something to go back to. Things to watch in the playtest: the walk from Cair
+Andros to Beechwell (640 m) and Heathwick's (880 m over the heath) may be long
+for a first escort; renown from told tasks is about what it was (Faramir about
+1,300, Éowyn about 600, the settlers' errands up to about 400 more).
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -972,7 +1093,8 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
   gentle; nobody has yet tried the south with good gear.
 - Enemies steer simply: straight at the ranger, side-stepping what blocks them.
   They pass through their own stockade stakes (which stop the ranger).
-- A mine is a rock heap with a black mouth, not a cave you can enter.
+- A mine (since v0.7 a timbered adit at the end of a rock cut, with rails and a
+  cart) is still not a cave you can enter.
 - Streams bend at 9 m joints and have no falls of their own. Paths and roads
   ford them; there are no bridges but the broken one.
 - No blocking or dodging move. No stealth beyond walking. No sound.
@@ -991,6 +1113,14 @@ now **1.5 km by 3 km** (was 2 by 4), and everything in it is scaled to match.
   on medium (`tools/perf.mjs`). A far form, or splitting them by terrain chunk,
   would be the next big saving.
 - Nothing yet happens when every camp is cleared beyond Faramir's last words.
+- Settlers walk through walls and trees on their way home (they follow the
+  ranger's own trail, so seldom do) and the people of a settlement wander their
+  green without colliding. Enemies ignore them; in a fight they stand still.
+- Mended houses are built over the ruins, which stay inside them; a house's old
+  rubble still lies about it.
+- The settlements have no trader beyond their seed, no rest or travel point
+  (11.3's stages 2 and 3 are partly built), and the fells have no one to settle.
+- Homestead families say only a greeting; they ask nothing.
 
 ## 11. M6: provinces, captains and settlement (design)
 
@@ -1179,8 +1309,15 @@ Each step ends playable.
 1. **(built, v0.4.0)** Provinces as data; borders and status on the map; progress in the pack.
 2. Captains: a hold in every province, the captain enemy, outer camps feeding the hold, retaking.
 3. Plants: the new plants, regrowth by province.
-4. Tasks: province arcs, new objectives, Faramir's story; save version 5.
-5. Settlement: rebuilt farms and villages, settlers, rest, travel, trade. (Self-healing already removed in v0.4.1.)
-6. Errands scoped to provinces; settlers' tasks.
-7. Companions and the three set-piece fights; the Marshal.
+4. Tasks: province arcs, new objectives, Faramir's story. **(mostly built, v0.6a and v0.7)**: Faramir's
+   chain is one task per province with the Marshal's story in its words; Éowyn's maps each province
+   and brings its settlers home (save version 7). Not built: per-province captain's tokens and plants.
+5. Settlement: rebuilt farms and villages, settlers, rest, travel, trade. **(first part built, v0.7)**:
+   one settlement per province of the woods, led home from the river and grown in four stages by
+   its people's tasks; homesteads; seed sold. Still to come: rest and travel at a settlement, a
+   fuller trader. (Self-healing already removed in v0.4.1.)
+6. Errands scoped to provinces; settlers' tasks. **(built, v0.6 and v0.7)**
+7. Companions and the three set-piece fights; the Marshal. (The Marshal stands in his hold since
+   v0.7, a plain fight; the set pieces at the Cross-roads and Osgiliath, whose sightseeing tasks
+   were removed, are still to come.)
 8. Osgiliath: the landing settlement and the bridge rebuilt in stages.

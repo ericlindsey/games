@@ -372,7 +372,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate(() => roi.enemies.list.every((e) => !roi.blocked(e.x, e.z, e.y, 0.4))), 'none of them stands inside a wall or rock');
   await page.waitForFunction(() => roi.enemies.list.some((e) => e.alerted), null, { timeout: 30000 });
   check(true, 'they notice the ranger');
-  check(/seen you|roused/.test(await page.textContent('#callout')), 'and the HUD says so');
+  check(await page.waitForFunction(() => /seen you|roused/.test(document.getElementById('toast').textContent), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD says so');
   await page.keyboard.down('KeyF');
   const drewBlood = await page.waitForFunction(() => roi.enemies.list.some((e) => e.hp < e.maxHp), null, { timeout: 240000 }).then(() => true, () => false);
   check(drewBlood, 'the sword wounds them');
@@ -382,7 +382,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.waitForFunction(() => roi.state.stats.kills >= 1 || roi.state.health < 30, null, { timeout: 240000 });
   await page.keyboard.up('KeyF');
   check(await page.evaluate(() => roi.state.stats.kills >= 1), 'an enemy can be killed with the sword');
-  check(/(Orc|archer|Uruk|Southron|Captain) felled/.test(await page.textContent('#callout')), 'and the HUD names the fallen');
+  check(await page.waitForFunction(() => /(Orc|archer|Uruk|Southron|Captain) felled/.test(document.getElementById('toast').textContent), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD names the fallen');
   await shot(page, 'felled');
   await shot(page, 'fight');
   // finish the rest by decree, to keep the test short
@@ -547,14 +547,15 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // Faramir's map, errands, and a ranger who keeps asking.
   const talkTo = async (who) => {
     await page.evaluate((w) => { const n = roi.refuge[w]; roi.teleport(n.x + 1.4, n.z + 1.3, -2, 40); }, who);
-    await page.waitForFunction(() => !document.getElementById('prompt').hidden, null, { timeout: 20000 });
+    const name = who === 'eowyn' ? 'Éowyn' : who[0].toUpperCase() + who.slice(1); // (the prompt may still name whoever was spoken to last, for a moment)
+    await page.waitForFunction((nm) => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes(nm), name, { timeout: 20000 });
     await page.keyboard.press('KeyE');
     await page.waitForSelector('#dialogue:not([hidden])');
   };
   const choose = (text) => page.click(`#dialogue-options button:has-text("${text}")`);
   const options = () => page.$$eval('#dialogue-options button', (b) => b.map((x) => x.textContent));
   await talkTo('faramir');
-  check((await options()).some((o) => o.includes('other work')), 'Faramir offers an errand beside his next task');
+  check(!(await options()).some((o) => o.includes('other work')), 'while he has a told task to offer, Faramir offers no errand beside it (the story first)');
   await choose('May I see your map?');
   await choose('Thank you.');
   await page.waitForSelector('#map:not([hidden])');
@@ -562,19 +563,30 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await shot(page, 'faramir-map');
   await page.click('#map-close');
   await talkTo('faramir');
-  await choose('other work');
+  await choose('Have you a task');
   await choose('I will do it.');
-  check(await page.evaluate(() => roi.state.quests.errands.length === 1 && roi.state.quests.active.includes(roi.state.quests.errands[0].id)), 'an errand can be taken');
+  check(await page.evaluate(() => roi.state.quests.active.includes('f2')), 'his next task is taken');
   await talkTo('faramir');
   await choose('Have you a task');
   await choose('I will do it.');
+  check(await page.evaluate(() => roi.state.quests.errands.length === 1 && roi.state.quests.active.includes(roi.state.quests.errands[0].id)), 'then an errand can be taken');
+  await talkTo('faramir');
+  await choose('How goes the clearing?');
+  check((await page.textContent('#dialogue-text')).includes('Eryn Henneth'), 'asked how the clearing goes, he speaks of the provinces');
+  await choose('Good.');
   for (let i = 0; i < 3; i++) {
     await talkTo('faramir');
-    await choose('The home woods');
+    await choose('Who leads them');
     if (i < 2) { await choose('I will see to it.'); await choose('Farewell.'); }
   }
   check((await page.textContent('#dialogue-text')).includes('mark it on your map') && await page.evaluate(() => !!roi.state.quests.marks.f2), 'asked three times, he marks the way on the map');
   await choose('I will see to it.');
+  await choose('Farewell.');
+
+  await talkTo('eowyn');
+  await choose('How goes the settling?');
+  check(/Faramir frees it/.test(await page.textContent('#dialogue-text')), 'Éowyn tells how a province is settled');
+  await choose('Thank you.');
   await choose('Farewell.');
 
   await page.evaluate(() => { const s = roi.sites[0]; roi.teleport(s.x + 14, s.z + 3, 3); });
@@ -653,12 +665,12 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.waitForFunction(() => document.getElementById('sleep').classList.contains('dark'), null, { timeout: 20000 }).then(() => true, () => false), 'resting fades the screen to black');
   check(await page.waitForFunction(() => roi.state.health === 100, null, { timeout: 60000 }).then(() => true, () => false), 'resting on a mat in the cave makes the ranger whole');
   check(await page.waitForFunction(() => !document.getElementById('sleep').classList.contains('dark'), null, { timeout: 20000 }).then(() => true, () => false), 'and the light comes back');
-  // a burst of notices shows together, stacked, no more than five at once
-  await page.evaluate(() => { for (let i = 1; i <= 7; i++) roi.hud.toast('', `Notice ${i}`); });
+  // a burst of notices shows together, stacked, no more than ten at once
+  await page.evaluate(() => { for (let i = 1; i <= 14; i++) roi.hud.toast('', `Notice ${i}`); });
   const stacked = await page.waitForFunction(() => document.querySelectorAll('#toast .note:not(.out)').length >= 3, null, { timeout: 30000 }).then(() => true, () => false);
   let most = 0;
   for (let i = 0; i < 10; i++) { most = Math.max(most, await page.evaluate(() => document.querySelectorAll('#toast .note:not(.out)').length)); await page.waitForTimeout(300); }
-  check(stacked && most <= 5, `notices stack, at most five at once (${most})`);
+  check(stacked && most <= 10, `notices stack, at most ten at once (${most})`);
   // a blow knocks the ranger out of the aim
   const knocked = await page.evaluate(() => {
     roi.state.arrows = Math.max(roi.state.arrows, 5);
@@ -815,6 +827,20 @@ await run('phone upright (touch)', { ...devices['iPhone 13'] }, async (page) => 
   check(clash.length === 0, `the upright HUD has nothing on top of anything else${clash.length ? ': ' + clash.join(', ') : ''}`);
   await shot(page, 'phone-upright');
 
+  // Aiming the bow upright, the bow is just inside the edge of the picture (it used to be off it).
+  await page.evaluate(() => { roi.teleport(266, 898, 1.57); roi.combat.swap('bow'); });
+  await page.waitForTimeout(800);
+  await page.evaluate(() => roi.combat.setAim(true));
+  await page.waitForTimeout(3000);
+  const ndc = await page.evaluate(() => {
+    const b = roi.player.figure.heldBow, v = b.getWorldPosition(new (b.position.constructor)());
+    v.project(roi.rig.camera);
+    return v.x;
+  });
+  check(ndc > -1 && ndc < -0.6, `aiming upright, the bow shows at the left edge (at ${ndc.toFixed(2)} across)`);
+  await shot(page, 'phone-upright-aim');
+  await page.evaluate(() => roi.combat.setAim(false));
+
   // Enemies at ease in their camp do not jump about.
   await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 60, c.z, -Math.PI / 2); });
   await page.waitForFunction(() => roi.enemies.list.length >= 2, null, { timeout: 30000 });
@@ -830,6 +856,89 @@ await run('phone upright (touch)', { ...devices['iPhone 13'] }, async (page) => 
   const close = await page.locator('#map-close').boundingBox();
   check(close && close.y + close.height <= await page.evaluate(() => innerHeight), 'the map\'s Close button is on screen');
   await shot(page, 'phone-upright-map');
+});
+
+// The settlers (since v0.7): a freed, mapped province's people are led home from
+// their boat, ask for help, and their place grows; the barrow can be climbed;
+// notices are all one size.
+await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) => {
+  await page.goto(base + '?quality=low&autostart');
+  await ready(page);
+  await page.evaluate(() => {
+    const s = roi.state;
+    for (const c of roi.provinces.PROVINCE_CAMPS.southwood) s.cleared.push(c.id);
+    s.quests.done.push('m-southwood');
+    roi.quests.accept(s, 's-southwood');
+    roi.settle(); roi.refreshHud();
+    const st = roi.settlements.find((x) => x.province === 'southwood');
+    roi.teleport(st.landing.x + 3, st.landing.z, -Math.PI / 2);
+  });
+  await page.waitForFunction(() => roi.state.escort?.following, null, { timeout: 60000 });
+  check(true, 'the settlers wait at their boat, and follow when the ranger comes to them');
+  await shot(page, 'settlers-boat');
+  const home = await page.evaluate(async () => {
+    const s = roi.state, st = roi.settlements.find((x) => x.province === 'southwood');
+    const step = () => new Promise((r) => requestAnimationFrame(r));
+    for (let n = 0; n < 4000 && !s.settled.includes(st.site); n++) {
+      const p = roi.player.pos, dx = st.x - p.x, dz = st.z - p.z, d = Math.hypot(dx, dz);
+      if (d > 1) roi.player.place(p.x + (dx / d) * 0.3, p.z + (dz / d) * 0.3, Math.atan2(dx, dz));
+      await step();
+    }
+    return { settled: s.settled.includes(st.site), built: roi.villages.places.has(st.site), done: roi.quests.isComplete(roi.quests.byId['s-southwood'], s) };
+  });
+  check(home.settled && home.built && home.done, 'led home, they settle in, and the farm is mended and lived in');
+  check(/family are home|settlers are home/.test(await page.textContent('#toast')), 'and the ranger is told so');
+  // their own task: seed for the first field
+  await page.evaluate(() => { const p = roi.villages.places.get('farm3').people.find((q) => q.reeve); roi.teleport(p.x + 2, p.z + 0.5, Math.atan2(-2, -0.5)); });
+  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('Imrith'), null, { timeout: 20000 });
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('#dialogue:not([hidden])');
+  await page.click('#dialogue-options button:has-text("Can I help?")');
+  await page.click('#dialogue-options button:has-text("I will do it.")');
+  const want = await page.evaluate(() => { const e = roi.state.quests.errands.find((x) => x.giver === 'farm3'); roi.state.items[e.objective.item] = e.objective.count; roi.refreshHud(); return e.objective.item; });
+  await page.waitForFunction(() => !document.getElementById('prompt').hidden, null, { timeout: 30000 });
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('#dialogue:not([hidden])');
+  await page.click('#dialogue-options button:has-text("It is done")');
+  await page.click('#dialogue-options button:has-text("Thank you.")');
+  check(await page.evaluate(() => roi.villages.places.get('farm3').plots.length === 1 && roi.state.quests.count.farm3 === 1), 'their first task done, a field is cleared and sown');
+  await page.waitForFunction(() => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes('Imrith'), null, { timeout: 30000 });
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('#dialogue:not([hidden])');
+  await page.click('#dialogue-options button:has-text("seed to sell")');
+  await page.evaluate(() => { roi.state.silver = 20; });
+  await page.click('#dialogue-options button:first-child');
+  check(await page.evaluate((w) => roi.state.silver === 16 && roi.state.items[w] >= 2, want), 'and they sell the seed of what they have sown');
+  await page.click('#dialogue-options button:has-text("That is all.")');
+  await page.click('#dialogue-options button:has-text("Farewell.")');
+  await page.evaluate(() => { const p = roi.villages.places.get('farm3').plots[0]; roi.lookFrom(p.x - 20, roi.heightAt(p.x, p.z) + 9, p.z + 22, p.x, roi.heightAt(p.x, p.z), p.z); });
+  await page.waitForTimeout(1500);
+  await shot(page, 'settlers-field');
+  await page.evaluate(() => roi.lookFrom(null));
+
+  // the barrow: its mound is a floor, and the cut before its door is clear
+  const barrow = await page.evaluate(async () => {
+    const r = roi.relics.find((x) => x.kind === 'barrow');
+    roi.teleport(r.x, r.z - 1, 0);
+    for (let i = 0; i < 10; i++) await new Promise((res) => requestAnimationFrame(res));
+    const top = roi.player.pos.y - roi.heightAt(r.x, r.z - 1);
+    roi.teleport(r.x, r.z + 5, 0);
+    for (let i = 0; i < 10; i++) await new Promise((res) => requestAnimationFrame(res));
+    return { top, door: roi.player.pos.y - roi.heightAt(r.x, r.z + 5) };
+  });
+  check(barrow.top > 2.5 && barrow.door < 0.3, `the ranger stands on top of the barrow (${barrow.top.toFixed(1)} m up), and at ground level before its door (${barrow.door.toFixed(2)} m)`);
+
+  // notices: one size, whatever their kind
+  await page.evaluate(() => { roi.hud.toast('The camp is broken', 'Give it a little while.'); roi.hud.toast('', 'Kingsfoil gathered (3).'); roi.hud.callout('Orc felled', 'felled'); });
+  await page.waitForTimeout(1500);
+  const sizes = await page.$$eval('#toast .note span', (els) => [...new Set(els.map((e) => getComputedStyle(e).fontSize))]);
+  check(sizes.length === 1, `every notice is the same size (${sizes.join(', ')})`);
+
+  // and after a reload the settlement is still there
+  await page.evaluate(() => roi.save());
+  await page.reload();
+  await ready(page);
+  check(await page.evaluate(() => roi.state.settled.includes('farm3') && roi.villages.places.has('farm3') && roi.villages.places.get('farm3').plots.length === 1), 'after a reload the farm is lived in still, its field sown');
 });
 
 await run('testing page', { viewport: { width: 1280, height: 720 } }, async (page) => {

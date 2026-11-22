@@ -8,8 +8,8 @@ Ithilien of the orcs and evil men who fled the battle at the Black Gate.
 layout, and the open design questions. This file holds the rules that stay true
 across milestones.
 
-> Status: the land, enemies, combat, gear, tasks and trade are built. See PLAN.md
-> section 10 for exactly what exists and what is known to be rough.
+> Status: the land, enemies, combat, gear, tasks, trade and the first settlements
+> are built. See PLAN.md section 10 for exactly what exists and what is known to be rough.
 
 ## Design pillars
 
@@ -75,6 +75,8 @@ src/
     campSites.js      the enemy camps (exactly CAMP_COUNT, 100), blight (pure)
     provinces.js      the eight provinces: borders along streams, provinceAt(x, z), each one's camps and hold (pure)
     herbSites.js      where kingsfoil and the seed plants grow (pure)
+    settlements.js    each province's settlement: its site, the settlers' landing, crops, plots; homesteads;
+                      which plots are cleared now (setClearedPlots / inPlot) (pure)
     forest.js         forest density, heather thicket density (pure)
     groundColor.js    ground colour by place, height, slope (pure)
     collision.js      solids (boxes: wall + floor), circles (trunks), hollows (cave) (pure)
@@ -86,6 +88,8 @@ src/
     hennethAnnun.js   the cave rock, the stair, the fall and pool
     ruins.js          named ruins and large landmarks
     farms.js          builds the old farms and hamlets from oldworks.js
+    villages.js       the settlements as they come back to life: mended houses, sown plots, smoke,
+                      the boat, the people, and the settlers following the ranger home
     camps.js          builds the camps from campSites.js
     relics.js         builds the lesser ruins (each a LOD: the small things only near) and the waymarks on paths
     herbs.js          draws kingsfoil and the seed plants; gathering
@@ -102,6 +106,7 @@ src/
     save.js           the only code that touches localStorage
     inventory.js      pack, gear, wear and honing, healing, buying, selling, loot tables (pure)
     provinces.js      how each province stands (freed = hold + 3 in 4 camps); every old place, by province (pure)
+    settlement.js     how far each settlement has come (stage 0-4), what is sown and sold; homesteads lived in (pure)
     quests.js         reads data/quests.js against the saved state; builds errands, hints (pure)
     renown.js         renown points and levels; what deeds are worth; how the enemy grows (pure)
     combat.js         the ranger's sword and bow, arrows in flight, health, loot bags
@@ -116,7 +121,8 @@ tools/                for looking at changes: shoot.mjs (screenshots from views,
 Files marked (pure) must not import Three.js or touch the DOM, so they run in Node tests.
 Their import order is fixed, to avoid cycles:
 layout -> regions -> terrain -> oldworks -> relicSites -> paths -> campSites -> provinces -> forest -> groundColor.
-In systems/, provinces comes before quests (quests may ask after provinces, never the reverse).
+In systems/, provinces comes before settlement, and both before quests (quests may ask
+after them, never the reverse). world/settlements.js comes after provinces.js.
 
 Rules of thumb:
 
@@ -199,6 +205,25 @@ Rules of thumb:
 - Errands keep to the working province (`workingProvince()` in
   systems/provinces.js: the first in `CAMPAIGN` not yet free). New errand kinds
   should too; only trophies, plants and the road are taken from anywhere.
+- **The story runs province by province** (since v0.7): Faramir's chain frees
+  each province in `CAMPAIGN` order and ends on the Marshal (the Morgul hold's
+  captain, `MARSHAL_CAMP`); Éowyn's maps each province of the woods (`m-<province>`:
+  old places there and its settlement's site), and once it is free and mapped
+  the ranger leads its settlers home from their boat (`s-<province>`, `whenFreed`).
+  New told tasks should feed one of those threads, not stand alone (no counts of
+  fires or places for their own sake). Faramir and Éowyn offer errands only when
+  they have no told task to offer.
+- **Settlements** (`world/settlements.js`, `systems/settlement.js`): the only stored
+  facts are `state.settled` (settlers led home), `state.homesteads` (farms promised
+  to a family) and `state.escort` (settlers on the way, where they wait). A
+  settlement's stage is the count of its people's errands done (`quests.count[site]`);
+  what stands, what is sown and what is sold all follow from it. Call `settle()` in
+  main.js after anything that may change them: it rebuilds what changed and clears
+  the woods and grass off new-sown plots (`ground.refresh`, `grass.refresh`).
+  Settlement content never moves the world placed before it.
+- Notices (`hud.toast(big, small, kind)`) are all one size; `kind` only colours
+  them ('great', 'task', 'warn', and the fight's 'seen', 'felled', 'hurt', which
+  `hud.callout` uses). Up to ten stack, the newest at the bottom.
 - Tasks are data (`data/quests.js`). Progress is computed from the saved state
   each time it is asked for, so there are no counters to keep in step. A new
   kind of objective needs a case in `systems/quests.js` `progress()` (and in
@@ -245,7 +270,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.6a`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.7`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

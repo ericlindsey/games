@@ -13,6 +13,7 @@ import { inField } from './oldworks.js';
 import { pathWear } from './paths.js';
 import { campNear } from './campSites.js';
 import { inCourt } from './relicSites.js';
+import { inPlot } from './settlements.js';
 import { roadDistance, ROAD_HALF_WIDTH, HA, gorgeZ, inClearing, bankX } from './layout.js';
 import { groundAt } from './collision.js';
 import { hash2 } from '../util/noise.js';
@@ -65,6 +66,7 @@ export function grassAt(x, z, h) {
   if (roadDistance(x, z) < ROAD_HALF_WIDTH + 0.8) return 0;
   if (streamDistance(x, z) < 2.6) return 0;
   if (inCourt(x, z)) return 0; // paved, and deep in leaves
+  if (inPlot(x, z)) return 0; // tilled and sown
   // the wet stone of the basin and the cut at Henneth Annûn
   if (h < HA.plateau - 9 && x < HA.x + 1 && x > HA.gorge.endX && Math.abs(z - (x < HA.basin.minX ? gorgeZ(x) : HA.z)) < 24) return 0;
   // nor on the walls of the basin and the cut, under their skin of rock
@@ -111,6 +113,14 @@ export class Grass {
       t['has' + w] = false;
     }
     if (!which) this.tiles.delete(key);
+  }
+
+  /** Forget the tiles over a rectangle, so they are built again (a field has been sown there). */
+  refresh(r) {
+    for (const key of [...this.tiles.keys()]) {
+      const [tx, tz] = key.split(',').map(Number);
+      if (tx * TILE < r.maxX + 2 && (tx + 1) * TILE > r.minX - 2 && tz * TILE < r.maxZ + 2 && (tz + 1) * TILE > r.minZ - 2) this.drop(key);
+    }
   }
 
   /** Build one tile's clumps: all of them (dense), or the broad few that stand for them at a distance. */

@@ -699,5 +699,6 @@ export const LOOKS = {
   archer: { orc: true, tunic: 0xcfc2a0, legs: 0x4a4236, skin: 0x9aa670, hair: 0x2a2a1e, cloak: 0xd8ccaa, hood: true, boots: 0x26221f, heldBow: 0x2a2420, quiver: 0x6a4a2a, sleeve: 0xcfc2a0 },
   uruk: { orc: true, tunic: 0x2e2e36, legs: 0x26262c, skin: 0x5a6248, hair: 0x101010, cloak: null, belt: 0x7a2a22, sleeve: 0x3a3a44, boots: 0x1c1c20, blade: 0x7a7a82, helm: 0x3a3a42, badge: 0xb3261e },
   haradrim: { tunic: 0x8a2a22, legs: 0x3a2a22, skin: 0x8a5a3a, hair: 0x1a1210, cloak: 0x2a2220, hood: true, belt: 0xc9a84a, sleeve: 0x8a2a22, circlet: 0xc9a84a, blade: 0xd8c890 },
+  marshal: { orc: true, tunic: 0x1c1c22, legs: 0x18181c, skin: 0x5a6248, hair: 0x101010, cloak: 0x4a0f0c, longCloak: true, belt: 0xc9a84a, sleeve: 0x26262e, boots: 0x101012, blade: 0x2a2a30, helm: 0x2a2a30, horns: true, badge: 0xc9a84a, mail: 0x3a3a40 },
   chief: { orc: true, tunic: 0x34343e, legs: 0x26262c, skin: 0x626a50, hair: 0x101010, cloak: 0x8a1f1a, belt: 0xc9a84a, sleeve: 0x3c3c46, boots: 0x16161a, blade: 0xa2a2aa, helm: 0x4a4a52, horns: true, badge: 0xb3261e },
 };

@@ -1,6 +1,7 @@
 // Who the enemy are, and who holds each camp. Pure data and functions.
 
 import { rng } from '../util/noise.js';
+import { HOLDS } from '../world/provinces.js';
 
 export const ENEMY_TYPES = {
   snaga: { name: 'Orc', hp: 40, damage: 7, speed: 4.7, scale: 0.92 },
@@ -8,7 +9,11 @@ export const ENEMY_TYPES = {
   uruk: { name: 'Uruk', hp: 72, damage: 15, speed: 4.3, scale: 1.12 },
   haradrim: { name: 'Southron', hp: 55, damage: 12, speed: 5.1, scale: 1.02 },
   chief: { name: 'Captain', hp: 150, damage: 21, speed: 4.5, scale: 1.28 },
+  // (since v0.7) the war-chief gathering the remnants: he holds the Morgul Marches himself
+  marshal: { name: 'The Marshal', hp: 360, damage: 27, speed: 4.6, scale: 1.45 },
 };
+/** The camp the Marshal holds: the hold of the Morgul Marches, at the last. */
+export const MARSHAL_CAMP = HOLDS.morgul.id;
 
 /**
  * How a chase goes (since v0.6). Once roused, a company follows the ranger
@@ -43,6 +48,10 @@ export function rosterFor(camp, renown = 0) {
   } else {
     list.push('snaga', 'snaga', 'archer', 'archer', strong(), strong(), strong(), strong(), 'chief');
     if (rand() < 0.5) list.push('archer');
+  }
+  if (camp.id === MARSHAL_CAMP) { // he leads his own hold, in place of its captain
+    const i = list.indexOf('chief');
+    if (i >= 0) list[i] = 'marshal'; else list.push('marshal');
   }
   // As word of the ranger spreads, the camps take in stragglers and stand to arms.
   const more = camp.size === 1 ? (renown >= 25 ? 1 : 0) : Math.floor(renown / 15) + (camp.size >= 3 && renown >= 40 ? 1 : 0);
