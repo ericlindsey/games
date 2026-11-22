@@ -938,7 +938,7 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
     }
     const pl = roi.villages.places.get(st.site);
     return { settled: s.settled.includes(st.site), built: !!pl, done: roi.quests.isComplete(roi.quests.byId['s-southwood'], s), many: who.length, bags: who.filter((q) => q.fig.props.sack.visible).length, gap,
-      building: !!pl?.build && pl.shown.size === 0, travel: roi.travelPlaces().some((t) => t.id === 'v:' + st.site) };
+      building: !!pl && (!!pl.build || pl.queue.length > 0) && pl.shown.size === 0, travel: roi.travelPlaces().some((t) => t.id === 'v:' + st.site) };
   });
   check(home.many === 7 && home.bags >= 4, `the family (${home.many}) carry their bags (${home.bags}), and one pushes a cart`);
   check(home.gap > 0.9, `on the way they keep a step apart (closest ${home.gap.toFixed(2)} m)`);
