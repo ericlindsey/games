@@ -382,6 +382,28 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(forest.deep.under < forest.deep.great * 0.7 && forest.deep.giants > forest.deep.great * 0.4,
     `the deep woods are old forest: ${forest.deep.great} great trees (${forest.deep.giants} of them giants), ${forest.deep.under} lesser`);
   check(forest.home.under > forest.home.great && forest.home.giants === 0, `the home woods keep their young growth (${forest.home.great} great trees, ${forest.home.under} lesser)`);
+  // Land coming into range as the ranger moves is built a little each frame, and fills in.
+  const stream = await page.evaluate(async () => {
+    roi.teleport(825, 1200, 0);
+    roi.player.place(825, 1420, 0); // on 220 m, without building anything at once
+    const g = roi.grass, T = 24;
+    const all = () => {
+      const p = roi.player.pos;
+      if (!roi.ground.wanted(p.x, p.z).every((w) => roi.ground.chunks.has(w.cx + ',' + w.cz))) return false;
+      for (let tz = Math.floor((p.z - g.nearR) / T); tz <= Math.floor((p.z + g.nearR) / T); tz++) {
+        for (let tx = Math.floor((p.x - g.nearR) / T); tx <= Math.floor((p.x + g.nearR) / T); tx++) {
+          const d = Math.hypot(Math.max(tx * T - p.x, 0, p.x - (tx + 1) * T), Math.max(tz * T - p.z, 0, p.z - (tz + 1) * T));
+          if (d < g.nearR - 1 && !g.tiles.get(tx + ',' + tz)?.hasdense) return false;
+        }
+      }
+      return true;
+    };
+    const before = all(), t0 = performance.now();
+    let frames = 0;
+    while (!all() && performance.now() - t0 < 60000) { await new Promise((r) => requestAnimationFrame(r)); frames++; }
+    return { before, after: all(), frames };
+  });
+  check(!stream.before && stream.after && stream.frames > 1, `land coming into range is built over a few frames, and fills in (${stream.frames} frames)`);
   check(await page.evaluate(() => roi.camps.sites.length === 100), 'a hundred camps exist');
 
   // Kingsfoil is gathered by walking over it.
