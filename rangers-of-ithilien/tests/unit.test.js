@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { heightAt } from '../src/world/terrain.js';
+import { heightAt, streamDistance } from '../src/world/terrain.js';
 import { HA, LANDMARKS, bankX, CROSSROADS, inClearing, haradRoadX, gorgeZ, stairTop, poolQ } from '../src/world/layout.js';
 import { regionWeights, dangerTier, REFUGE } from '../src/world/regions.js';
 import { forestDensity, thicketDensity } from '../src/world/forest.js';
@@ -869,7 +869,16 @@ test('each province of the woods: freed, mapped, then its settlers led home; the
     const ruins = m.objective.of.find((o) => o.type === 'seek');
     assert.ok(ruins.count <= q.PLACES.filter((p) => p.province === s.province && p.set === 'ruins').length, `${m.id} asks for no more places than there are`);
     assert.equal(s.plots.length, 2, `${s.name} has two plots`);
-    assert.ok(heightAt(s.landing.x, s.landing.z) > 0.5, `${s.name}'s boat lands on dry ground`);
+    assert.ok(heightAt(s.landing.x, s.landing.z) > 0.5, `${s.name}'s settlers wait on dry ground`);
+    for (const dx of [-1.4, 0, 1.4]) for (const dz of [-4, 0, 4]) assert.ok(heightAt(s.boat.x + dx, s.boat.z + dz) < -0.5, `${s.name}'s boat is afloat, not in the sand`);
+    assert.ok(s.landing.x - s.boat.x < 25, `${s.name}'s people land beside their boat`);
+    const site = SITES_ALL.find((x) => x.id === s.site);
+    for (const i of s.houses) {
+      const h = site.houses[i];
+      for (const [a, b] of [[0, 0], [-1, -1], [1, 1], [-1, 1], [1, -1]]) assert.ok(streamDistance(h.x + (a * h.w) / 2, h.z + (b * h.d) / 2) >= 3, `no house ${s.name} keeps stands in a stream`);
+    }
+    const level = s.houses.filter((i) => { const h = site.houses[i]; const c = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => heightAt(h.x + (a * h.w) / 2, h.z + (b * h.d) / 2)); return Math.max(...c) - Math.min(...c) < 0.5; });
+    assert.ok(level.length >= s.houses.length * 0.6, `most of ${s.name}'s houses stand on level ground (${level.length} of ${s.houses.length})`);
     for (const c of s.crops) assert.equal(ITEMS[c].kind, 'seed');
     for (const r of s.plots) for (const c of CAMPS) assert.ok(c.x < r.minX - 15 || c.x > r.maxX + 15 || c.z < r.minZ - 15 || c.z > r.maxZ + 15, `no camp in ${s.name}'s fields`);
   }
@@ -916,7 +925,8 @@ test('each province of the woods: freed, mapped, then its settlers led home; the
   }
   assert.deepEqual(kinds.filter((k) => k === 'seed').length, 2);
   assert.equal(q.errandFrom(home.site, s), null, 'grown, they ask no more');
-  assert.equal(st.housesMended(s, home.site), siteHouses(home.site));
+  assert.equal(st.housesMended(s, home.site), home.houses.length, 'every house they keep is mended');
+  assert.ok(home.houses.length < siteHouses(home.site), 'one Beechwell ruin stands over a stream, and is left a ruin');
   assert.deepEqual(st.cropsSown(s, home.site), home.crops);
   // and her last task asks for every settlement grown
   const garden = QUESTS.find((t) => t.id === 'e-garden');
