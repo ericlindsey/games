@@ -12,64 +12,65 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <title>Rangers of Ithilien</title>
-  <link rel="stylesheet" href="css/style.css?v=0.7.1">
+  <link rel="stylesheet" href="css/style.css?v=0.7.2">
   <!-- Every module carries the release in its URL, so a browser that cached the
        last release never mixes its files with this one's (a mix can stall loading
        silently). Bump `v` on each release; tests/unit.test.js checks every module is here. -->
   <script type="importmap">{
   "imports": {
     "three": "./vendor/three.module.min.js",
-    "./src/bench.js": "./src/bench.js?v=0.7.1",
-    "./src/config.js": "./src/config.js?v=0.7.1",
-    "./src/data/dialogue.js": "./src/data/dialogue.js?v=0.7.1",
-    "./src/data/enemies.js": "./src/data/enemies.js?v=0.7.1",
-    "./src/data/items.js": "./src/data/items.js?v=0.7.1",
-    "./src/data/quests.js": "./src/data/quests.js?v=0.7.1",
-    "./src/dev.js": "./src/dev.js?v=0.7.1",
-    "./src/entities/enemies.js": "./src/entities/enemies.js?v=0.7.1",
-    "./src/entities/figure.js": "./src/entities/figure.js?v=0.7.1",
-    "./src/entities/player.js": "./src/entities/player.js?v=0.7.1",
-    "./src/input/input.js": "./src/input/input.js?v=0.7.1",
-    "./src/main.js": "./src/main.js?v=0.7.1",
-    "./src/systems/combat.js": "./src/systems/combat.js?v=0.7.1",
-    "./src/systems/inventory.js": "./src/systems/inventory.js?v=0.7.1",
-    "./src/systems/provinces.js": "./src/systems/provinces.js?v=0.7.1",
-    "./src/systems/settlement.js": "./src/systems/settlement.js?v=0.7.1",
-    "./src/systems/quests.js": "./src/systems/quests.js?v=0.7.1",
-    "./src/systems/renown.js": "./src/systems/renown.js?v=0.7.1",
-    "./src/systems/save.js": "./src/systems/save.js?v=0.7.1",
-    "./src/ui/hud.js": "./src/ui/hud.js?v=0.7.1",
-    "./src/ui/panels.js": "./src/ui/panels.js?v=0.7.1",
-    "./src/util/noise.js": "./src/util/noise.js?v=0.7.1",
-    "./src/world/atmosphere.js": "./src/world/atmosphere.js?v=0.7.1",
-    "./src/world/build.js": "./src/world/build.js?v=0.7.1",
-    "./src/world/campSites.js": "./src/world/campSites.js?v=0.7.1",
-    "./src/world/camps.js": "./src/world/camps.js?v=0.7.1",
-    "./src/world/settlements.js": "./src/world/settlements.js?v=0.7.1",
-    "./src/world/villages.js": "./src/world/villages.js?v=0.7.1",
-    "./src/world/collision.js": "./src/world/collision.js?v=0.7.1",
-    "./src/world/farms.js": "./src/world/farms.js?v=0.7.1",
-    "./src/world/forest.js": "./src/world/forest.js?v=0.7.1",
-    "./src/world/groundColor.js": "./src/world/groundColor.js?v=0.7.1",
-    "./src/world/hennethAnnun.js": "./src/world/hennethAnnun.js?v=0.7.1",
-    "./src/world/grass.js": "./src/world/grass.js?v=0.7.1",
-    "./src/world/herbSites.js": "./src/world/herbSites.js?v=0.7.1",
-    "./src/world/herbs.js": "./src/world/herbs.js?v=0.7.1",
-    "./src/world/layout.js": "./src/world/layout.js?v=0.7.1",
-    "./src/world/motes.js": "./src/world/motes.js?v=0.7.1",
-    "./src/world/oldworks.js": "./src/world/oldworks.js?v=0.7.1",
-    "./src/world/paths.js": "./src/world/paths.js?v=0.7.1",
-    "./src/world/provinces.js": "./src/world/provinces.js?v=0.7.1",
-    "./src/world/regions.js": "./src/world/regions.js?v=0.7.1",
-    "./src/world/relicSites.js": "./src/world/relicSites.js?v=0.7.1",
-    "./src/world/relics.js": "./src/world/relics.js?v=0.7.1",
-    "./src/world/rocks.js": "./src/world/rocks.js?v=0.7.1",
-    "./src/world/ruins.js": "./src/world/ruins.js?v=0.7.1",
-    "./src/world/surface.js": "./src/world/surface.js?v=0.7.1",
-    "./src/world/terrain.js": "./src/world/terrain.js?v=0.7.1",
-    "./src/world/terrainMesh.js": "./src/world/terrainMesh.js?v=0.7.1",
-    "./src/world/vegetation.js": "./src/world/vegetation.js?v=0.7.1",
-    "./src/world/water.js": "./src/world/water.js?v=0.7.1"
+    "./src/bench.js": "./src/bench.js?v=0.7.2",
+    "./src/config.js": "./src/config.js?v=0.7.2",
+    "./src/data/dialogue.js": "./src/data/dialogue.js?v=0.7.2",
+    "./src/data/enemies.js": "./src/data/enemies.js?v=0.7.2",
+    "./src/data/items.js": "./src/data/items.js?v=0.7.2",
+    "./src/data/quests.js": "./src/data/quests.js?v=0.7.2",
+    "./src/dev.js": "./src/dev.js?v=0.7.2",
+    "./src/entities/enemies.js": "./src/entities/enemies.js?v=0.7.2",
+    "./src/entities/figure.js": "./src/entities/figure.js?v=0.7.2",
+    "./src/entities/player.js": "./src/entities/player.js?v=0.7.2",
+    "./src/input/input.js": "./src/input/input.js?v=0.7.2",
+    "./src/main.js": "./src/main.js?v=0.7.2",
+    "./src/systems/combat.js": "./src/systems/combat.js?v=0.7.2",
+    "./src/systems/inventory.js": "./src/systems/inventory.js?v=0.7.2",
+    "./src/systems/provinces.js": "./src/systems/provinces.js?v=0.7.2",
+    "./src/systems/settlement.js": "./src/systems/settlement.js?v=0.7.2",
+    "./src/systems/quests.js": "./src/systems/quests.js?v=0.7.2",
+    "./src/systems/renown.js": "./src/systems/renown.js?v=0.7.2",
+    "./src/systems/save.js": "./src/systems/save.js?v=0.7.2",
+    "./src/ui/hud.js": "./src/ui/hud.js?v=0.7.2",
+    "./src/ui/panels.js": "./src/ui/panels.js?v=0.7.2",
+    "./src/util/noise.js": "./src/util/noise.js?v=0.7.2",
+    "./src/util/slice.js": "./src/util/slice.js?v=0.7.2",
+    "./src/world/atmosphere.js": "./src/world/atmosphere.js?v=0.7.2",
+    "./src/world/build.js": "./src/world/build.js?v=0.7.2",
+    "./src/world/campSites.js": "./src/world/campSites.js?v=0.7.2",
+    "./src/world/camps.js": "./src/world/camps.js?v=0.7.2",
+    "./src/world/settlements.js": "./src/world/settlements.js?v=0.7.2",
+    "./src/world/villages.js": "./src/world/villages.js?v=0.7.2",
+    "./src/world/collision.js": "./src/world/collision.js?v=0.7.2",
+    "./src/world/farms.js": "./src/world/farms.js?v=0.7.2",
+    "./src/world/forest.js": "./src/world/forest.js?v=0.7.2",
+    "./src/world/groundColor.js": "./src/world/groundColor.js?v=0.7.2",
+    "./src/world/hennethAnnun.js": "./src/world/hennethAnnun.js?v=0.7.2",
+    "./src/world/grass.js": "./src/world/grass.js?v=0.7.2",
+    "./src/world/herbSites.js": "./src/world/herbSites.js?v=0.7.2",
+    "./src/world/herbs.js": "./src/world/herbs.js?v=0.7.2",
+    "./src/world/layout.js": "./src/world/layout.js?v=0.7.2",
+    "./src/world/motes.js": "./src/world/motes.js?v=0.7.2",
+    "./src/world/oldworks.js": "./src/world/oldworks.js?v=0.7.2",
+    "./src/world/paths.js": "./src/world/paths.js?v=0.7.2",
+    "./src/world/provinces.js": "./src/world/provinces.js?v=0.7.2",
+    "./src/world/regions.js": "./src/world/regions.js?v=0.7.2",
+    "./src/world/relicSites.js": "./src/world/relicSites.js?v=0.7.2",
+    "./src/world/relics.js": "./src/world/relics.js?v=0.7.2",
+    "./src/world/rocks.js": "./src/world/rocks.js?v=0.7.2",
+    "./src/world/ruins.js": "./src/world/ruins.js?v=0.7.2",
+    "./src/world/surface.js": "./src/world/surface.js?v=0.7.2",
+    "./src/world/terrain.js": "./src/world/terrain.js?v=0.7.2",
+    "./src/world/terrainMesh.js": "./src/world/terrainMesh.js?v=0.7.2",
+    "./src/world/vegetation.js": "./src/world/vegetation.js?v=0.7.2",
+    "./src/world/water.js": "./src/world/water.js?v=0.7.2"
   }
 }</script>
 </head>
@@ -199,7 +200,7 @@
       <div id="loading">Gathering the land&hellip;</div>
       <button id="begin" hidden>Begin</button>
       <button id="begin-new" hidden class="quiet">Begin anew</button>
-      <p class="version">v0.7.1</p>
+      <p class="version">v0.7.2</p>
     </div>
   </div>
 

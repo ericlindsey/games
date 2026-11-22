@@ -642,6 +642,7 @@ async function boot() {
   if (params.has('debug')) hud.debug.hidden = false;
 
   // ---- loop ----
+  const buildMs = quality.buildMs ?? 2; // ms a frame for building new ground and plants, and 3/4 of that for grass
   let last = performance.now(), time = 0, slow = 0, autosave = 0, fps = 60, shade = 0, fpsCount = 0, fpsTime = 0;
   const province = { id: null, next: null, since: 0 }; // the province the ranger is in, for the notice on crossing a border
   const loop = (now) => {
@@ -671,8 +672,9 @@ async function boot() {
     hud.setCrosshair(started && state.weapon === 'bow' && (!input.touch || combat.aim) && !anyPanel(), combat.draw >= 0.8);
     if (input.enabled && (input.move.x || input.move.y)) hud.hideHint();
 
-    ground.update(player.pos.x, player.pos.z, 1);
-    grass.update(player.pos.x, player.pos.z, 2);
+    // land coming into range is built a little each frame (?tune=buildMs:0 builds whole chunks and tiles at once, as before)
+    if (buildMs > 0) { ground.update(player.pos.x, player.pos.z, 0, buildMs); grass.update(player.pos.x, player.pos.z, 0, buildMs * 0.75); }
+    else { ground.update(player.pos.x, player.pos.z, 1); grass.update(player.pos.x, player.pos.z, 2); }
     updateSurfaces(time);
     camps.update(dt, time, player.pos.x, player.pos.z);
     villages.update(dt, time, player);

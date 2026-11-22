@@ -2,10 +2,12 @@
 // and evaluates code in it over the DevTools protocol (no packages needed: Node's
 // own WebSocket). For timing on this machine, which software rendering cannot do.
 //
-//   node tools/chrome.mjs [--quality high] [--size 1024x768] [--dpr 2] [--url-extra "&x"] [--eval "js"] [--eval-file tools/calls.js] [--shot out.png] [--bench]
+//   node tools/chrome.mjs [--quality high] [--size 1024x768] [--dpr 2] [--url-extra "&x"] [--eval "js"] [--eval-file tools/calls.js] [--shot out.png] [--bench] [--cpu 5]
 //
 // --bench runs the frame-rate test (src/bench.js) and prints its table. Needs a
 // server on --port (default 8765) serving this folder, or pass --serve to start one.
+// --cpu 5 slows the page's main thread five times once the game has loaded (DevTools'
+// CPU throttling), to stand in roughly for a phone when timing work done on it.
 
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -54,7 +56,7 @@ export async function openChrome(url) {
     (await import('node:fs')).writeFileSync(path, Buffer.from(m.result.data, 'base64'));
   };
   const close = async () => { try { ws.close(); } catch { /* gone */ } proc.kill('SIGKILL'); await new Promise((r) => setTimeout(r, 300)); await rm(dir, { recursive: true, force: true }).catch(() => {}); };
-  return { evaluate, close, logs, shot };
+  return { evaluate, close, logs, shot, send };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -69,6 +71,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       await new Promise((r) => setTimeout(r, 1000));
     }
     console.log(await c.evaluate(`(() => { const gl = roi.renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : '?'; })()`));
+    if (a.cpu) await c.send('Emulation.setCPUThrottlingRate', { rate: Number(a.cpu) });
     if (a.eval) console.log(JSON.stringify(await c.evaluate(a.eval), null, 1));
     if (a['eval-file']) { const v = await c.evaluate((await import('node:fs')).readFileSync(a['eval-file'], 'utf8')); console.log(typeof v === 'string' ? v : JSON.stringify(v, null, 1)); }
     if (a.shot) await c.shot(a.shot);
