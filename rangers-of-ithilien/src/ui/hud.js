@@ -5,7 +5,7 @@ import { HA } from '../world/layout.js';
 const $ = (id) => document.getElementById(id);
 
 /** The most notices on the screen at once. */
-const MAX_NOTES = 5;
+const MAX_NOTES = 10;
 
 export class Hud {
   constructor() {
@@ -50,10 +50,15 @@ export class Hud {
 
   show() { this.root.hidden = false; this.compassWidth = $('compass').clientWidth || 320; }
 
-  /** Queue a notice. `small` is an optional second line. */
-  toast(big, small = '') {
+  /**
+   * Queue a notice: `big` a few words in colour (optional), then `small`. Every
+   * notice is the same size (since v0.7); `kind` only colours it: 'great' (a
+   * province freed, a settlement grown), 'task', 'warn', and the fight's 'seen',
+   * 'felled' and 'hurt'. `life` is how long it stays, in seconds.
+   */
+  toast(big, small = '', kind = '', life = 0) {
     if (!big && !small) return;
-    this.queue.push({ big, small });
+    this.queue.push({ big, small, kind, life });
   }
 
   setPrompt(text, touch) {
@@ -110,14 +115,8 @@ export class Hud {
    * seen you!"). The newest is at the bottom; each fades after a few seconds.
    */
   callout(text, kind = '') {
-    this.calloutEl ??= document.getElementById('callout');
-    const line = document.createElement('div');
-    line.textContent = text;
-    if (kind) line.className = kind;
-    this.calloutEl.append(line);
-    while (this.calloutEl.children.length > 3) this.calloutEl.firstChild.remove();
-    this.callouts ??= [];
-    this.callouts.push({ line, t: 2.8 });
+    // (since v0.7 these go up the same stack as every other notice, in their own colours)
+    this.toast('', text, kind || 'fight', 3);
   }
 
   /** A word by the aiming mark when a chosen shot tells. */
@@ -159,24 +158,20 @@ export class Hud {
       this.hitEl.style.transform = `translate(-50%, ${6 - 24 * t}px)`;
     }
 
-    if (this.callouts?.length) { // fight call-outs fade on their own
-      for (const c of this.callouts) { c.t -= dt; c.line.style.opacity = String(Math.min(1, c.t / 0.8)); if (c.t <= 0) c.line.remove(); }
-      this.callouts = this.callouts.filter((c) => c.t > 0);
-    }
-
-    // Notices stack: each new one comes in below the others (a little apart, so
-    // a burst can be read), stays a while and fades; more than five at once and
-    // the oldest goes. They used to wait their turn one by one.
+    // Notices stack: each new one comes in below the others (a moment apart, so
+    // a burst can be read), stays a while and fades; more than ten at once and
+    // the oldest goes. All one size, close together; the kind sets the colour.
     this.notes ??= [];
     this.toastTimer -= dt;
     if (this.toastTimer <= 0 && this.queue.length) {
       const next = this.queue.shift(), el = document.createElement('div');
-      el.className = 'note';
-      if (next.big) { const b = document.createElement('div'); b.className = 'big'; b.textContent = next.big; el.append(b); }
-      if (next.small) { const s = document.createElement('div'); s.className = 'small'; s.textContent = next.small; el.append(s); }
+      el.className = 'note' + (next.kind ? ' ' + next.kind : '');
+      if (next.big) { const b = document.createElement('span'); b.className = 'big'; b.textContent = next.big + (next.small && !/[.!?:]$/.test(next.big) ? '.' : ''); el.append(b); }
+      if (next.big && next.small) el.append(' ');
+      if (next.small) { const s = document.createElement('span'); s.className = 'small'; s.textContent = next.small; el.append(s); }
       this.toastEl.append(el);
-      this.notes.push({ el, t: 5.5 + Math.min(3, (next.small.length + next.big.length) / 40) });
-      this.toastTimer = 0.35;
+      this.notes.push({ el, t: next.life || 5.5 + Math.min(3, (next.small.length + next.big.length) / 40) });
+      this.toastTimer = 0.2;
       const live = this.notes.filter((n) => n.t > 0.6);
       for (const n of live.slice(0, Math.max(0, live.length - MAX_NOTES))) n.t = 0.6; // too many: the oldest fade now
     }

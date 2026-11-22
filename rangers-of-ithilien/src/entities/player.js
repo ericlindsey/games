@@ -272,7 +272,12 @@ export class CameraRig {
       c.y += this.lift * Math.min(1, this.dist / 4);
       const sh = this.shoulder;
       if (sh > 0.01) {
-        c.x -= Math.cos(this.yaw) * 0.75 * sh; c.z += Math.sin(this.yaw) * 0.75 * sh; c.y += 0.3 * sh;
+        // How far over the shoulder: 0.75 m, or on a narrow screen (a phone held
+        // upright) as far as keeps the bow, held out ahead of the ranger, just
+        // inside the left edge of the picture (since v0.7; it was out of sight).
+        const halfW = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * this.camera.aspect);
+        const side = Math.min(0.75, (d + 0.75) * Math.tan(halfW * 0.7));
+        c.x -= Math.cos(this.yaw) * side * sh; c.z += Math.sin(this.yaw) * side * sh; c.y += 0.3 * sh;
         _target.x += (c.x + _dir.x * 12 - _target.x) * sh; _target.y += (c.y + _dir.y * 12 - _target.y) * sh; _target.z += (c.z + _dir.z * 12 - _target.z) * sh;
       }
       this.camera.lookAt(_target); // the ranger's head: the same as looking along the boom when there is no lift
