@@ -37,7 +37,7 @@ export class Camps {
         // back into the dark; a tramway of rails comes out of it, with a tipped
         // cart, and the spoil lies heaped at the mouth of the cut. They lair
         // inside and keep their fire in the cut.
-        const a = rand() * 6.28, ux = Math.cos(a), uz = Math.sin(a), vx = -uz, vz = ux; // u: into the hill; v: across
+        const turn = rand() * 6.28, a = c.face ?? turn, ux = Math.cos(a), uz = Math.sin(a), vx = -uz, vz = ux; // u: into the hill; v: across (face: set by hand, campSites.js)
         const P = (du, dv) => [c.x + ux * du + vx * dv, c.z + uz * du + vz * dv];
         const along = -a, across = -(a + Math.PI / 2); // turn a rock's long side along u, or across it
         { // the hill: a long ridge of rock across the end of the cut, and its shoulders
@@ -47,7 +47,9 @@ export class Camps {
             const [sx, sz] = P(8.5, s * 8.5);
             addRock(always, sx, at(sx, sz) - 0.9, sz, 11, s > 0 ? 0x8a8478 : 0x7f8270, Math.round(c.z) + (s > 0 ? 1 : 0), { detail: 2, sy: 0.6, cuts: 7, strata: 0.5 });
           }
-          addCircle(hx, hz, 7);
+          // the ridge runs some 24 m across the end of the cut and 15 m deep: a row of circles fills it
+          for (const [dv, du, r] of [[0, 12, 6.8], [4.4, 12.3, 6.5], [-4.4, 12.3, 6.5], [8.4, 13, 5.2], [-8.4, 13, 5.2]]) { const [rx, rz] = P(du, dv); addCircle(rx, rz, r); }
+          for (const s of [-1, 1]) { const [sx, sz] = P(8.5, s * 8.5); addCircle(sx, sz, 4.6); } // and its shoulders
         }
         for (const s of [-1, 1]) { // the sides of the cut, high by the adit and lower toward the mouth of the cut
           [[4.2, 5.6, 0.95], [0.6, 4.2, 0.8], [-2.6, 3.2, 0.66], [-4.8, 2.2, 0.55]].forEach(([du, size, sy], k) => {

@@ -91,10 +91,27 @@ const byNearness = (site) => site.houses.map((h, i) => ({ i, d: Math.hypot(h.x -
  * { province, site, name, crops, reeve, x, z, kind, landing: {x, z}, plots: [rect, rect], houses: [index, ...] }
  * `reeve` is who speaks for them, and stands on their green.
  */
+/**
+ * Where on the shore the boat puts in: by its landmark if it has one, else the
+ * bank nearest due west of the site that is still in the settlement's own
+ * province (due west of Moonhallow is the Southwood's shore, where nobody
+ * looking in the Moonwood would find them).
+ */
+function landingZ(p, s) {
+  const lm = p.landing && LANDMARKS.find((l) => l.id === p.landing);
+  if (lm) return lm.z;
+  for (let d = 0; d < 800; d += 4) {
+    for (const z of d ? [s.z - d, s.z + d] : [s.z]) {
+      // a few metres inside the border, so they are not standing on it
+      if ([z - 12, z, z + 12].every((q) => provinceAt(bankX(q) + 7, q) === p.province) && heightAt(bankX(z) + 7, z) > 0.8) return z;
+    }
+  }
+  return s.z;
+}
+
 export const SETTLEMENTS = PLAN.map((p) => {
   const s = siteById[p.site];
-  const lm = p.landing && LANDMARKS.find((l) => l.id === p.landing);
-  const lz = lm ? lm.z : s.z;
+  const lz = landingZ(p, s);
   return {
     ...p, x: s.x, z: s.z, kind: s.kind,
     landing: { x: bankX(lz) + 7, z: lz },

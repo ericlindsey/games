@@ -76,8 +76,32 @@ function generate() {
   return camps;
 }
 
-/** @type {{id:string, x:number, z:number, tier:number, size:number, kind:string}[]} */
-export const CAMPS = generate();
+/**
+ * Changes made by hand after the scatter, so every other camp keeps its place
+ * (and every camp its id, which saves remember):
+ * - The Southwood's stockade c15 stood across the stream from Moonhallow, in
+ *   sight of a village that is settled once the Moonwood alone is free. Moved
+ *   into the Southwood's own woods, well away (v0.7.3).
+ * - A mine near the Harad Road had its hill toward the road, overhanging it.
+ *   Such a mine is set back from the road and turned to face it (`face`, the
+ *   way into the hill; camps.js), its fire and spoil out toward the road.
+ */
+const MOVED = { c15: { x: 506, z: 2456 } };
+const MINE_BACK = 34; // at least this far east of the road's line
+function amend(camps) {
+  for (const c of camps) {
+    const m = MOVED[c.id];
+    if (m) { c.x = m.x; c.z = m.z; c.tier = dangerTier(m.x, m.z); }
+    if (c.kind === 'mine' && c.x - haradRoadX(c.z) < 45) {
+      c.x = Math.round(Math.max(c.x, haradRoadX(c.z) + MINE_BACK));
+      c.face = 0; // into the hill: east, away from the road
+    }
+  }
+  return camps;
+}
+
+/** @type {{id:string, x:number, z:number, tier:number, size:number, kind:string, face?:number}[]} */
+export const CAMPS = amend(generate());
 
 const CELL = 150; // must exceed the largest blight radius: lookups search the 3 x 3 cells around a point
 const grid = new Map();
