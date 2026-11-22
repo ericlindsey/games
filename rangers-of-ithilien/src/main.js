@@ -189,7 +189,7 @@ async function boot() {
    * woods and grass off any field newly sown.
    */
   const settle = () => {
-    const fresh = villages.sync(state);
+    const fresh = villages.sync(state, true); // (in play, new houses go up one at a time, built by the people)
     if (!fresh.length) return;
     setClearedPlots(sownPlots(state));
     for (const r of fresh) { ground.refresh(r); grass.refresh(r); }
@@ -288,6 +288,8 @@ async function boot() {
   const travelPlaces = () => [
     { id: 'home', name: 'Henneth Ann\u00fbn', x: HA.x - 14, z: HA.z, home: true },
     ...RUINS.filter((p) => state.discovered.includes(p.id)),
+    // (since v0.7a) every settlement whose people are home
+    ...SETTLEMENTS.filter((s) => state.settled.includes(s.site)).map((s) => { const a = villages.arrivalAt(s.site); return { id: 'v:' + s.site, name: s.name, x: s.x, z: s.z, ax: a.x, az: a.z }; }),
   ];
   const travelTo = (p) => {
     if (enemies.inCombat()) { hud.toast('', 'Not while the enemy has seen you.'); return; }
@@ -503,7 +505,7 @@ async function boot() {
     } else if (villages.escort.people.some((q) => Math.hypot(q.x - s.x, q.z - s.z) < 24)) {
       state.settled.push(s.site);
       state.escort = null;
-      villages.endEscort();
+      villages.arrive(); // (they go to work from where they stand)
       settle();
       hud.toast(s.name, s.kind === 'hamlet' ? 'The settlers are home. Smoke goes up from the first chimneys, and someone is already drawing water from the well.' : 'The family are home. The door is open, and someone is already looking over the fields.', 'great');
       hud.setTracker(quests.trackers(state));

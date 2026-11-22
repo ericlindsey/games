@@ -1,6 +1,6 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.7: the story by province, and the first settlers.** The land, the enemy, fighting, gear, tasks and trade are built and
+Status: **v0.7a: the story by province, and the first settlers.** The land, the enemy, fighting, gear, tasks and trade are built and
 have had several rounds of playtest; v0.3 reworked how all of it looks (section 4); v0.4 laid
 eight provinces over the land (section 11); v0.5 shrank the land to 1.5 by 3 km with a hundred
 camps. v0.7 rebuilds the tasks round the provinces (Faramir frees them and ends on the Marshal;
@@ -1086,6 +1086,34 @@ Andros to Beechwell (640 m) and Heathwick's (880 m over the heath) may be long
 for a first escort; renown from told tasks is about what it was (Faramir about
 1,300, Éowyn about 600, the settlers' errands up to about 400 more).
 
+### v0.7a: after the first settlers
+
+- **A dozen settlers** come off a village's boat (seven to a farmstead), as Éowyn
+  says: most with a sack on their back, the children with nothing, and one
+  pushing a two-wheeled handcart piled with bundles and a chest. They wait in a
+  loose crowd on the shore, a step apart; following, they walk two abreast,
+  each pair further behind, the cart last, and never on top of one another (they
+  used to all make for the same point of the ranger's trail and stand in a heap).
+- **They build the village themselves.** On arriving they run from where they
+  stand to the first house to be mended: some at its walls swinging hammers, the
+  rest carrying planks from their goods to it and going back for more. Scaffolding
+  goes up round it and its walls rise for 5 to 10 s, then the next house; the
+  same after each task of theirs that mends more. (Loading a save shows what
+  stands at once: none of this is saved.) Each mended house is its own mesh now.
+- **Level ground**: the ground under every house that may be lived in again
+  (each settlement's and every farmstead's) is levelled a little (`levelGround`,
+  called from world/settlements.js after the camps and lesser ruins are placed, so
+  neither moves). A house near a stream, where the land is not levelled, stands on
+  a stone footing under its low side (`houseFloor`) rather than sunk in the slope.
+- **Houses in streams** are left ruins: one at Beechwell (over the head of a
+  stream), one at Bridgefold, one at Moonhallow.
+- **Boats float**: each was set a few metres up the bank, in the sand. Now it lies
+  where the water is deep under the whole hull (`mooring`), with a gangplank to
+  the shore and a mooring stake; the settlers wait on the dry ground beside it.
+- **Travel** to any settlement whose people are home, from the map.
+- **The heal button**, out of a fight, eats the weakest food first (orc bread,
+  then waybread); in a fight it still reaches for what answers the wound.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -1114,8 +1142,9 @@ for a first escort; renown from told tasks is about what it was (Faramir about
   would be the next big saving.
 - Nothing yet happens when every camp is cleared beyond Faramir's last words.
 - Settlers walk through walls and trees on their way home (they follow the
-  ranger's own trail, so seldom do) and the people of a settlement wander their
-  green without colliding. Enemies ignore them; in a fight they stand still.
+  ranger's own trail, two abreast, so seldom do) and the people of a settlement
+  walk through each other and the scaffolding while they work. Enemies ignore
+  them; in a fight they stand still.
 - Mended houses are built over the ruins, which stay inside them; a house's old
   rubble still lies about it.
 - The settlements have no trader beyond their seed, no rest or travel point

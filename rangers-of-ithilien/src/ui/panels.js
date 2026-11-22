@@ -166,7 +166,7 @@ export class MapPanel {
     title.textContent = opts.title ?? '';
     hint.textContent = opts.scouted ? 'The red rings are camps his scouts have seen. They are copied onto your map.'
       : !places.length ? 'The old places you find are marked here. You can travel to them by the old ways.'
-      : inFight ? 'Not while the enemy has seen you.' : 'Click an old place to travel there, or Henneth Ann\u00fbn to go home.';
+      : inFight ? 'Not while the enemy has seen you.' : 'Click an old place or a settlement to travel there, or Henneth Ann\u00fbn to go home.';
     if (!this.base) this.drawBase();
     const scale = 0.4; // canvas pixels per metre (600 by 1200 for the whole land)
     const cv = this.canvas, W = WORLD.width * scale, H = WORLD.length * scale;

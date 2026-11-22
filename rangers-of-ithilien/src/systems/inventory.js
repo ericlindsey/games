@@ -143,12 +143,18 @@ export function useItem(state, id) {
   return state.health - before;
 }
 
-/** The best healing item to reach for in a hurry: the smallest that is not wasted, else the largest. */
-export function quickHeal(state) {
+/**
+ * The healing item to reach for. In a fight (`fighting`), the best in a hurry:
+ * the smallest that is not wasted, else the largest. Out of one (since v0.7a),
+ * the weakest there is, orc bread and all: there is time to eat a few, and the
+ * good draughts are kept for when they are needed.
+ */
+export function quickHeal(state, fighting = true) {
   const missing = BASE_HEALTH - state.health;
   if (missing <= 0) return null;
   const have = Object.keys(state.items).filter((id) => ITEMS[id].kind === 'heal').sort((a, b) => ITEMS[a].heal - ITEMS[b].heal);
   if (!have.length) return null;
+  if (!fighting) return have[0];
   return have.find((id) => ITEMS[id].heal >= missing) ?? have[have.length - 1];
 }
 

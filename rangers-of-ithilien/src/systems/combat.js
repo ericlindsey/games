@@ -59,7 +59,7 @@ export class Combat {
   }
 
   heal() {
-    const id = quickHeal(this.state);
+    const id = quickHeal(this.state, this.enemies.inCombat()); // (out of a fight, the humblest first)
     if (!id) { this.hud.toast('', this.state.health >= BASE_HEALTH ? 'You are whole already.' : 'Nothing in the pack to mend you.'); return; }
     const got = useItem(this.state, id);
     if (got) this.hud.toast('', `${ITEMS[id].name}: you feel better.`);
