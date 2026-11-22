@@ -7,10 +7,15 @@ import { HA, LANDMARKS, bankX, CROSSROADS, inClearing, haradRoadX, gorgeZ, stair
 import { regionWeights, dangerTier, REFUGE } from '../src/world/regions.js';
 import { forestDensity, thicketDensity } from '../src/world/forest.js';
 import { CAMPS, blightAt, campNear } from '../src/world/campSites.js';
-import { SITES, inField, plantedIn, PLANTED_COUNT } from '../src/world/oldworks.js';
+import { SITES, SITES as SITES_ALL, inField, plantedIn, PLANTED_COUNT } from '../src/world/oldworks.js';
 import { groundAt, blockedBySolid, addSolid, addHollow, terrainAt } from '../src/world/collision.js';
 import { newState, migrate, SaveStore } from '../src/systems/save.js';
 import { SAVE, WORLD, PLAYER } from '../src/config.js';
+import { QUESTS as QUESTS_ALL } from '../src/data/quests.js';
+
+/** Every told task in hand, so the givers have none to offer (errands come only then). */
+const busy = (st) => { for (const t of QUESTS_ALL) if (!st.quests.active.includes(t.id)) st.quests.active.push(t.id); };
+const siteHouses = (id) => SITES_ALL.find((s) => s.id === id).houses.length;
 
 test('terrain is deterministic and finite', () => {
   for (let i = 0; i < 200; i++) {
@@ -222,7 +227,7 @@ test('a save round-trips', () => {
   assert.equal(store.load(), null);
   const s = newState();
   s.player = { x: 1234.5, y: 30, z: 2345.5, heading: 1.2 };
-  assert.equal(s.version, 6);
+  assert.equal(s.version, 7);
   assert.equal(s.settings.fps, false, 'the frame-rate counter starts off');
   s.items = { draught: 2, orcTrinket: 3 }; s.equipped.body = 'mailShirt'; s.equipped.helm = 'leatherCap'; s.silver = 77; s.quests.done = ['f1']; s.health = 61.5; s.picked = ['h3_4'];
   s.honour = 140; s.renown = 4; s.wear = { rangerSword: 0.5 }; s.honed = { rangerBow: 1 }; s.skills = { repair: true }; s.told = ['c9']; s.stats.bands = 2;
@@ -231,13 +236,15 @@ test('a save round-trips', () => {
   s.discovered.push('arch', 'camp:c1');
   s.cleared.push('c1');
   s.settings.quality = 'low';
+  s.settled = ['hamlet4']; s.homesteads = ['farm5']; s.escort = { site: 'hamlet2', x: 300, z: 480, following: true };
   assert.ok(store.save(s));
   const back = store.load();
   assert.deepEqual(back.player, s.player);
   assert.deepEqual(back.discovered, s.discovered);
   assert.deepEqual(back.cleared, ['c1']);
   assert.equal(back.settings.quality, 'low');
-  for (const k of ['items', 'equipped', 'silver', 'quests', 'health', 'picked', 'arrows', 'renown', 'honour', 'wear', 'honed', 'skills', 'told', 'stats']) assert.deepEqual(back[k], s[k], k);
+  for (const k of ['items', 'equipped', 'silver', 'quests', 'health', 'picked', 'arrows', 'renown', 'honour', 'wear', 'honed', 'skills', 'told', 'stats', 'settled', 'homesteads']) assert.deepEqual(back[k], s[k], k);
+  assert.deepEqual(back.escort, { site: 'hamlet2', x: 300, z: 480, following: false }, 'settlers on the way wait where they were left');
   store.clear();
   assert.equal(store.load(), null);
 });
@@ -248,6 +255,9 @@ test('bad saves are rejected or repaired, never thrown', () => {
   assert.equal(migrate({ version: SAVE.version + 1 }), null, 'a save from the future is not trusted');
   const v6 = migrate({ version: 6, player: { x: 700, z: 1000, heading: 1 }, discovered: ['arch'], cleared: ['c5'], silver: 40, settings: { quality: 'medium' } });
   assert.ok(v6.discovered.includes('arch') && v6.cleared.includes('c5') && v6.silver === 40 && v6.settings.quality === 'medium' && v6.settings.fps === false, 'a v6 save keeps everything, with the counter off');
+  assert.deepEqual([v6.settled, v6.homesteads, v6.escort], [[], [], null], 'and has no settlements yet');
+  const v6q = migrate({ version: 6, quests: { active: ['f5', 'e4', 'f17'], done: ['f1', 'e3'] } });
+  assert.deepEqual(v6q.quests.active, ['f17'], 'tasks that are gone (the sights, the counts of places) are dropped from hand');
   const v5 = migrate({ version: 5, player: { x: 700, z: 1000, heading: 1 }, discovered: ['arch'], cleared: ['c5'], silver: 40, renown: 9, honour: 400, settings: { quality: 'medium', fps: true } });
   assert.deepEqual(v5.player, newState().player, 'a save from the larger world before 0.5 begins again at home');
   assert.deepEqual(v5.cleared, [], 'its camps meant other places');
@@ -455,9 +465,12 @@ test('renown: slow to earn, fifty only near the end, and the enemy grows with it
 test('errands never run out, grow slowly, and can be done', async () => {
   const q = await import('../src/systems/quests.js');
   const { ITEMS } = await import('../src/data/items.js');
+  const { QUESTS } = await import('../src/data/quests.js');
   const s = newState();
   assert.equal(q.errandFrom('faramir', s), null, 'Faramir has no errands until the nearest fire is out');
   s.quests.done.push('f1', 'f3'); // (and has sent the ranger to the road, so the bands are asked for)
+  assert.equal(q.errandFrom('faramir', s), null, 'nor while he has a told task to offer: the story comes first');
+  busy(s);
   const seen = { faramir: new Set(), eowyn: new Set() };
   for (let n = 0; n < 40; n++) {
     for (const giver of ['faramir', 'eowyn']) {
@@ -475,19 +488,21 @@ test('errands never run out, grow slowly, and can be done', async () => {
       s.quests.count[giver] = n + 1;
     }
   }
-  assert.ok(seen.faramir.size >= 4 && seen.eowyn.size >= 4, 'they cycle through their kinds');
+  assert.ok(seen.faramir.size >= 4 && seen.eowyn.size >= 3, 'they cycle through their kinds');
+  assert.ok(!seen.eowyn.has('seeds'), 'Éowyn asks for no seed: the settlers ask for their own');
   assert.ok(!seen.faramir.has('captain'), 'no captain is asked for while the work is in the north, where there are none');
   // and even with every camp broken and every place found there is work
   const done = newState();
   done.cleared = CAMPS.map((c) => c.id);
   done.discovered.push(...q.PLACES.map((p) => p.id));
-  done.quests.done.push('f1');
+  done.quests.done.push(...QUESTS.map((t) => t.id));
   for (const giver of ['faramir', 'eowyn']) assert.ok(q.errandFrom(giver, done), `${giver} still has work at the end`);
 
   // a trophy errand, done and handed in
   const t = newState();
   t.quests.done.push('f1');
-  t.quests.count.faramir = 1;
+  busy(t);
+  t.quests.count.faramir = 2;
   const e = q.errandFrom('faramir', t);
   assert.equal(e.objective.type, 'gather');
   q.acceptErrand(t, e);
@@ -495,21 +510,21 @@ test('errands never run out, grow slowly, and can be done', async () => {
   const back = q.turnIn(t, e.id);
   assert.ok(back && back.loot.some(([id]) => id === 'silver'));
   assert.equal(t.items[e.objective.item], 1, 'trophies are handed over');
-  assert.equal(t.quests.count.faramir, 2);
+  assert.equal(t.quests.count.faramir, 3);
   assert.ok(t.honour > 0);
 });
 
 test('asked again, they give a direction; a third time, they mark it on the map', async () => {
   const q = await import('../src/systems/quests.js');
   const s = newState();
-  q.accept(s, 'e2');
-  const def = q.byId.e2;
+  q.accept(s, 'f2');
+  const def = q.byId.f2;
   assert.ok(!q.remindText(def, s).includes(' of here'));
   assert.ok(q.remindText(def, s).includes(' of here'), 'the second asking names a direction');
-  assert.ok(!s.quests.marks.e2);
+  assert.ok(!s.quests.marks.f2);
   assert.ok(q.remindText(def, s).includes('mark'));
-  assert.ok(s.quests.marks.e2, 'the third puts a mark on the map');
-  assert.deepEqual(q.tracker(s).target, s.quests.marks.e2, 'and the tracker follows it');
+  assert.ok(s.quests.marks.f2, 'the third puts a mark on the map');
+  assert.deepEqual(q.tracker(s).target, s.quests.marks.f2, 'and the tracker follows it');
   assert.equal(q.directionWords(HA.x, HA.z - 1500).slice(0, 12), 'to the north');
   // Faramir's map always shows a few camps more than the ranger's
   const scouted = q.scoutedCamps(s);
@@ -572,7 +587,7 @@ test('every camp has a company to fight, stronger with size; archers in most', a
     if (r.includes('archer')) withArchers++;
     assert.ok(r.length >= 2 && r.every((t) => ENEMY_TYPES[t]), c.id);
     assert.deepEqual(r, rosterFor(c), 'the same company every time');
-    assert.equal(r.includes('chief'), c.size >= 3, 'a captain in every stockade and nowhere else');
+    assert.equal(r.includes('chief') || r.includes('marshal'), c.size >= 3, 'a captain in every stockade and nowhere else');
     if (c.size === 1 && c.tier === 1) assert.ok(r.length <= 4, 'the smallest camps near home are two to four');
     if (c.size === 2) assert.ok(r.includes('archer'), 'every band keeps an archer');
   }
@@ -719,6 +734,7 @@ test('errands keep to the province the work is in', async () => {
   const { workingProvince } = await import('../src/systems/provinces.js');
   const s = newState();
   s.quests.done.push('f1');
+  busy(s);
   assert.equal(workingProvince(s), 'henneth', 'the work begins at home');
   const errandsAt = (st, giver) => [...Array(12).keys()].map((n) => { st.quests.count[giver] = n; return q.errandFrom(giver, st); });
   for (const e of errandsAt(s, 'faramir')) {
@@ -736,7 +752,7 @@ test('errands keep to the province the work is in', async () => {
   // free the home country and Forlad, and the work moves to the Gorse Fells, where captains are
   for (const pid of ['henneth', 'forlad']) s.cleared.push(...PROVINCE_CAMPS[pid].map((c) => c.id));
   assert.equal(workingProvince(s), 'gorse');
-  s.quests.count.faramir = 5; // the captain's turn
+  s.quests.count.faramir = 4; // the captain's turn
   const cap = q.errandFrom('faramir', s);
   assert.equal(cap.errand, 'captain');
   assert.equal(cap.objective.where, 'stockade@gorse');
@@ -802,19 +818,128 @@ test('orcs carry orc bread, which mends less than waybread', async () => {
   assert.equal(inv.quickHeal(st), 'orcBread', 'a scratch is mended with the lesser food');
 });
 
-test('Éowyn\'s first village is the one in the Window Woods', async () => {
+test('Éowyn\'s first map is of the Window Woods, and its village', async () => {
   const q = await import('../src/systems/quests.js');
   const home = q.PLACES.filter((p) => p.set === 'villages' && p.province === 'henneth');
   assert.equal(home.length, 1, 'Eryn Henneth has a village of its own');
   const s = newState();
-  s.quests.active.push('e3');
-  const e3 = q.questOf(s, 'e3');
+  assert.equal(q.offerFrom('eowyn', s).id, 'e1');
+  s.quests.active.push('e1');
+  assert.equal(q.offerFrom('eowyn', s).id, 'm-henneth', 'then the map of the Window Woods');
+  s.quests.active.push('m-henneth');
+  const m = q.questOf(s, 'm-henneth');
   s.discovered.push(...q.PLACES.filter((p) => p.set === 'villages' && p.province !== 'henneth').map((p) => p.id));
-  assert.ok(!q.isComplete(e3, s), 'a village elsewhere does not count');
-  const hint = q.hintTarget(e3.objective, s);
+  s.discovered.push(...q.PLACES.filter((p) => p.set === 'ruins' && p.province !== 'henneth').map((p) => p.id));
+  assert.equal(q.progress(m.objective, s).have, 0, 'places elsewhere do not count');
+  s.discovered.push(...q.PLACES.filter((p) => p.set === 'ruins' && p.province === 'henneth').slice(0, 4).map((p) => p.id));
+  assert.ok(!q.isComplete(m, s), 'four old places, but not yet the village');
+  const hint = q.hintTarget(m.objective, s);
   assert.equal(hint.x, home[0].x, 'and she points to the one at home');
   s.discovered.push(home[0].id);
-  assert.ok(q.isComplete(e3, s));
+  assert.ok(q.isComplete(m, s));
+});
+
+test('each province of the woods: freed, mapped, then its settlers led home; then they grow it', async () => {
+  const q = await import('../src/systems/quests.js');
+  const st = await import('../src/systems/settlement.js');
+  const { PROVINCE_CAMPS, CAMPAIGN } = await import('../src/world/provinces.js');
+  const { QUESTS } = await import('../src/data/quests.js');
+  const { ITEMS } = await import('../src/data/items.js');
+  // every settlement has its map task and its settling task, its two plots and a landing on dry ground
+  assert.equal(st.SETTLEMENTS.length, 6, 'every province of the woods; the fells have no one to settle');
+  for (const s of st.SETTLEMENTS) {
+    const m = q.byId['m-' + s.province], set = q.byId['s-' + s.province];
+    assert.ok(m && set && set.requires.includes(m.id) && set.whenFreed === s.province && set.objective.site === s.site, s.site);
+    const ids = m.objective.of.find((o) => o.type === 'discover').ids;
+    assert.deepEqual(ids, ['site:' + s.site], `${m.id} asks for the place its people will live`);
+    const ruins = m.objective.of.find((o) => o.type === 'seek');
+    assert.ok(ruins.count <= q.PLACES.filter((p) => p.province === s.province && p.set === 'ruins').length, `${m.id} asks for no more places than there are`);
+    assert.equal(s.plots.length, 2, `${s.name} has two plots`);
+    assert.ok(heightAt(s.landing.x, s.landing.z) > 0.5, `${s.name}'s boat lands on dry ground`);
+    for (const c of s.crops) assert.equal(ITEMS[c].kind, 'seed');
+    for (const r of s.plots) for (const c of CAMPS) assert.ok(c.x < r.minX - 15 || c.x > r.maxX + 15 || c.z < r.minZ - 15 || c.z > r.maxZ + 15, `no camp in ${s.name}'s fields`);
+  }
+  assert.deepEqual(st.SETTLEMENTS.map((s) => s.province), CAMPAIGN.filter((p) => st.settlementIn[p]), 'settled in the order they are freed');
+
+  const s = newState(), home = st.settlementIn.henneth;
+  s.quests.done.push('e1', 'm-henneth');
+  assert.notEqual(q.offerFrom('eowyn', s)?.id, 's-henneth', 'no boat is sent for until the woods are free');
+  s.cleared.push(...PROVINCE_CAMPS.henneth.map((c) => c.id));
+  assert.equal(q.offerFrom('eowyn', s).id, 's-henneth', 'free and mapped: she sends for them');
+  q.accept(s, 's-henneth');
+  assert.deepEqual(q.tracker(s).target, home.landing, 'the tracker points to their boat');
+  s.escort = { site: home.site, x: 300, z: 900, following: false };
+  assert.deepEqual(q.tracker(s).target, { x: 300, z: 900 }, 'or to where they were left');
+  s.escort.following = true;
+  assert.deepEqual(q.tracker(s).target, { x: home.x, z: home.z }, 'and while they follow, to their village');
+  assert.equal(st.stageOf(s, home.site), -1);
+  assert.equal(q.errandFrom(home.site, s), null, 'nobody there to ask anything yet');
+  s.settled.push(home.site); s.escort = null;
+  assert.ok(q.turnIn(s, 's-henneth'));
+  assert.equal(st.stageOf(s, home.site), 0);
+  assert.equal(st.housesMended(s, home.site), 3);
+  // their own tasks: seed, a remnant camp, seed, kingsfoil; each grows the place
+  const kinds = [];
+  for (let n = 0; n < st.STAGE_MAX; n++) {
+    const e = q.errandFrom(home.site, s);
+    assert.ok(e && e.giver === home.site && e.title && e.offer && e.remind && e.done, `task ${n} at ${home.name}`);
+    kinds.push(e.errand);
+    q.acceptErrand(s, e);
+    assert.ok(q.trackers(s).some((t) => t.text.startsWith(e.title)));
+    const o = e.objective;
+    if (o.type === 'gather') s.items[o.item] = o.count;
+    if (o.type === 'clearCamp') s.cleared.push(o.camp);
+    if (o.type === 'discover') s.discovered.push(...o.ids);
+    assert.ok(q.isComplete(e, s));
+    assert.equal(q.trackers(s).find((t) => t.text.startsWith(e.title)).target.site, home.site, 'done, the way home is to the village');
+    assert.ok(q.turnIn(s, e.id));
+    assert.equal(st.stageOf(s, home.site), n + 1);
+    if (n === 0) {
+      assert.deepEqual(st.cropsSown(s, home.site), [home.crops[0]], 'the first field sown');
+      assert.deepEqual(st.seedForSale(s, home.site), [home.crops[0]], 'and its seed on sale');
+      assert.equal(st.sownPlots(s).length, 1);
+    }
+  }
+  assert.deepEqual(kinds.filter((k) => k === 'seed').length, 2);
+  assert.equal(q.errandFrom(home.site, s), null, 'grown, they ask no more');
+  assert.equal(st.housesMended(s, home.site), siteHouses(home.site));
+  assert.deepEqual(st.cropsSown(s, home.site), home.crops);
+  // and her last task asks for every settlement grown
+  const garden = QUESTS.find((t) => t.id === 'e-garden');
+  assert.deepEqual(q.progress(garden.objective, s), { have: 1, need: 6 });
+});
+
+test('a farmstead found for Éowyn takes a family once its province is free', async () => {
+  const q = await import('../src/systems/quests.js');
+  const st = await import('../src/systems/settlement.js');
+  const { PROVINCE_CAMPS } = await import('../src/world/provinces.js');
+  const { QUESTS } = await import('../src/data/quests.js');
+  const s = newState();
+  s.quests.active.push(...QUESTS.filter((t) => t.giver === 'eowyn').map((t) => t.id)); // (no told task to offer)
+  const e = q.errandFrom('eowyn', s);
+  assert.equal(e.errand, 'site');
+  const farm = e.homestead;
+  assert.ok(st.homesteadBySite[farm] && e.objective.ids[0] === 'site:' + farm);
+  q.acceptErrand(s, e);
+  s.discovered.push('site:' + farm);
+  assert.ok(q.turnIn(s, e.id));
+  assert.deepEqual(s.homesteads, [farm]);
+  const pid = st.homesteadBySite[farm].province;
+  assert.deepEqual(st.homesteadsLived(s), [], 'not until its province is free');
+  s.cleared.push(...PROVINCE_CAMPS[pid].map((c) => c.id));
+  assert.deepEqual(st.homesteadsLived(s), [farm]);
+  if (st.homesteadBySite[farm].plot) assert.ok(st.sownPlots(s).some((p) => p.site === farm), 'with a field sown');
+});
+
+test('the Marshal holds the Morgul Marches', async () => {
+  const { rosterFor, MARSHAL_CAMP, ENEMY_TYPES } = await import('../src/data/enemies.js');
+  const { HOLDS } = await import('../src/world/provinces.js');
+  const { HONOUR } = await import('../src/systems/renown.js');
+  assert.equal(MARSHAL_CAMP, HOLDS.morgul.id);
+  const camp = CAMPS.find((c) => c.id === MARSHAL_CAMP);
+  assert.equal(rosterFor(camp).filter((t) => t === 'marshal').length, 1, 'he leads his hold himself');
+  assert.ok(CAMPS.every((c) => c.id === MARSHAL_CAMP || !rosterFor(c, 50).includes('marshal')), 'and is nowhere else');
+  assert.ok(ENEMY_TYPES.marshal.hp > ENEMY_TYPES.chief.hp * 2 && HONOUR.kill.marshal > HONOUR.kill.chief);
 });
 
 test('a roused camp never draws in its neighbour while both are at rest', async () => {

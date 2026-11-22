@@ -203,6 +203,17 @@ export class Ground {
     this.chunks.delete(key);
   }
 
+  /** Build again the chunks over a rectangle, so their plants are placed again (a field has been cleared there). */
+  refresh(r, margin = 6) {
+    const size = CHUNK.size;
+    for (const [key, ch] of [...this.chunks]) {
+      if (ch.cx * size < r.maxX + margin && (ch.cx + 1) * size > r.minX - margin && ch.cz * size < r.maxZ + margin && (ch.cz + 1) * size > r.minZ - margin) {
+        this.dropChunk(key);
+        this.buildChunk(ch.cx, ch.cz, this.lodAt?.x ?? 0, this.lodAt?.z ?? 0); // at once, so no hole shows
+      }
+    }
+  }
+
   /** Chunks wanted around a point, nearest first. */
   wanted(px, pz) {
     const size = CHUNK.size, R = this.quality.loadRadius;

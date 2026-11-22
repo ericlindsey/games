@@ -12,6 +12,7 @@ import { RELICS } from './world/relicSites.js';
 import { SITES } from './world/oldworks.js';
 import { PROVINCES, PROVINCE_CAMPS, HOLDS } from './world/provinces.js';
 import { provinceStatus } from './systems/provinces.js';
+import { settlementIn, STAGE_MAX } from './systems/settlement.js';
 
 export function attach(g) {
   const { state } = g;
@@ -47,6 +48,7 @@ export function attach(g) {
     <div class="line"><button data-a="clearnorth">Clear the north</button><button data-a="clearall">Clear all</button></div>
     <h4>Provinces</h4>
     <div class="line"><select id="dev-province"></select><button data-a="phold">Go to hold</button><button data-a="pfree">Free it</button></div>
+    <div class="line"><button data-a="pvillage">Go to its village</button><button data-a="psettle">Settle it</button><button data-a="pgrow">Grow it</button></div>
     <div class="line"><button data-a="patrol">Band on the road</button><button data-a="host">Host on the road</button></div>
     <h4>Save</h4>
     <div class="line"><button data-a="wipe">Wipe testing save</button> <small>kept apart from your real game</small></div>`;
@@ -112,7 +114,9 @@ export function attach(g) {
         state.quests.done.push(id);
         state.silver += q.reward.silver ?? 0; state.arrows += q.reward.arrows ?? 0; addHonour(state, q.reward.honour ?? 0);
         for (const [item, n] of Object.entries(q.reward.items ?? {})) g.inv.addItem(state, item, n);
+        if (q.objective.type === 'settled' && !state.settled.includes(q.objective.site)) state.settled.push(q.objective.site);
       }
+      g.settle();
     },
     camp() {
       const p = g.player.pos;
@@ -129,6 +133,17 @@ export function attach(g) {
       clear(h);
       const rest = PROVINCE_CAMPS[id].filter((c) => c !== h).sort((a, b) => Math.hypot(a.x - h.x, a.z - h.z) - Math.hypot(b.x - h.x, b.z - h.z));
       for (const c of rest) { if (provinceStatus(state, id).freed) break; clear(c); }
+    },
+    // a province's settlement: go there; bring its people home at once; grow it a stage (as if a task of theirs were done)
+    pvillage() { const s = settlementIn[$('dev-province').value]; if (s) go(s.x + 12, s.z + 16); },
+    psettle() { const s = settlementIn[$('dev-province').value]; if (s && !state.settled.includes(s.site)) { state.settled.push(s.site); state.escort = null; g.settle(); } },
+    pgrow() {
+      const s = settlementIn[$('dev-province').value];
+      if (!s || !state.settled.includes(s.site)) return;
+      state.quests.errands = state.quests.errands.filter((e) => e.giver !== s.site);
+      state.quests.active = state.quests.active.filter((id) => !id.startsWith('x' + s.site));
+      state.quests.count[s.site] = Math.min(STAGE_MAX, (state.quests.count[s.site] ?? 0) + 1);
+      g.settle();
     },
     patrol() { const p = g.player.pos; g.enemies.spawnPatrol(p.z - 60, 1, { list: ['snaga', 'snaga', 'archer'], host: false }); },
     host() { const p = g.player.pos; g.enemies.spawnPatrol(p.z - 90, 1, { list: ['chief', 'uruk', 'uruk', 'haradrim', 'archer', 'archer', 'snaga', 'snaga', 'snaga', 'snaga', 'snaga'], host: true }); },

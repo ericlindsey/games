@@ -12,6 +12,7 @@ import { ITEMS, SHOP, SLOTS, SLOT_NAMES, REPAIR } from '../data/items.js';
 import { progressOf, MAX_RENOWN } from '../systems/renown.js';
 import * as inv from '../systems/inventory.js';
 import * as quests from '../systems/quests.js';
+import { SETTLEMENTS } from '../systems/settlement.js';
 import { PROVINCES, provinceAt, provinceBorders, fullName } from '../world/provinces.js';
 import { provinceStatus, statusLine, freeProgress } from '../systems/provinces.js';
 
@@ -63,7 +64,7 @@ export class DialoguePanel {
     box.replaceChildren();
     for (const opt of node.options) {
       const b = document.createElement('button');
-      b.textContent = opt.label;
+      b.textContent = typeof opt.label === 'function' ? opt.label(this.ctx) : opt.label; // (a label may say how things stand now)
       b.onclick = () => { opt.do?.(); if (opt.to) this.go(opt.to); else this.close(); };
       box.appendChild(b);
     }
@@ -218,6 +219,14 @@ export class MapPanel {
       for (const h of st.houses) ctx.fillRect(h.x * scale - 1.5, h.z * scale - 1.5, 3, 3);
       ctx.strokeStyle = 'rgba(90,70,45,0.5)'; ctx.lineWidth = 1;
       for (const f of st.fields) ctx.strokeRect(f.minX * scale, f.minZ * scale, (f.maxX - f.minX) * scale, (f.maxZ - f.minZ) * scale);
+    }
+    // settlements lived in again, by the name their people gave them, in green
+    ctx.fillStyle = '#2f5a2a';
+    for (const st of SETTLEMENTS) {
+      if (!state.settled.includes(st.site)) continue;
+      const x = st.x * scale, y = st.z * scale, tw = ctx.measureText(st.name).width;
+      ctx.strokeStyle = 'rgba(239,228,200,0.85)'; ctx.lineWidth = 3; ctx.strokeText(st.name, x - tw / 2, y - 8);
+      ctx.fillText(st.name, x - tw / 2, y - 8);
     }
     ctx.fillStyle = '#5a4630';
     for (const r of RELICS) {

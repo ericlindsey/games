@@ -7,8 +7,8 @@ import { GeoBuilder, materials } from './build.js';
 import { heightAt } from './terrain.js';
 import { herbSites } from './herbSites.js';
 
-/** The look of each plant, built around its root. */
-function plantGeometry(kind) {
+/** The look of each plant, built around its root (world/villages.js sows them in rows too). */
+export function plantGeometry(kind) {
   const b = new GeoBuilder(61 + kind.length, 0.06);
   if (kind === 'athelas') {
     for (let i = 0; i < 7; i++) { // a rosette of leaves

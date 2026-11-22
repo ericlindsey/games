@@ -24,6 +24,8 @@ import { Grass } from './world/grass.js';
 import { updateSurfaces, surfaceSettings } from './world/surface.js';
 import { Herbs } from './world/herbs.js';
 import { Camps } from './world/camps.js';
+import { Villages } from './world/villages.js';
+import { setClearedPlots } from './world/settlements.js';
 import { Player, CameraRig } from './entities/player.js';
 import { Enemies } from './entities/enemies.js';
 import { makeFigure, animateFigure, LOOKS } from './entities/figure.js';
@@ -33,6 +35,7 @@ import { Combat } from './systems/combat.js';
 import * as inv from './systems/inventory.js';
 import * as quests from './systems/quests.js';
 import { addHonour, HONOUR } from './systems/renown.js';
+import { SETTLEMENTS, settlementIn, settlementBySite, homesteadBySite, sownPlots, stageOf, seedForSale, STAGE_MAX } from './systems/settlement.js';
 import { rng } from './util/noise.js';
 import { Hud } from './ui/hud.js';
 import { DialoguePanel, MapPanel, MenuPanel, PackPanel, TradePanel } from './ui/panels.js';
@@ -119,6 +122,11 @@ async function boot() {
   label('farms');
   buildRelics(scene, quality.shadows);
   label('lesser ruins and waymarks');
+  // the settlements as far as they have come (before the woods are planted, so the woods keep off their fields)
+  setClearedPlots(sownPlots(state));
+  const villages = new Villages(scene, quality.shadows);
+  villages.sync(state);
+  label('villages');
   const motes = new Motes(scene, quality.motes);
   const grass = new Grass(scene, quality);
   const herbs = new Herbs(scene, state.picked);
@@ -175,6 +183,26 @@ async function boot() {
     return rose;
   };
 
+  /**
+   * After anything that may grow a settlement (settlers home, a task of theirs
+   * done, a province freed, a farm given): build what now stands, and clear the
+   * woods and grass off any field newly sown.
+   */
+  const settle = () => {
+    const fresh = villages.sync(state);
+    if (!fresh.length) return;
+    setClearedPlots(sownPlots(state));
+    for (const r of fresh) { ground.refresh(r); grass.refresh(r); }
+  };
+  /** What the ranger sees happen at a settlement when its people's task is done. */
+  const STAGE_NEWS = [
+    null,
+    (s) => `The first field is cleared and sown with ${ITEMS[s.crops[0]].name.toLowerCase()}. ${s.reeve.name} has seed to sell now.`,
+    (s) => `They go to work on the far houses, and new thatch goes up.`,
+    (s) => `The second field is sown, with ${ITEMS[s.crops[1]].name.toLowerCase()}.`,
+    (s) => `Every house is mended${s.kind === 'hamlet' ? ', and the market cross stands again' : ''}. ${s.name} is whole.`,
+  ];
+
   const dialogue = new DialoguePanel(resume);
   const map = new MapPanel(resume);
   const pack = new PackPanel({ onClose: resume, onChange: () => refreshHud() });
@@ -197,7 +225,10 @@ async function boot() {
     isCleared: (id) => state.cleared.includes(id),
     hurtPlayer: (amount) => combat.hurt(amount),
     shoot: (from, to, damage) => combat.shoot(from, to, damage, 27, false),
-    onKill: (e) => { state.stats.kills++; combat.dropLoot(e); honour(HONOUR.kill[e.type] ?? 1); hud.callout(`${e.def.name} felled`, 'felled'); },
+    onKill: (e) => {
+      state.stats.kills++; combat.dropLoot(e); honour(HONOUR.kill[e.type] ?? 1); hud.callout(`${e.def.name} felled`, 'felled');
+      if (e.type === 'marshal') hud.toast('The Marshal is dead', 'The last war-chief of the Vale. His company will not stand long without him.', 'great');
+    },
     onSpotted: (camp, how) => hud.callout(
       camp.patrol ? (camp.patrol.host ? 'The host has seen you!' : 'The band on the road has seen you!')
         : how === 'called' ? (camp.size >= 3 ? 'A stockade takes up the chase!' : 'Another camp takes up the chase!')
@@ -229,7 +260,8 @@ async function boot() {
   function provinceNews(pid, before, after) {
     const name = provinceById[pid].name;
     if (after.freed && !before.freed) {
-      hud.toast(`${name} is free`, 'The hold is broken and the land is ours again. Faramir will want to hear it from you.');
+      hud.toast(`${name} is free`, `The hold is broken and the land is ours again. Faramir will want to hear it from you${settlementIn(pid) ? ', and Éowyn can send for its settlers' : ''}.`, 'great');
+      settle(); // (a farm promised to a family is lived in now)
     } else if (after.holdCleared && !before.holdCleared) {
       const left = after.need - after.cleared;
       hud.toast(`The hold of ${name} is broken`, `${left} more camp${left === 1 ? '' : 's'} broken here, and ${name} is free.`);
@@ -291,16 +323,33 @@ async function boot() {
   };
 
   // ---- talk: what each of them has to say, with any tasks woven in ----
-  const speakerFor = (id) => {
-    const base = DIALOGUE[id];
+  /** Whoever speaks for a settlement, or the family at a homestead, as a speaker like those in data/dialogue.js. */
+  const villagerBase = (site) => {
+    const s = settlementBySite[site];
+    if (!s) { // a homestead
+      const h = homesteadBySite[site];
+      return { name: 'The farmer', title: `A farmstead in ${provinceById[h.province].name.replace(/^The /, 'the ')}`, start: 'hello', nodes: { hello: {
+        text: 'Ranger! Come in, come in; or no, you will want to be off. We have the roof on, and the field sown, thanks to you and the Lady. Come back at harvest, and there will be a place at the table.',
+        options: [{ label: 'Farewell.' }] } } };
+    }
+    const st = stageOf(state, site);
+    const text = st >= STAGE_MAX ? `Welcome to ${s.name}, ranger. Look at it! Every roof sound and both fields up. There is always a place by our fire for you.`
+      : st >= 2 ? `Ranger! See the new thatch? ${s.name} is coming on. There is work yet, if you have time for us.`
+      : st >= 1 ? `The field is up, ranger, did you see it? Rows as straight as a spear. ${s.name} has a long way to go yet, but we are on it.`
+      : `Ranger. We are home, or we shall be, once there is a roof over every head and something in the ground. ${s.name} has a great deal to do, and I would be glad of your help.`;
+    return { name: s.reeve.name, title: s.reeve.title, start: 'hello', nodes: { hello: { text, options: [{ label: 'Farewell.' }] } } };
+  };
+  const speakerFor = (id, base = DIALOGUE[id] ?? villagerBase(id)) => {
     const nodes = { ...base.nodes };
     const extra = [];
+    const village = settlementBySite[id];
     if (id === 'mablung') {
       const withTrade = (n) => ({ ...n, options: n.options.map((o) => (o.trade ? { ...o, do: () => setTimeout(() => { openPanel(); trade.show(state); }, 0) } : o)) });
       for (const k in nodes) nodes[k] = withTrade(nodes[k]);
       return { ...base, nodes };
     }
-        for (const q of quests.activeFrom(id, state)) {
+    if (homesteadBySite[id]) return base;
+    for (const q of quests.activeFrom(id, state)) {
       if (quests.isComplete(q, state)) {
         const node = (nodes['done_' + q.id] = { text: () => q.done + (node.got ? `\n\nReceived: ${node.got}.` : '') + (node.rose ? `\n\nYour renown grows to ${node.rose}.` : ''), options: [{ label: 'Thank you.' }] });
         extra.push({
@@ -309,13 +358,15 @@ async function boot() {
             const r = quests.turnIn(state, q.id);
             node.got = r?.loot.length ? inv.describeLoot(r.loot) : '';
             node.rose = r?.rose ?? 0;
+            settle();
+            if (village && r) { const news = STAGE_NEWS[stageOf(state, id)]; if (news) setTimeout(() => hud.toast(village.name, news(village), 'great'), 600); }
             refreshHud(); save();
           },
         });
       } else {
         // asked again, they give a direction; asked a third time, they mark it on the map
         nodes['remind_' + q.id] = { text: () => { const t = quests.remindText(q, state); refreshHud(); save(); return t; }, options: [{ label: 'I will see to it.', to: 'hello' }] };
-        extra.push({ label: `About my task\u2026 (${q.title})`, to: 'remind_' + q.id });
+        extra.push({ label: `About my task… (${q.title})`, to: 'remind_' + q.id });
       }
     }
     const offer = quests.offerFrom(id, state);
@@ -323,7 +374,7 @@ async function boot() {
       nodes['offer_' + offer.id] = {
         text: offer.offer, picture: offer.picture,
         options: [
-          { label: 'I will do it.', do: () => { quests.accept(state, offer.id); refreshHud(); save(); hud.toast('New task', offer.title); } },
+          { label: 'I will do it.', do: () => { quests.accept(state, offer.id); settle(); refreshHud(); save(); hud.toast('New task', offer.title, 'task'); } },
           { label: 'Not yet.', to: 'hello' },
         ],
       };
@@ -334,11 +385,26 @@ async function boot() {
       nodes.errand = {
         text: errand.offer,
         options: [
-          { label: 'I will do it.', do: () => { quests.acceptErrand(state, errand); refreshHud(); save(); hud.toast('New task', errand.title); } },
+          { label: 'I will do it.', do: () => { quests.acceptErrand(state, errand); refreshHud(); save(); hud.toast('New task', errand.title, 'task'); } },
           { label: 'Not now.', to: 'hello' },
         ],
       };
-      extra.push({ label: offer ? 'Is there other work?' : 'Have you a task for me?', to: 'errand' });
+      extra.push({ label: offer ? 'Is there other work?' : village ? 'Can I help?' : 'Have you a task for me?', to: 'errand' });
+    }
+    if (village && seedForSale(state, id).length) {
+      // the seed of what they have sown, sold a handful at a time
+      const SEED_PRICE = 4, HANDFUL = 2;
+      nodes.seed = {
+        text: () => `${seedForSale(state, id).map((c) => ITEMS[c].name).join(' and ')}: ${HANDFUL} for ${SEED_PRICE} silver, from this year’s crop. You have ${state.silver} silver.`,
+        options: [
+          ...seedForSale(state, id).map((c) => ({
+            label: () => `${ITEMS[c].name} ×${HANDFUL} · ${SEED_PRICE} silver (you have ${inv.count(state, c)})`, to: 'seed',
+            do: () => { if (state.silver >= SEED_PRICE) { state.silver -= SEED_PRICE; inv.addItem(state, c, HANDFUL); refreshHud(); save(); } else hud.toast('', 'Not enough silver.'); },
+          })),
+          { label: 'That is all.', to: 'hello' },
+        ],
+      };
+      extra.push({ label: 'Have you seed to sell?', to: 'seed' });
     }
     if (id === 'faramir' && state.quests.done.includes('f1')) {
       // his map always has a few more camps on it than the ranger's
@@ -348,7 +414,7 @@ async function boot() {
         options: [{ label: 'Thank you.', do: () => {
           for (const c of scouted) if (!state.told.includes(c.id)) state.told.push(c.id);
           save();
-          if (scouted.length) setTimeout(() => { openPanel(); map.show(state, player, [], false, { title: 'Faramir\u2019s map', scouted }); }, 0);
+          if (scouted.length) setTimeout(() => { openPanel(); map.show(state, player, [], false, { title: 'Faramir’s map', scouted }); }, 0);
         } }],
       };
       extra.push({ label: 'May I see your map?', to: 'map' });
@@ -356,8 +422,8 @@ async function boot() {
     const pairs = Math.floor(inv.count(state, 'athelas') / 2); // two plants to a draught; an odd one is kept
     if (id === 'eowyn' && state.quests.done.includes('e1') && pairs > 0) {
       nodes.brew = {
-        text: pairs === 1 ? 'Give them here. \u2026 There: steeped, strained, and stoppered. Drink it when you must, not before.'
-          : `All of them? Then sit; this takes a while. \u2026 There: ${pairs} draughts, steeped, strained and stoppered. Drink them when you must, not before.`,
+        text: pairs === 1 ? 'Give them here. … There: steeped, strained, and stoppered. Drink it when you must, not before.'
+          : `All of them? Then sit; this takes a while. … There: ${pairs} draughts, steeped, strained and stoppered. Drink them when you must, not before.`,
         options: [{ label: 'Thank you.' }],
       };
       extra.push({
@@ -372,13 +438,19 @@ async function boot() {
 
   // What the player can act on right now: { label, use } or null.
   let target = null;
+  const talkContext = () => ({ cleared: state.cleared, discovered: state.discovered, ruinIds, state });
   const findTarget = () => {
     const p = player.pos;
+    const v = villages.speakerNear(p.x, p.z);
+    if (v) {
+      const base = villagerBase(v.site);
+      return { label: `Speak with ${base.name === 'The farmer' ? 'the farmer' : base.name}`, use: () => { openPanel(); dialogue.start(speakerFor(v.site, base), talkContext()); } };
+    }
     if (Math.abs(p.y - refuge.floorY) > 2) return null;
     for (const n of npcs) {
       if (Math.hypot(p.x - n.x, p.z - n.z) < 3) {
         const who = DIALOGUE[n.id];
-        return { label: `Speak with ${who.name}`, use: () => { openPanel(); dialogue.start(speakerFor(n.id), { cleared: state.cleared, discovered: state.discovered, ruinIds }); } };
+        return { label: `Speak with ${who.name}`, use: () => { openPanel(); dialogue.start(speakerFor(n.id), talkContext()); } };
       }
     }
     if (refuge.beds.some((b) => Math.hypot(p.x - b.x, p.z - b.z) < 1.4)) return { label: 'Rest a while', use: rest };
@@ -398,8 +470,47 @@ async function boot() {
       setTimeout(() => {
         veil.classList.remove('dark');
         hud.toast('You rest', 'An hour on the mats, with the falls loud outside the window. You rise whole.');
-      }, 900);
-    }, 1200);
+      }, 350);
+    }, 550);
+  };
+
+  // ---- the settlers on their way home ----
+  /** The settlement whose people the ranger has been sent to bring in, if any. */
+  const escortSite = () => SETTLEMENTS.find((s) => state.quests.active.includes('s-' + s.province) && !state.settled.includes(s.site)) ?? null;
+  let escortNear = Infinity;
+  /** Settlers wait at their boat (or where they were left) until the ranger comes; then follow, until they are home. */
+  const tendEscort = () => {
+    const s = escortSite();
+    if (!s) { if (villages.escort) villages.endEscort(); state.escort = null; return; }
+    if (!villages.escort || villages.escort.site !== s.site) {
+      const at = state.escort?.site === s.site ? state.escort : s.landing;
+      villages.setEscort(s.site, at, false);
+      state.escort = { site: s.site, x: at.x, z: at.z, following: false };
+    }
+    const e = state.escort, lead = villages.escortAt();
+    if (!e.following) {
+      if (escortNear < 6 && !enemies.inCombat()) {
+        e.following = true;
+        villages.setEscort(s.site, null, true);
+        hud.toast(`The settlers of ${s.name}`, 'They take up their bundles and follow you. Lead them home, and do not leave them behind.', 'task');
+        hud.setTracker(quests.trackers(state));
+      }
+    } else if (escortNear > 45) {
+      e.following = false;
+      villages.setEscort(s.site, null, false);
+      hud.toast('', 'The settlers have lost sight of you, and wait where they are. Go back for them.', 'warn');
+      hud.setTracker(quests.trackers(state));
+    } else if (villages.escort.people.some((q) => Math.hypot(q.x - s.x, q.z - s.z) < 24)) {
+      state.settled.push(s.site);
+      state.escort = null;
+      villages.endEscort();
+      settle();
+      hud.toast(s.name, s.kind === 'hamlet' ? 'The settlers are home. Smoke goes up from the first chimneys, and someone is already drawing water from the well.' : 'The family are home. The door is open, and someone is already looking over the fields.', 'great');
+      hud.setTracker(quests.trackers(state));
+      save();
+      return;
+    }
+    e.x = lead.x; e.z = lead.z;
   };
 
   const found = (id, title, blurb) => {
@@ -556,6 +667,8 @@ async function boot() {
     grass.update(player.pos.x, player.pos.z, 2);
     updateSurfaces(time);
     camps.update(dt, time, player.pos.x, player.pos.z);
+    villages.update(dt, time, player);
+    escortNear = villages.updateEscort(dt, time, player, enemies.inCombat() || down);
     herbs.update(time);
     camera.updateMatrixWorld();
     enemies.update(dt, time, player, input.walk, !down, camera);
@@ -585,6 +698,7 @@ async function boot() {
     if (slow <= 0 && started) {
       slow = 0.25;
       if (!down) discover();
+      tendEscort();
       target = input.enabled && !down ? findTarget() : null;
       hud.setPrompt(target ? target.label : null, input.touch);
       const here = provinceAt(player.pos.x, player.pos.z);
@@ -617,7 +731,7 @@ async function boot() {
 
   // For tests and for poking at the world from the console.
   const api = {
-    ready: true, state, player, rig, input, camps, ground, grass, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
+    ready: true, state, player, rig, input, camps, villages, settle, settlements: SETTLEMENTS, ground, grass, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
     landmarks: LANDMARKS, sites: SITES, relics: RELICS, HA, WORLD,
     provinces: { PROVINCES, PROVINCE_CAMPS, HOLDS, provinceAt, status: provinceStatus },
     teleport(x, z, yaw = player.yaw, y = undefined) {
