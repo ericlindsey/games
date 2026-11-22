@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { GeoBuilder, SURF } from '../world/build.js';
 import { surfaceMaterial } from '../world/surface.js';
 import { ITEMS } from '../data/items.js';
+import { finish } from '../util/slice.js';
 
 /** The material people are drawn with; enemies each take their own (they flash when struck). */
 export function figureMaterial() {
@@ -234,7 +235,10 @@ function quiverGeometry(n) {
  * @returns {THREE.Group} with .limbs for animation and setWeapons / setDraw / setArrows;
  *   origin at the feet, facing +Z.
  */
-export function makeFigure(o) {
+export const makeFigure = (o) => finish(figureSteps(o));
+
+/** The same, yielding after each part, so a figure can be made over a few frames (enemies.js). */
+export function* figureSteps(o) {
   SHARED.material ||= figureMaterial();
   const g = new THREE.Group();
   g.name = 'people';
@@ -281,6 +285,7 @@ export function makeFigure(o) {
     }, -0.29, arm);
     limbs[side < 0 ? 'armL' : 'armR'] = arm;
     limbs[side < 0 ? 'elbowL' : 'elbowR'] = fore;
+    yield;
   }
 
   limbs.body = part((b) => {
@@ -346,6 +351,7 @@ export function makeFigure(o) {
       lathe(b, [[0.27, 0.5], [0.22, 0.58], [0.12, 0.66], [0.08, 0.68]], o.cloak, M(0, 0, -0.01, 0, 0, 0, 1.08, 1, 0.76), 14); // a mantle
     }
   }, 0.92, g);
+  yield;
 
   const cloakLen = o.longCloak ? 1.34 : o.hood ? 1.12 : 1.02;
   if (o.cloak) { // the cloak hangs from the shoulders and swings as they move
@@ -376,6 +382,8 @@ export function makeFigure(o) {
     };
   }
 
+  yield;
+
   // What is carried on the back, over the cloak: the quiver and the slung bow.
   // They ride in a frame that follows the cloak's upper part (which stays close
   // to the back; only below the hips does it stream out), laid back along it,
@@ -404,6 +412,7 @@ export function makeFigure(o) {
     gear.add(g.quiverArrows);
   }
 
+  yield;
   // Weapons: in the hand when fighting, sheathed or slung otherwise.
   if (o.blade) {
     const sw = swordGeometries(o);

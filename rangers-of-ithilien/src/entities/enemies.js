@@ -9,7 +9,7 @@ import { HA } from '../world/layout.js';
 import { CAMPS } from '../world/campSites.js';
 import { heightAt } from '../world/terrain.js';
 import { groundAt, blockedBySolid, resolveCircles } from '../world/collision.js';
-import { makeFigure, animateFigure, LOOKS, figureMaterial } from './figure.js';
+import { makeFigure, figureSteps, animateFigure, LOOKS, figureMaterial } from './figure.js';
 import { ENEMY_TYPES, CHASE, rosterFor, patrolRoster } from '../data/enemies.js';
 import { enemyStrength } from '../systems/renown.js';
 import { haradRoadX } from '../world/layout.js';
@@ -17,7 +17,7 @@ import { dangerTier, REFUGE } from '../world/regions.js';
 
 export { ENEMY_TYPES, rosterFor };
 
-const SPAWN_AT = 120, FORGET_AT = 190, SIGHT = 27, SIGHT_QUIET = 13, REACH = 1.9;
+const SPAWN_AT = 120, MAKE_AT = SPAWN_AT + 80, FORGET_AT = 190, SIGHT = 27, SIGHT_QUIET = 13, REACH = 1.9;
 // A camp's wounds and dead are remembered while the ranger is within this of it
 // (and not back at Henneth Annûn), so a company can be worn down from afar.
 const WOUNDS_KEPT = 750, HOME_HEALS = 150;
@@ -42,6 +42,50 @@ export class Enemies {
     this.patrolIn = 30;   // seconds until the next band may come down the road
     this.patrolCount = 0;
     this.rand = rng(9191);
+    // A company's figures take a few milliseconds each to make (more on a phone), so
+    // those of the camps just beyond reach and of the next band on the road are made
+    // ahead, a part a frame, and kept here until they are met (plan, prepare).
+    this.spare = new Map(); // type -> [figure]
+    this.toMake = [];       // types still to make
+    this.making = null;     // { type, steps }: the figure being made
+    this.nextPatrol = null; // the next band, chosen a few seconds before it comes
+  }
+
+  /** A figure for an enemy of this type: one made ahead if there is one, else made now. */
+  figureFor(type) {
+    const s = this.spare.get(type);
+    return s?.length ? s.pop() : makeFigure(LOOKS[type]);
+  }
+
+  /** Settle which figures to make ahead: enough for every company about to be met. */
+  plan(rosters) {
+    const need = new Map();
+    for (const list of rosters) for (const t of list) need.set(t, (need.get(t) ?? 0) + 1);
+    this.toMake = [];
+    for (const [t, n] of need) {
+      const have = (this.spare.get(t)?.length ?? 0) + (this.making?.type === t ? 1 : 0);
+      for (let i = have; i < n; i++) this.toMake.push(t);
+    }
+  }
+
+  /** Go on making the figures planned, a part at a time, for about `ms` (at least one part). */
+  prepare(ms) {
+    if (!this.making && !this.toMake.length) return;
+    const end = performance.now() + ms;
+    do {
+      if (!this.making) {
+        if (!this.toMake.length) break;
+        const type = this.toMake.pop();
+        this.making = { type, steps: figureSteps(LOOKS[type]) };
+      }
+      const r = this.making.steps.next();
+      if (r.done) {
+        const { type } = this.making;
+        if (!this.spare.has(type)) this.spare.set(type, []);
+        this.spare.get(type).push(r.value);
+        this.making = null;
+      }
+    } while (performance.now() < end);
   }
 
   /**
@@ -70,7 +114,7 @@ export class Enemies {
       let z = camp.patrol ? camp.z - camp.patrol.dir * i * 1.8 : camp.z + Math.sin(a) * r;
       const spot = this.clearSpot(x, z);
       x = spot.x; z = spot.z;
-      const fig = makeFigure(LOOKS[type]);
+      const fig = this.figureFor(type);
       const material = figureMaterial();
       fig.traverse((o) => { if (o.isMesh) { o.material = material; o.castShadow = true; } });
       fig.scale.setScalar(def.scale);
@@ -268,6 +312,7 @@ export class Enemies {
    */
   update(dt, time, player, quiet, alive, camera) {
     const p = player.pos;
+    this.prepare(0.75);
     this.tick -= dt;
     if (this.tick <= 0) {
       this.tick = 0.5;
@@ -277,9 +322,14 @@ export class Enemies {
         const c = CAMPS_BY_ID.get(id);
         if (!c || home || this.api.isCleared(id) || Math.hypot(c.x - p.x, c.z - p.z) > WOUNDS_KEPT) this.wounds.delete(id);
       }
+      const soon = []; // the companies to make ready
       for (const camp of CAMPS) {
         const d = Math.hypot(camp.x - p.x, camp.z - p.z);
         const here = this.camps.has(camp.id);
+        if (!here && d < MAKE_AT && d >= SPAWN_AT && !this.api.isCleared(camp.id)) {
+          const wounds = this.wounds.get(camp.id);
+          soon.push(rosterFor(camp, this.api.renown?.() ?? 0).filter((t, i) => !wounds || wounds[i] > 0));
+        }
         if (!here && d < SPAWN_AT && !this.api.isCleared(camp.id)) this.spawnCamp(camp);
         // (not while any of them is still on the ranger's heels, however far from home)
         else if (here && d > FORGET_AT && !this.list.some((e) => e.camp === camp && e.alerted && !e.dead)) this.forgetCamp(camp.id);
@@ -295,11 +345,20 @@ export class Enemies {
       }
       const nearRoad = Math.abs(p.x - haradRoadX(p.z)) < 240 && p.z > 195 && p.z < 2775;
       this.patrolIn -= nearRoad ? 0.5 : 0;
-      if (nearRoad && this.patrolIn <= 0 && alive && ![...this.camps.values()].some((c) => c.camp.patrol)) {
+      const band = () => {
         const dir = this.rand() < 0.75 ? 1 : -1; // most come south from the Black Gate
-        this.spawnPatrol(p.z - dir * 190, dir);
+        const z = p.z - dir * 190;
+        return { dir, ...patrolRoster(dangerTier(haradRoadX(z) - 60, z), this.rand, this.api.renown?.() ?? 0) };
+      };
+      if (nearRoad && this.patrolIn <= 5) this.nextPatrol ??= band(); // chosen early, to be made ready
+      if (nearRoad && this.patrolIn <= 0 && alive && ![...this.camps.values()].some((c) => c.camp.patrol)) {
+        const next = this.nextPatrol ?? band();
+        this.nextPatrol = null;
+        this.spawnPatrol(p.z - next.dir * 190, next.dir, next);
         this.patrolIn = 50 + this.rand() * 70;
       }
+      if (this.nextPatrol) soon.push(this.nextPatrol.list);
+      this.plan(soon);
     }
     const atHome = Math.hypot(p.x - HA.x, p.z - HA.z) < REFUGE - 10; // they will not come near the falls
     // Those on the chase rouse anyone at rest they pass near (CHASE.rouse; no

@@ -56,7 +56,8 @@ When a decision is unclear, choose the option that serves these, in this order:
   Nothing slow may run whole in one frame while the ranger moves: land coming
   into range (a chunk's ground and plants, a grass tile) is built by generators
   that yield every row (`util/slice.js`), a couple of milliseconds a frame
-  (`buildMs`), and all at once only while loading or after a teleport.
+  (`buildMs`), and all at once only while loading or after a teleport. Enemy
+  figures for the companies about to be met are made ahead the same way.
   Anything with a swaying material must be built about its own base, not where it
   stands in the world. Check draw calls and triangle count (the `?debug` overlay,
   `?bench`, whose running stretches count the slow frames) when adding content;

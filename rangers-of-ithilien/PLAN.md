@@ -1152,6 +1152,15 @@ moving.
   8 to 1 in the deep woods and from 5 to 0 in the old fields; on medium from 5 to 1
   and 3 to 0. The building keeps up: no chunk went missing nearer than 497 m (of
   500) and no fine grass nearer than 58.6 m (of 60).
+- **A camp's company is made ahead.** Each figure took 2-3 ms to make (an eight-
+  strong camp about 20 ms in one frame, the one long frame left in the runs). Now
+  the figures for the camps between 120 and 200 m (and for the next band on the
+  road, chosen five seconds before it comes) are made a part a frame, under a
+  millisecond, and the company takes them when it is met (`plan`, `prepare` and
+  `figureFor` in entities/enemies.js; `figureSteps` in figure.js). After a teleport,
+  a company in reach is still made at once.
+- With the CPU slowed five times, no frame in either run now passes 33 ms; the
+  slowest were 30 and 19 ms (high).
 - `?bench` ends with two 15 s runs (deep woods and old fields) and reports the
   slowest frames and how many passed 25 and 33 ms.
 - A web worker was considered and left: the placement code reads state that
@@ -1176,9 +1185,6 @@ moving.
 - Before v0.7.1, high ran at about 40 fps on an iPhone with dips into the 20s and
   medium steady at about 50. v0.7.1 runs both at about 18 ms a frame there (bound
   by pixels: `minPixelRatio` is the lever if it is ever slow).
-- A camp's company is built all at once when the ranger comes in reach of it
-  (`spawnCamp`: each figure's geometry made fresh): about 27 ms on the laptop, the
-  one long frame left in the runs (about 150 ms with the CPU slowed five times).
 - Leaf cards are alpha-tested, so the GPU shades every layer of them; on a large
   screen that overdraw is the biggest cost left. MSAA costs about a quarter of the
   frame at 5K (high draws at twice the pixels with 4x MSAA).
