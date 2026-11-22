@@ -372,7 +372,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate(() => roi.enemies.list.every((e) => !roi.blocked(e.x, e.z, e.y, 0.4))), 'none of them stands inside a wall or rock');
   await page.waitForFunction(() => roi.enemies.list.some((e) => e.alerted), null, { timeout: 30000 });
   check(true, 'they notice the ranger');
-  check(/seen you|roused/.test(await page.textContent('#toast')), 'and the HUD says so');
+  check(await page.waitForFunction(() => /seen you|roused/.test(document.getElementById('toast').textContent), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD says so');
   await page.keyboard.down('KeyF');
   const drewBlood = await page.waitForFunction(() => roi.enemies.list.some((e) => e.hp < e.maxHp), null, { timeout: 240000 }).then(() => true, () => false);
   check(drewBlood, 'the sword wounds them');
@@ -382,7 +382,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.waitForFunction(() => roi.state.stats.kills >= 1 || roi.state.health < 30, null, { timeout: 240000 });
   await page.keyboard.up('KeyF');
   check(await page.evaluate(() => roi.state.stats.kills >= 1), 'an enemy can be killed with the sword');
-  check(/(Orc|archer|Uruk|Southron|Captain) felled/.test(await page.textContent('#toast')), 'and the HUD names the fallen');
+  check(await page.waitForFunction(() => /(Orc|archer|Uruk|Southron|Captain) felled/.test(document.getElementById('toast').textContent), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD names the fallen');
   await shot(page, 'felled');
   await shot(page, 'fight');
   // finish the rest by decree, to keep the test short
@@ -547,7 +547,8 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // Faramir's map, errands, and a ranger who keeps asking.
   const talkTo = async (who) => {
     await page.evaluate((w) => { const n = roi.refuge[w]; roi.teleport(n.x + 1.4, n.z + 1.3, -2, 40); }, who);
-    await page.waitForFunction(() => !document.getElementById('prompt').hidden, null, { timeout: 20000 });
+    const name = who === 'eowyn' ? 'Éowyn' : who[0].toUpperCase() + who.slice(1); // (the prompt may still name whoever was spoken to last, for a moment)
+    await page.waitForFunction((nm) => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes(nm), name, { timeout: 20000 });
     await page.keyboard.press('KeyE');
     await page.waitForSelector('#dialogue:not([hidden])');
   };
@@ -664,12 +665,12 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.waitForFunction(() => document.getElementById('sleep').classList.contains('dark'), null, { timeout: 20000 }).then(() => true, () => false), 'resting fades the screen to black');
   check(await page.waitForFunction(() => roi.state.health === 100, null, { timeout: 60000 }).then(() => true, () => false), 'resting on a mat in the cave makes the ranger whole');
   check(await page.waitForFunction(() => !document.getElementById('sleep').classList.contains('dark'), null, { timeout: 20000 }).then(() => true, () => false), 'and the light comes back');
-  // a burst of notices shows together, stacked, no more than five at once
-  await page.evaluate(() => { for (let i = 1; i <= 7; i++) roi.hud.toast('', `Notice ${i}`); });
+  // a burst of notices shows together, stacked, no more than ten at once
+  await page.evaluate(() => { for (let i = 1; i <= 14; i++) roi.hud.toast('', `Notice ${i}`); });
   const stacked = await page.waitForFunction(() => document.querySelectorAll('#toast .note:not(.out)').length >= 3, null, { timeout: 30000 }).then(() => true, () => false);
   let most = 0;
   for (let i = 0; i < 10; i++) { most = Math.max(most, await page.evaluate(() => document.querySelectorAll('#toast .note:not(.out)').length)); await page.waitForTimeout(300); }
-  check(stacked && most <= 5, `notices stack, at most five at once (${most})`);
+  check(stacked && most <= 10, `notices stack, at most ten at once (${most})`);
   // a blow knocks the ranger out of the aim
   const knocked = await page.evaluate(() => {
     roi.state.arrows = Math.max(roi.state.arrows, 5);

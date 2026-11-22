@@ -115,8 +115,10 @@ export class Hud {
    * seen you!"). The newest is at the bottom; each fades after a few seconds.
    */
   callout(text, kind = '') {
-    // (since v0.7 these go up the same stack as every other notice, in their own colours)
-    this.toast('', text, kind || 'fight', 3);
+    // (since v0.7 these go up the same stack as every other notice, in their own colours;
+    // they are news of the moment, so they go to the front of the queue and show at once)
+    this.queue.unshift({ big: '', small: text, kind: kind || 'fight', life: 3 });
+    this.toastTimer = 0;
   }
 
   /** A word by the aiming mark when a chosen shot tells. */

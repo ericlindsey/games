@@ -260,7 +260,7 @@ async function boot() {
   function provinceNews(pid, before, after) {
     const name = provinceById[pid].name;
     if (after.freed && !before.freed) {
-      hud.toast(`${name} is free`, `The hold is broken and the land is ours again. Faramir will want to hear it from you${settlementIn(pid) ? ', and Éowyn can send for its settlers' : ''}.`, 'great');
+      hud.toast(`${name} is free`, `The hold is broken and the land is ours again. Faramir will want to hear it from you${settlementIn[pid] ? ', and Éowyn can send for its settlers' : ''}.`, 'great');
       settle(); // (a farm promised to a family is lived in now)
     } else if (after.holdCleared && !before.holdCleared) {
       const left = after.need - after.cleared;
