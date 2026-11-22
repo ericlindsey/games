@@ -10,7 +10,7 @@ import { regionWeights } from './regions.js';
 const _w = {};
 import { HA } from './layout.js';
 import { noise2 } from '../util/noise.js';
-import { buildVegetation, assignVegetation, setLodRanges } from './vegetation.js';
+import { buildVegetation, VegetationField } from './vegetation.js';
 import { setChunkCircles, removeChunkCircles } from './collision.js';
 import { surfaceMaterial, SURF, surfaceSettings, surfaceUniforms } from './surface.js';
 import { materials } from './build.js';
@@ -128,7 +128,7 @@ export class Ground {
     this.chunks = new Map();
     this.hole = new THREE.Vector3(0, 0, 0); // x, z, radius
     this.material = surfaceMaterial({ kind: SURF.ground });
-    setLodRanges(quality);
+    this.field = new VegetationField(scene, quality); // every plant in the loaded chunks
     // herbs and small stones shrink away toward the edge of where they are shown
     for (const m of [materials.herb, materials.rockCover]) m.userData.surf.uFade.value.set(quality.coverFar * 0.68, quality.coverFar - 1);
 
@@ -164,7 +164,7 @@ export class Ground {
 
   setQuality(quality) {
     this.quality = quality;
-    setLodRanges(quality);
+    this.field.setQuality(quality);
     for (const key of [...this.chunks.keys()]) this.dropChunk(key);
   }
 
@@ -187,8 +187,7 @@ export class Ground {
       }
     }
     const veg = buildVegetation(cx, cz, this.quality);
-    for (const m of veg.meshes) group.add(m);
-    assignVegetation(veg.groups, px, pz, this.quality);
+    this.field.add(key, veg.groups);
     setChunkCircles(key, veg.circles);
     this.scene.add(group);
     this.chunks.set(key, { group, cx, cz, veg: veg.groups });
@@ -198,7 +197,8 @@ export class Ground {
     const ch = this.chunks.get(key);
     if (!ch) return;
     this.scene.remove(ch.group);
-    for (const m of ch.group.children) { if (m.isInstancedMesh) m.dispose(); else m.geometry.dispose(); }
+    for (const m of ch.group.children) m.geometry.dispose();
+    this.field.remove(key);
     removeChunkCircles(key);
     this.chunks.delete(key);
   }
@@ -248,11 +248,8 @@ export class Ground {
       missing++;
       holeR = Math.min(holeR, wnt.d);
     }
-    // every few metres walked, each plant takes the form its distance calls for
-    if (!this.lodAt || Math.hypot(px - this.lodAt.x, pz - this.lodAt.z) > 2.5) {
-      this.lodAt = { x: px, z: pz };
-      for (const ch of this.chunks.values()) assignVegetation(ch.veg, px, pz, this.quality);
-    }
+    // every few metres walked (or a turn of the camera), each plant in view takes the form its distance calls for
+    if (this.field.update(px, pz)) this.lodAt = this.field.at;
     const dropR = this.quality.loadRadius + CHUNK.size * 1.5;
     for (const [key, ch] of this.chunks) {
       const dx = (ch.cx + 0.5) * CHUNK.size - px, dz = (ch.cz + 0.5) * CHUNK.size - pz;

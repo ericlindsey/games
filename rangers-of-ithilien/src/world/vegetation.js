@@ -6,6 +6,7 @@ import { hash2 } from '../util/noise.js';
 import { WORLD, CHUNK } from '../config.js';
 import { GeoBuilder, materials, SURF } from './build.js';
 import { ATLAS, surfaceUniforms } from './surface.js';
+import { SUN_DIR, SHADOW_HALF } from './atmosphere.js';
 import { addRock } from './rocks.js';
 import { heightAt, slopeAt, streamDistance } from './terrain.js';
 import { regionWeights } from './regions.js';
@@ -169,6 +170,11 @@ function define(name, trunkR, build, opts = {}) {
     hi, mid: sameMid ? hi : geo('hi', true), lo: opts.cover ? hi : geo('lo'), geometry: hi, trunk: trunkR,
     material: opts.material ?? materials.tree, shadow: opts.shadow !== false, cover: !!opts.cover, sameMid, cls,
   };
+  // how far it spreads from its trunk and how tall it stands (for culling plant by plant)
+  hi.computeBoundingBox();
+  const bb = hi.boundingBox;
+  sp.reach = Math.max(-bb.min.x, bb.max.x, -bb.min.z, bb.max.z);
+  sp.top = bb.max.y;
   // Mark each form, so the shader can fade one into the next (surface.js).
   if (cls !== 'cover') {
     const mark = (g, form) => { const n = g.attributes.position.count, a = new Float32Array(n * 2); for (let i = 0; i < n; i++) { a[i * 2] = form; a[i * 2 + 1] = cls === 'shrub' ? 1 : 0; } g.setAttribute('lod', new THREE.BufferAttribute(a, 2)); };
@@ -550,8 +556,8 @@ const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quatern
 const _up = new THREE.Vector3(0, 1, 0), _col = new THREE.Color();
 
 /**
- * Build the plants for one terrain chunk.
- * @returns {{ meshes: THREE.InstancedMesh[], circles: {x:number,z:number,r:number}[] }}
+ * Place the plants of one terrain chunk.
+ * @returns {{ groups: object[], circles: {x:number,z:number,r:number}[] }}
  */
 export function buildVegetation(cx, cz, quality) {
   const lists = {}; // species -> [x, y, z, rot, scale, tint r, g, b, tall]
@@ -663,13 +669,13 @@ export function buildVegetation(cx, cz, quality) {
     }
   }
 
-  // Each species gets a mesh for each of its forms; which instance goes in which
-  // is settled by distance from the ranger (assignVegetation), tree by tree.
-  const meshes = [], groups = [];
+  // Each species' plants as plain arrays: where each stands (its matrix), its tint,
+  // and how far it reaches and how tall it stands. The VegetationField draws them.
+  const groups = [];
   for (const name in lists) {
     const a = lists[name], n = a.length / 9, sp = SPECIES[name];
-    const mats = new Float32Array(n * 16), cols = new Float32Array(n * 3), xs = new Float32Array(n), zs = new Float32Array(n);
-    let cx0 = 0, cz0 = 0;
+    const mats = new Float32Array(n * 16), cols = new Float32Array(n * 3), xs = new Float32Array(n), ys = new Float32Array(n), zs = new Float32Array(n);
+    const rs = new Float32Array(n), hs = new Float32Array(n);
     for (let i = 0; i < n; i++) {
       const o = i * 9;
       _p.set(a[o], a[o + 1], a[o + 2]);
@@ -677,72 +683,268 @@ export function buildVegetation(cx, cz, quality) {
       _s.set(a[o + 4], a[o + 4] * a[o + 8], a[o + 4]);
       _m.compose(_p, _q, _s).toArray(mats, i * 16);
       cols[i * 3] = a[o + 5]; cols[i * 3 + 1] = a[o + 6]; cols[i * 3 + 2] = a[o + 7];
-      xs[i] = a[o]; zs[i] = a[o + 2]; cx0 += a[o] / n; cz0 += a[o + 2] / n;
+      xs[i] = a[o]; ys[i] = a[o + 1]; zs[i] = a[o + 2];
+      rs[i] = sp.reach * a[o + 4]; hs[i] = sp.top * a[o + 4] * a[o + 8];
     }
-    let rad = 0, cy = 0;
-    for (let i = 0; i < n; i++) { rad = Math.max(rad, Math.hypot(xs[i] - cx0, zs[i] - cz0)); cy += a[i * 9 + 1] / n; }
-    const sphere = new THREE.Sphere(new THREE.Vector3(cx0, cy + 15, cz0), rad + 40);
-    const forms = sp.cls === 'cover' ? ['hi'] : ['hi', 'mid', 'lo'];
-    const ms = forms.map((f, k) => {
-      const m = new THREE.InstancedMesh(sp[f], sp.material, n);
-      m.setColorAt(0, _col.setRGB(1, 1, 1)); // makes the colour buffer
-      m.count = 0;
-      m.boundingSphere = sphere;
-      m.castShadow = sp.shadow && quality.shadows && k < 2;
-      m.receiveShadow = !sp.cover && quality.shadows;
-      m.userData.species = name;
-      meshes.push(m);
-      return m;
-    });
-    groups.push({ sp, n, mats, cols, xs, zs, meshes: ms });
+    groups.push({ name, sp, n, mats, cols, xs, ys, zs, rs, hs });
   }
-  return { meshes, circles, groups };
+  return { groups, circles };
 }
 
 /**
- * Put each plant in its near, middle or far form by its own distance from
- * (px, pz). Near each change of form it is put in both, and the shader shows
- * each in a share of a dither that shifts across the band (surface.js), so one
- * form fades into the other. Plants are sorted again every few metres walked,
- * so the slack keeps the shader's band (reckoned from where the ranger is now)
- * inside the one sorted for. Ground cover shows only near. Ranges come from
- * the quality setting.
+ * Plants change form by their own distance from the ranger: in full nearer than
+ * treeNear (great trees) or shrubNear (the rest), a lighter form out to treeMid /
+ * shrubMid, and a far form beyond. Near each change of form a plant is put in
+ * both, and the shader shows each in a share of a dither that shifts across the
+ * band (surface.js), so one form fades into the other. Plants are sorted again
+ * every few metres walked, so the slack keeps the shader's band (reckoned from
+ * where the ranger is now) inside the one sorted for. Ground cover shows only
+ * near. Ranges come from the quality setting.
  */
-const LOD_BAND = 6, LOD_SLACK = LOD_BAND + 3.5; // (sorted again every 2.5 m walked: terrainMesh.js)
+const LOD_BAND = 6, LOD_SLACK = LOD_BAND + 3.5; // (sorted again every 2.5 m walked)
+const RESORT = 2.5;
 export function setLodRanges(q) {
   surfaceUniforms.uLodTree.value.set(q.treeNear, q.treeMid);
   surfaceUniforms.uLodShrub.value.set(q.shrubNear, q.shrubMid);
   surfaceUniforms.uLodBand.value = LOD_BAND;
 }
-export function assignVegetation(groups, px, pz, q) {
-  const S = LOD_SLACK;
-  for (const g of groups) {
-    const cls = g.sp.cls, same = g.sp.sameMid;
-    const r0 = cls === 'tree' ? q.treeNear : cls === 'cover' ? q.coverFar : q.shrubNear;
-    const r1 = cls === 'tree' ? q.treeMid : cls === 'cover' ? -1 : q.shrubMid;
-    const counts = [0, 0, 0];
-    const arrays = g.meshes.map((m) => m.instanceMatrix.array), colours = g.meshes.map((m) => m.instanceColor.array);
-    const put = (lv, i) => {
-      const k = counts[lv]++;
-      arrays[lv].set(g.mats.subarray(i * 16, i * 16 + 16), k * 16);
-      colours[lv].set(g.cols.subarray(i * 3, i * 3 + 3), k * 3);
-    };
-    for (let i = 0; i < g.n; i++) {
-      const d = Math.hypot(g.xs[i] - px, g.zs[i] - pz);
-      if (r1 < 0) { if (d < r0) put(0, i); continue; }
-      if (same) { if (d < r1 + S) put(0, i); } // stone: one shape near and middle
-      else {
-        if (d < r0 + S) put(0, i);
-        if (d > r0 - S && d < r1 + S) put(1, i);
-      }
-      if (d > r1 - S) put(2, i);
+
+// The sun's shadow camera, as atmosphere.js sets it: a square SHADOW_HALF either
+// side of the ranger, seen from the sun. Its axes, to tell what falls inside it.
+const _lz = SUN_DIR.clone(), _lx = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), _lz).normalize(), _ly = new THREE.Vector3().crossVectors(_lz, _lx);
+const LX = [_lx.x, _lx.y, _lx.z], LY = [_ly.x, _ly.y, _ly.z];
+
+/**
+ * Every plant in the loaded chunks, drawn as one instanced mesh per species and
+ * form for the whole land (not one per chunk: a few dozen draw calls, not
+ * hundreds). Which plants go in is settled plant by plant, each time the ranger
+ * has walked a few metres or the camera has turned far: those in the camera's
+ * view (a wedge round where it looks, wider than the picture, so a turn can be
+ * made without filling again), in the form their distance calls for. Those that
+ * cast shadows go, besides, into a mesh drawn only into the shadow map (shown
+ * just while it is drawn: `shadowPass`), if they stand where the shadow map
+ * reaches, wherever the camera looks (a tree behind the camera shades the
+ * ground in front of it).
+ */
+export class VegetationField {
+  constructor(scene, quality) {
+    this.scene = scene;
+    this.chunks = new Map();  // key -> groups
+    this.sets = new Map();    // species name -> { sp, view: [mesh per form], shade: [mesh per form] }
+    this.at = null;           // where the plants were last sorted { x, z }
+    this.cone = null;         // the view they were last culled for
+    this.dirty = true;
+    this.camera = null;
+    this.margin = 0.45;       // radians either side of the picture that are filled too
+    this.fills = 0;
+    this.setQuality(quality);
+  }
+
+  setQuality(q) {
+    this.q = q;
+    setLodRanges(q);
+    for (const set of this.sets.values()) for (const m of [...set.view, ...set.shade]) if (m) { this.scene.remove(m); m.dispose(); }
+    this.sets.clear();
+    this.dirty = true;
+  }
+
+  add(key, groups) {
+    // the circle round the chunk's plants and how far they reach, to pass over a whole chunk out of sight at once
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, reach = 0, top = 0, y = 0, n = 0;
+    for (const g of groups) for (let i = 0; i < g.n; i++) {
+      x0 = Math.min(x0, g.xs[i]); x1 = Math.max(x1, g.xs[i]); z0 = Math.min(z0, g.zs[i]); z1 = Math.max(z1, g.zs[i]);
+      reach = Math.max(reach, g.rs[i]); top = Math.max(top, g.hs[i]); y += g.ys[i]; n++;
     }
-    g.meshes.forEach((m, k) => {
-      m.count = counts[k];
-      m.visible = counts[k] > 0;
-      m.instanceMatrix.needsUpdate = true;
-      m.instanceColor.needsUpdate = true;
-    });
+    groups.bound = n ? { x: (x0 + x1) / 2, z: (z0 + z1) / 2, y: y / n, r: Math.hypot(x1 - x0, z1 - z0) / 2 + reach, top } : null;
+    this.chunks.set(key, groups);
+    this.dirty = true;
+  }
+  remove(key) { if (this.chunks.delete(key)) this.dirty = true; }
+
+  /** All the meshes (for tools: what is drawn). */
+  meshes() { const out = []; for (const set of this.sets.values()) for (const m of [...set.view, ...set.shade]) if (m) out.push(m); return out; }
+
+  setOf(name, sp) {
+    let set = this.sets.get(name);
+    if (set) return set;
+    const forms = sp.cls === 'cover' ? 1 : 3;
+    set = { sp, name, forms, view: new Array(forms).fill(null), shade: new Array(forms).fill(null), n: [0, 0, 0], ns: [0, 0, 0] };
+    this.sets.set(name, set);
+    return set;
+  }
+
+  /** A mesh with room for `need` plants, keeping what is in it (grown by half again, so it seldom needs to be). */
+  room(set, shade, k, need) {
+    const list = shade ? set.shade : set.view, old = list[k];
+    if (old && old.instanceMatrix.count >= need) return old;
+    const cap = Math.max(64, Math.ceil(need * 1.5));
+    const sp = set.sp, geo = sp[['hi', 'mid', 'lo'][k]];
+    const m = new THREE.InstancedMesh(geo, sp.material, cap);
+    if (!shade) m.setColorAt(0, _col.setRGB(1, 1, 1)); // makes the colour buffer
+    m.count = 0;
+    m.frustumCulled = false; // culled here, plant by plant
+    m.userData.species = set.name;
+    m.userData.form = sp.cls === 'cover' ? 'cover' : sp.sameMid && k === 0 ? 'stone' : ['near', 'mid', 'far'][k];
+    if (shade) { m.castShadow = true; m.receiveShadow = false; m.visible = false; m.userData.shade = true; }
+    else { m.castShadow = false; m.receiveShadow = !sp.cover && !!this.q.shadows; }
+    if (old) {
+      m.instanceMatrix.array.set(old.instanceMatrix.array.subarray(0, (shade ? set.ns : set.n)[k] * 16));
+      if (!shade) m.instanceColor.array.set(old.instanceColor.array.subarray(0, set.n[k] * 3));
+      this.scene.remove(old);
+      old.dispose();
+    }
+    this.scene.add(m);
+    list[k] = m;
+    return m;
+  }
+
+  /** The wedge of ground the camera can see, widened by `margin`, from its position and aim. */
+  coneOf(camera, margin) {
+    if (!camera) return null;
+    const e = camera.matrixWorld.elements;
+    const fx = -e[8], fy = -e[9], fz = -e[10]; // where it looks
+    const flat = Math.hypot(fx, fz);
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2), tanH = tanV * camera.aspect;
+    const sinP = Math.abs(fy), cosP = flat;
+    const den = cosP - tanV * sinP;
+    if (flat < 1e-3 || den < 0.05) return { x: e[12], z: e[14], all: true };
+    const half = Math.atan(tanH / den);
+    return { x: e[12], z: e[14], fx: fx / flat, fz: fz / flat, half, cover: half + margin };
+  }
+
+  /**
+   * Fill the meshes again if the ranger has walked far enough, the chunks have
+   * changed, or the camera has turned or moved out of what was filled.
+   */
+  update(px, pz) {
+    const at = this.at, now = this.coneOf(this.camera, 0);
+    let need = this.dirty || !at || Math.hypot(px - at.x, pz - at.z) > RESORT;
+    const c = this.cone;
+    if (!need && now && c && !c.all) {
+      if (now.all) need = true;
+      else {
+        const turned = Math.acos(THREE.MathUtils.clamp(now.fx * c.fx + now.fz * c.fz, -1, 1));
+        need = turned + now.half > c.cover || Math.hypot(now.x - c.x, now.z - c.z) > 4;
+      }
+    } else if (!need && now && !c) need = true;
+    if (need) this.fill(px, pz);
+    return need;
+  }
+
+  fill(px, pz) {
+    this.dirty = false;
+    this.at = { x: px, z: pz };
+    this.fills++;
+    const q = this.q, S = LOD_SLACK, cone = (this.cone = this.coneOf(this.camera, this.margin));
+    // the wedge as two half-planes through the camera, each with its inward normal
+    let all = !cone || cone.all || cone.cover > 1.45, ax = 0, az = 0, n1x = 0, n1z = 0, n2x = 0, n2z = 0;
+    if (!all) {
+      const phi = Math.atan2(cone.fz, cone.fx), A = cone.cover;
+      ax = cone.x; az = cone.z;
+      n1x = Math.cos(phi + A - Math.PI / 2); n1z = Math.sin(phi + A - Math.PI / 2);
+      n2x = Math.cos(phi - A + Math.PI / 2); n2z = Math.sin(phi - A + Math.PI / 2);
+    }
+    const NEAR = 12; // anything this near the camera is filled whichever way it looks
+    // the shadow square, centred where atmosphere.js centres it
+    const shadows = !!q.shadows, tx = Math.round(px), tz = Math.round(pz), ty = Math.round(heightAt(px, pz)), H = SHADOW_HALF + 4;
+    for (const set of this.sets.values()) { set.n.fill(0); set.ns.fill(0); }
+    for (const groups of this.chunks.values()) {
+      const b = groups.bound;
+      if (!b) continue;
+      if (!all) { // a whole chunk out of the view and the shadow map is passed over
+        const vx = b.x - ax, vz = b.z - az;
+        const inView = vx * vx + vz * vz < (NEAR + b.r) ** 2 || (vx * n1x + vz * n1z > -b.r && vx * n2x + vz * n2z > -b.r);
+        let inShade = false;
+        if (shadows && !inView) {
+          const dx = b.x - tx, dy = b.y - ty, dz = b.z - tz;
+          const lx = dx * LX[0] + dy * LX[1] + dz * LX[2], ly = dx * LY[0] + dy * LY[1] + dz * LY[2];
+          inShade = Math.abs(lx) < H + b.r + 20 && ly < H + b.r + 20 && ly + b.top * LY[1] > -H - b.r - 20;
+        }
+        if (!inView && !inShade) continue;
+      }
+      for (const g of groups) {
+        const sp = g.sp, set = this.setOf(g.name, sp), cls = sp.cls, same = sp.sameMid, casts = shadows && sp.shadow;
+        const r0 = cls === 'tree' ? q.treeNear : cls === 'cover' ? q.coverFar : q.shrubNear;
+        const r1 = cls === 'tree' ? q.treeMid : cls === 'cover' ? -1 : q.shrubMid;
+        const { xs, ys, zs, rs, hs, mats, cols } = g;
+        for (let i = 0; i < g.n; i++) {
+          const x = xs[i], z = zs[i], d = Math.hypot(x - px, z - pz);
+          // which forms it is drawn in (bit k: form k)
+          let forms = 0;
+          if (r1 < 0) { if (d < r0) forms = 1; }
+          else {
+            if (same) { if (d < r1 + S) forms |= 1; }
+            else { if (d < r0 + S) forms |= 1; if (d > r0 - S && d < r1 + S) forms |= 2; }
+            if (d > r1 - S) forms |= 4;
+          }
+          if (!forms) continue;
+          const r = rs[i];
+          let seen = all;
+          if (!seen) {
+            const vx = x - ax, vz = z - az;
+            seen = (vx * vx + vz * vz < (NEAR + r) * (NEAR + r)) || (vx * n1x + vz * n1z > -r && vx * n2x + vz * n2z > -r);
+          }
+          let shade = false;
+          if (casts && (forms & 3)) {
+            const dx = x - tx, dy = ys[i] - ty, dz = z - tz;
+            const lx = dx * LX[0] + dy * LX[1] + dz * LX[2];
+            if (lx < H + r && lx > -H - r) {
+              const ly = dx * LY[0] + dy * LY[1] + dz * LY[2], top = ly + hs[i] * LY[1];
+              shade = Math.max(ly, top) > -H - r && Math.min(ly, top) < H + r;
+            }
+          }
+          if (!seen && !shade) continue;
+          for (let k = 0; k < 3; k++) {
+            if (!(forms & (1 << k))) continue;
+            if (seen) {
+              const m = this.room(set, false, k, set.n[k] + 1), j = set.n[k]++;
+              const dst = m.instanceMatrix.array, o = j * 16, s = i * 16;
+              for (let t = 0; t < 16; t++) dst[o + t] = mats[s + t];
+              const dc = m.instanceColor.array;
+              dc[j * 3] = cols[i * 3]; dc[j * 3 + 1] = cols[i * 3 + 1]; dc[j * 3 + 2] = cols[i * 3 + 2];
+            }
+            if (shade && k < 2) {
+              const m = this.room(set, true, k, set.ns[k] + 1), j = set.ns[k]++;
+              const dst = m.instanceMatrix.array, o = j * 16, s = i * 16;
+              for (let t = 0; t < 16; t++) dst[o + t] = mats[s + t];
+            }
+          }
+        }
+      }
+    }
+    for (const set of this.sets.values()) {
+      for (let k = 0; k < set.forms; k++) {
+        for (const [m, n] of [[set.view[k], set.n[k]], [set.shade[k], set.ns[k]]]) {
+          if (!m) continue;
+          m.count = n;
+          if (!m.userData.shade) m.visible = n > 0;
+          if (!n) continue;
+          m.instanceMatrix.clearUpdateRanges(); m.instanceMatrix.addUpdateRange(0, n * 16); m.instanceMatrix.needsUpdate = true;
+          if (m.instanceColor) { m.instanceColor.clearUpdateRanges(); m.instanceColor.addUpdateRange(0, n * 3); m.instanceColor.needsUpdate = true; }
+        }
+      }
+    }
+  }
+
+  /**
+   * Show the shadow casters (while the shadow map is drawn) or hide them again.
+   * The view's list of what to draw is made before the shadow map, so they never reach the view.
+   */
+  shadowPass(on) {
+    for (const set of this.sets.values()) for (let k = 0; k < set.forms; k++) { const m = set.shade[k]; if (m) m.visible = on && set.ns[k] > 0; }
+  }
+
+  /** Which forms the plant at (x, z) of a species is drawn in now: [near, middle, far] (for tests). */
+  formsAt(name, x, z) {
+    const set = this.sets.get(name), out = [false, false, false];
+    if (!set) return out;
+    for (let k = 0; k < set.forms; k++) {
+      const m = set.view[k];
+      if (!m) continue;
+      const a = m.instanceMatrix.array;
+      for (let j = 0; j < set.n[k]; j++) if (a[j * 16 + 12] === x && a[j * 16 + 14] === z) { out[k] = true; break; }
+    }
+    return out;
   }
 }
 

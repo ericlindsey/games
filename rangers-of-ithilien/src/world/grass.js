@@ -87,8 +87,8 @@ export class Grass {
     this.tiles = new Map();
     // Near: thick clumps of fine blades. Beyond: fewer, broader clumps that fade
     // in as the fine ones fade out, so the field thins with distance, never pops.
-    this.near = { material: surfaceMaterial({ kind: SURF.leaf, wind: 0.12, fade: [10, 20] }), geometry: clumpGeometry(5, 3, 0.05) };
-    this.far = { material: surfaceMaterial({ kind: SURF.leaf, wind: 0.08, fade: [10, 20] }), geometry: clumpGeometry(4, 2, 0.09) };
+    this.near = { material: surfaceMaterial({ kind: SURF.leaf, wind: 0.12, fade: [10, 20], lod: false }), geometry: clumpGeometry(5, 3, 0.05) };
+    this.far = { material: surfaceMaterial({ kind: SURF.leaf, wind: 0.08, fade: [10, 20], lod: false }), geometry: clumpGeometry(4, 2, 0.09) };
     this.setQuality(quality);
   }
 

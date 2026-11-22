@@ -46,12 +46,17 @@ When a decision is unclear, choose the option that serves these, in this order:
 - **Performance budget**: 60 fps on a laptop, 30 fps on a recent phone. Use
   fog to bound view distance, `InstancedMesh` for vegetation, chunked terrain, and a
   capped device pixel ratio (lowered by steps while the frame rate sags). Plants
-  have a near, a middle and a far form, chosen tree by tree by distance
-  (`assignVegetation`), fading from one to the next in a dither; ground cover and
-  grass draw only near and shrink away with distance. Anything with a swaying
-  material must be built about its own base, not where it stands in the world. Check draw
-  calls and triangle count (the `?debug` overlay) when adding content; `high` runs
-  about 2 to 2.5 million triangles in the woods.
+  have a near, a middle and a far form, chosen tree by tree by distance, fading
+  from one to the next in a dither; ground cover and grass draw only near and
+  shrink away with distance. Every plant is drawn through one mesh per species
+  and form for the whole land (`VegetationField`), culled plant by plant to the
+  camera's view; those that cast shadows are drawn into the shadow map from
+  their own meshes, only where it reaches. Draw calls cost a phone's browser as
+  much as triangles: do not add one mesh per thing where one per kind will do.
+  Anything with a swaying material must be built about its own base, not where it
+  stands in the world. Check draw calls and triangle count (the `?debug` overlay,
+  `?bench`) when adding content; `high` runs about 1.2 to 3 million triangles and
+  about 200 draw calls.
 
 ## Code layout
 
@@ -63,6 +68,7 @@ vendor/               three.module.min.js (pinned; see vendor/VERSION)
 src/
   main.js             boot, wiring, the game loop
   dev.js              the testing panel (loaded only by debug.html / ?dev)
+  bench.js            the frame-rate test (loaded only by ?bench / roi.bench())
   config.js           world size, seed, player and quality tunables
   data/               dialogue.js, quests.js, items.js, enemies.js (types and camp rosters): all pure data
   world/
@@ -81,7 +87,7 @@ src/
     groundColor.js    ground colour by place, height, slope (pure)
     collision.js      solids (boxes: wall + floor), circles (trunks), hollows (cave) (pure)
     terrainMesh.js    near chunks, far backdrop, far forest roof
-    vegetation.js     all plant species, per-chunk instancing
+    vegetation.js     all plant species, placed chunk by chunk; VegetationField draws them all (one mesh per species and form)
     water.js          the Anduin and stream ribbons
     atmosphere.js     sky, sun, fog; blight, under-canopy shade, cave dimming
     motes.js          drifting motes of light under the trees
@@ -115,7 +121,9 @@ tests/
   unit.test.js        pure logic (node --test)
   smoke.mjs           drives the real game in headless Chromium, desktop + phone
 tools/                for looking at changes: shoot.mjs (screenshots from views, before and
-                      after), perf.mjs (what is drawn where); views/*.json; common.mjs
+                      after), perf.mjs (what is drawn where); views/*.json; common.mjs;
+                      chrome.mjs (the game in this machine's Chrome, on its real GPU: --bench, --eval,
+                      --eval-file calls.js or costs.js, --shot)
 ```
 
 Files marked (pure) must not import Three.js or touch the DOM, so they run in Node tests.
@@ -297,7 +305,9 @@ python3 -m http.server 8000     # open http://localhost:8000
 3. For hands-on checking, open `debug.html`: it has its own save and shortcuts
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
-   the title, `?debug` shows the overlay, `?quality=low|medium|high`.
+   the title, `?debug` shows the overlay, `?quality=low|medium|high`,
+   `?tune=treeNear:150,grass:100` overrides quality settings, `?bench` runs the
+   frame-rate test.
    In the console, `roi.teleport(x, z, yaw)` moves the ranger (`roi.HA` and `roi.WORLD`
    give Henneth Annûn's layout and the world's size), `roi.lookFrom(x, y, z,
    ax, ay, az)` holds the camera at a point looking at another and `roi.follow(dx, dy,
@@ -316,9 +326,16 @@ python3 -m http.server 8000     # open http://localhost:8000
    [--ref origin/main]` reports triangles and draw calls at a few places, and what
    they are spent on (plants by form, grass, ground, farms, ruins, ...), in view
    and in the shadow map (which the renderer's own count leaves out).
-7. Headless Chromium renders in software (single-digit fps; on `high` a single
-   screenshot can take a minute), so it proves behaviour, not performance. Say so
-   rather than claiming a frame rate.
+7. Headless Chromium under Playwright renders in software (single-digit fps; on
+   `high` a single screenshot can take a minute), so it proves behaviour, not
+   performance. Say so rather than claiming a frame rate. On a machine with Google
+   Chrome and a GPU, `node tools/chrome.mjs --quality high --bench` runs the game
+   in that Chrome (headless, but on the real GPU, needing no packages) and times
+   it; `--size 2560x1440` for a big screen, `--url-extra "&tune=grass:100"` to try
+   a setting, `--eval-file tools/calls.js` for draw calls by kind, `tools/costs.js`
+   for time by kind. It needs a server on port 8765 (or `--serve`). On a laptop
+   high took 5.5 ms a frame at 2048x1536 in v0.7.1; a phone took about five times
+   as long as the laptop before it. `?bench` runs the same test on a phone.
 
 Add a check to `tests/smoke.mjs` for each new player-facing behaviour.
 Report what was checked and what was not.

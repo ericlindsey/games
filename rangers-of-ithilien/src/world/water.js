@@ -99,6 +99,21 @@ export function waterMaterial(color, normals, repeat, opacity, o = {}) {
   return m;
 }
 
+/** Join geometries with the same attributes (indexed) into one. */
+function mergeGeometries(list) {
+  const out = new THREE.BufferGeometry(), names = Object.keys(list[0].attributes), idx = [];
+  let base = 0;
+  for (const name of names) {
+    const size = list[0].attributes[name].itemSize, total = list.reduce((n, g) => n + g.attributes[name].array.length, 0), a = new Float32Array(total);
+    let o = 0;
+    for (const g of list) { a.set(g.attributes[name].array, o); o += g.attributes[name].array.length; }
+    out.setAttribute(name, new THREE.BufferAttribute(a, size));
+  }
+  for (const g of list) { for (const i of g.index.array) idx.push(i + base); base += g.attributes.position.count; g.dispose(); }
+  out.setIndex(idx);
+  return out;
+}
+
 export class Water {
   constructor(scene) {
     this.normals = waveNormals();
@@ -120,11 +135,12 @@ export class Water {
 
     // Streams: ribbons that follow the gullies cut by the terrain function.
     this.streamMaterial = waterMaterial(0x7fb4c2, this.normals, [0.6, 0.3], 0.74, { map: this.streaks, side: THREE.DoubleSide, wave: 0.8 });
+    const ribbons = []; // all drawn as one mesh
     for (const st of STREAMS) {
       const pts = [];
       let level = Infinity, clipStart = false;
       const flush = (clipEnd) => {
-        if (pts.length > 3) scene.add(this.ribbon(pts, HALF_WIDTH, { start: clipStart, end: clipEnd }));
+        if (pts.length > 3) ribbons.push(this.ribbon(pts, HALF_WIDTH, { start: clipStart, end: clipEnd }).geometry);
         pts.length = 0; clipStart = false;
       };
       let prev = null, prevIn = false;
@@ -154,6 +170,9 @@ export class Water {
       }
       flush(false);
     }
+    const streams = new THREE.Mesh(mergeGeometries(ribbons), this.streamMaterial);
+    streams.renderOrder = 2;
+    scene.add(streams);
 
     // The pools where streams rest in a hollow.
     const poolMaterial = waterMaterial(0x5f97a6, this.normals, [3, 3], 0.82, { map: this.ripples, wave: 0.4 });

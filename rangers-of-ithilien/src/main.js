@@ -56,12 +56,14 @@ async function boot() {
 
   const coarse = matchMedia('(pointer: coarse)').matches;
   const qualityName = params.get('quality') ?? state.settings.quality ?? (coarse ? 'medium' : 'high');
-  const quality = QUALITY[qualityName] ?? QUALITY.medium;
+  const quality = { ...(QUALITY[qualityName] ?? QUALITY.medium) };
+  // ?tune=grass:100,treeNear:150 overrides quality settings (for trying distances out)
+  for (const kv of (params.get('tune') ?? '').split(',').filter(Boolean)) { const [k, v] = kv.split(':'); quality[k] = v === 'true' ? true : v === 'false' ? false : Number(v); }
   surfaceSettings.lite = !!quality.liteSurfaces;
 
   // ---- renderer ----
   const canvas = $('view');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: qualityName !== 'low', powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality.antialias ?? qualityName !== 'low', powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, quality.pixelRatio));
   renderer.shadowMap.enabled = quality.shadows;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -85,6 +87,7 @@ async function boot() {
   const sharpness = { ratio: ratioMax, frames: 0, time: 0, slowFor: 0, quickFor: 0 };
   const pace = (elapsed) => {
     const sp = sharpness;
+    if (sp.hold) return; // the frame-rate test holds the picture at its sharpest
     if (elapsed > 0.25) { sp.frames = sp.time = 0; return; } // a stall (loading, a hidden tab): not the frame rate
     sp.frames++; sp.time += elapsed;
     if (sp.time < 1) return;
@@ -109,6 +112,11 @@ async function boot() {
   const atmosphere = new Atmosphere(scene, quality);
   label('sky');
   const ground = new Ground(scene, quality);
+  ground.field.camera = camera; // plants are culled to what it can see
+  { // the plants' shadow casters are shown only while the shadow map is drawn (vegetation.js)
+    const draw = renderer.shadowMap.render;
+    renderer.shadowMap.render = function (...a) { ground.field.shadowPass(true); draw.apply(this, a); ground.field.shadowPass(false); };
+  }
   await say('Filling the river…');
   const water = new Water(scene);
   label('water');
@@ -747,8 +755,16 @@ async function boot() {
     follow(dx, dy, dz, fov) { rig.hold(dx === null ? null : { offset: [dx, dy, dz], fov }); },
     hud, map, pack, trade, refreshHud, goHome, openPanel, store, trunkAt, haradRoadX, travelTo, travelPlaces, streams: STREAMS,
   };
+  api.qualityName = qualityName;
+  /** Hold the picture at its sharpest (true) or let it follow the frame rate again (false). */
+  api.holdResolution = (on) => {
+    sharpness.hold = on; sharpness.slowFor = sharpness.quickFor = 0;
+    if (on && sharpness.ratio !== ratioMax) { sharpness.ratio = ratioMax; renderer.setPixelRatio(ratioMax); resize(); }
+  };
+  api.bench = async (o) => (await import('./bench.js')).runBench(api, o);
   window.roi = api;
   if (dev) (await import('./dev.js')).attach(api);
+  if (params.has('bench')) setTimeout(() => api.bench(), 1500);
 }
 
 boot().catch((err) => {

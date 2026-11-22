@@ -302,6 +302,10 @@ Touch devices are detected by capability, not user agent; a device with both get
 - Device pixel ratio capped (2 on desktop, 1.5 on phones).
 - Three quality levels controlling view distance, vegetation density, and shadows
   (shadows off on low). Chosen automatically, changeable in the menu.
+- Draw calls matter as much as triangles in a phone's browser: plants are drawn
+  one mesh per species and form for the whole land, culled plant by plant.
+- `?bench` times seven fixed views on any device; `tools/chrome.mjs` runs it (or
+  anything else) in this machine's Chrome on its real GPU.
 - A debug overlay (toggle with a key) showing fps, draw calls, triangles, position,
   region, and danger tier.
 
@@ -1086,6 +1090,46 @@ Andros to Beechwell (640 m) and Heathwick's (880 m over the heath) may be long
 for a first escort; renown from told tasks is about what it was (Faramir about
 1,300, Éowyn about 600, the settlers' errands up to about 400 more).
 
+### v0.7.1: drawing faster, and further
+
+Measured for the first time on a real GPU (an M3 Pro laptop, through the
+machine's own Chrome: `tools/chrome.mjs`), with a frame-rate test that can be run
+on any device (`?bench`). Before: about 480 draw calls in view on high and as
+many again into the shadow map, at 5.2 ms a frame; medium 390 calls and 4.1 ms.
+
+- **Plants are drawn one mesh per species and form for the whole land**
+  (`VegetationField` in vegetation.js), not one per species, form and chunk:
+  a few dozen draw calls instead of several hundred. Which plants go in is
+  settled plant by plant when the ranger has walked 2.5 m or the camera has
+  turned or moved out of what was filled: those in a wedge round where the camera
+  looks (half again wider than the picture), in the form their distance calls
+  for. A refill takes under a millisecond on the laptop.
+- **Only what the shadow map covers is drawn into it**: plants that cast shadows
+  go besides into meshes drawn only into the shadow map (shown just while it is
+  drawn), and only if they stand inside the sun's square (`SHADOW_HALF`, 110 m),
+  wherever the camera looks. Before, every near and middle tree out to 330 m was
+  drawn into it: about 550 draw calls; now about 55, and half the triangles.
+- Camps beyond 700 m are not drawn (their smoke still shows); the streams are one
+  mesh, not forty.
+- The shader keeps its fading dither only for instanced plants (nothing else can
+  discard, which the GPU of a phone or a Mac needs to skip hidden surfaces); it
+  dithers first, and lays on the grain after the alpha test (nothing spent on the
+  clear part of a leaf card); the triplanar grain skips a face's lookups when it
+  barely faces that way.
+- **Everything reaches further.** High: full trees to 160 m (was 115), the middle
+  form to 460 (330), shrubs to 100 / 300 (70 / 220), herbs and flowers to 100 (72),
+  grass to 120 m with the fine blades to 60 (82 / 42), and chunks loaded to 500 m
+  (360). Medium: trees to 85 / 290 (62 / 210), shrubs 55 / 190 (40 / 140), herbs
+  75 (60), grass 80 / 40 (62 / 32), chunks to 340 (280).
+- After: high 208 calls in view and about 55 in the shadow map, 5.5 ms a frame
+  (about 2.1 million triangles); medium 178 and 4.2 ms, about what medium cost
+  before for a third further, with well under half the draw calls (which cost a
+  phone's browser most). At 5120x2880 (a full 5K screen) high takes 14.6 ms.
+  Not yet measured on a phone.
+- `?bench` (or `roi.bench()`) runs the frame-rate test: seven views, each timed
+  as played and drawn flat out, with draw calls and triangles; `?tune=grass:100,...`
+  overrides any quality setting for trying distances out.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -1101,9 +1145,15 @@ for a first escort; renown from told tasks is about what it was (Faramir about
 - Loot bags and a camp's dead are forgotten if you leave and return.
 - The blight changes sky, fog and light but not the colour of ground and plants.
 - Trees appear at the edge of the loaded radius without a fade.
-- Medium ran at 30-50 fps on an iPhone, dipping into the 20s in the deep woods,
-  before v0.3a's second round lightened it. If it is still slow, lower `grass`,
-  `treeNear` and `treeMid` in config.js, or `minPixelRatio`.
+- Before v0.7.1, high ran at about 40 fps on an iPhone with dips into the 20s and
+  medium steady at about 50. v0.7.1 cut the draw calls by three quarters and drew
+  everything further; it has not yet been timed on a phone (`?bench`). If it is
+  slow, lower `grass`, `treeNear` and `treeMid` in config.js, or `minPixelRatio`.
+- Building a chunk takes 10-15 ms on a laptop (several times that on a phone), all
+  at once on the main thread: a small hitch now and then as the ranger walks.
+- Leaf cards are alpha-tested, so the GPU shades every layer of them; on a large
+  screen that overdraw is the biggest cost left. MSAA costs about a quarter of the
+  frame at 5K (high draws at twice the pixels with 4x MSAA).
 - Arms bend only forward (no twist) except in a bow's draw, which sets them freely.
 - Field walls and houses are axis-aligned. Osgiliath is plain blocks.
 - **The old farms are the costliest thing drawn** in many places: 52 meshes, one

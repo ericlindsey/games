@@ -12,7 +12,9 @@ import { extname, join, normalize, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-export const { chromium } = createRequire(import.meta.url)('playwright');
+let playwright = null;
+try { playwright = createRequire(import.meta.url)('playwright'); } catch { /* not installed here: tools/chrome.mjs needs none */ }
+export const chromium = playwright?.chromium;
 export const GAME = fileURLToPath(new URL('..', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
 

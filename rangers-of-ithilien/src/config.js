@@ -37,10 +37,10 @@ export const PLAYER = {
 // Phones start on medium: a recent phone has the power for shadows and grass.
 export const QUALITY = {
   low:    { loadRadius: 200, fogFar: 2000, shadows: false, shadowMap: 0,    pixelRatio: 1.25, minPixelRatio: 1, trees: 0.8, under: 0.5, cover: 0.4, motes: 60,  terrainSegments: 40, treeNear: 45, treeMid: 160, shrubNear: 30, shrubMid: 110, coverFar: 40, grass: 40, grassNear: 22, grassSpacing: 0.95, liteSurfaces: true },
-  medium: { loadRadius: 280, fogFar: 2600, shadows: true,  shadowMap: 1024, pixelRatio: 2, minPixelRatio: 1.5, trees: 0.9, under: 0.8, cover: 0.7, motes: 120, terrainSegments: 80, treeNear: 62, treeMid: 210, shrubNear: 40, shrubMid: 140, coverFar: 60, grass: 62, grassNear: 32, grassSpacing: 0.76 },
-  high:   { loadRadius: 360, fogFar: 3200, shadows: true,  shadowMap: 2048, pixelRatio: 2, minPixelRatio: 1.5, trees: 1,   under: 1,   cover: 1,   motes: 200, terrainSegments: 80, treeNear: 115, treeMid: 330, shrubNear: 70, shrubMid: 220, coverFar: 72, grass: 82, grassNear: 42, grassSpacing: 0.62 },
+  medium: { loadRadius: 340, fogFar: 2600, shadows: true,  shadowMap: 1024, pixelRatio: 2, minPixelRatio: 1.5, trees: 0.9, under: 0.8, cover: 0.7, motes: 120, terrainSegments: 80, treeNear: 85, treeMid: 290, shrubNear: 55, shrubMid: 190, coverFar: 75, grass: 80, grassNear: 40, grassSpacing: 0.76 },
+  high:   { loadRadius: 500, fogFar: 3200, shadows: true,  shadowMap: 2048, pixelRatio: 2, minPixelRatio: 1.5, trees: 1,   under: 1,   cover: 1,   motes: 200, terrainSegments: 80, treeNear: 160, treeMid: 460, shrubNear: 100, shrubMid: 300, coverFar: 100, grass: 120, grassNear: 60, grassSpacing: 0.62 },
 };
 
-export const VERSION = '0.7';
+export const VERSION = '0.7.1';
 
 export const SAVE = { key: 'rangers-of-ithilien.save', version: 7, autosaveSeconds: 30 };
