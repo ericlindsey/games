@@ -286,8 +286,9 @@ async function boot() {
     },
   });
   /**
-   * The places the ranger can travel to from the map: home, and every old
-   * place (ruin) they have found. Each has a spot to arrive at on open ground.
+   * The places the ranger can travel to from the map: home, every old place
+   * (ruin) they have found, and every settlement lived in again. Each has a spot
+   * to arrive at on open ground.
    */
   const RUINS = [
     ...LANDMARKS.filter((l) => l.kind && !['crossroads', 'osgiliath', 'morgul'].includes(l.kind)).map((l) => ({ id: l.id, name: l.name, x: l.x, z: l.z, ax: l.x, az: l.z + (l.flat ?? 10) + 6 })),
@@ -296,6 +297,8 @@ async function boot() {
   const travelPlaces = () => [
     { id: 'home', name: 'Henneth Ann\u00fbn', x: HA.x - 14, z: HA.z, home: true },
     ...RUINS.filter((p) => state.discovered.includes(p.id)),
+    // and every place the settlers have made home: arrive on its green, clear of the houses
+    ...SETTLEMENTS.filter((t) => state.settled.includes(t.site)).map((t) => ({ id: 'site:' + t.site, name: t.name, x: t.x, z: t.z, ax: t.x + 3, az: t.z + 12 })),
   ];
   const travelTo = (p) => {
     if (enemies.inCombat()) { hud.toast('', 'Not while the enemy has seen you.'); return; }
@@ -543,6 +546,8 @@ async function boot() {
     for (const c of CAMPS) {
       const id = 'camp:' + c.id;
       if (has(id) || Math.hypot(p.x - c.x, p.z - c.z) > 45) continue;
+      // (a camp already roused, by an arrow from afar, is found without a word: the fight says enough)
+      if (enemies.list.some((e) => e.camp.id === c.id && e.alerted && !e.dead)) { found(id); continue; }
       found(id, 'An enemy camp', state.cleared.includes(c.id) ? 'Cleared, and mending.' : c.size === 3 ? 'A stockade, and a captain within. Think before you go in.' : 'They have not seen you yet.');
     }
     const herb = herbs.gatherAt(p.x, p.z);
@@ -579,7 +584,7 @@ async function boot() {
     if (action === 'interact' && target) target.use();
     else if (action === 'swap') combat.swap();
     else if (action === 'sword' || action === 'bow') combat.swap(action);
-    else if (action === 'heal') combat.heal();
+    else if (action === 'heal') combat.heal(!enemies.inCombat() && combat.sinceHurt > 3);
     else if (action === 'aim') combat.setAim(!combat.aim);
   };
   $('btn-map').onclick = () => input.onAction('map');
@@ -645,8 +650,12 @@ async function boot() {
   const buildMs = quality.buildMs ?? 2; // ms a frame for building new ground and plants, and 3/4 of that for grass
   let last = performance.now(), time = 0, slow = 0, autosave = 0, fps = 60, shade = 0, fpsCount = 0, fpsTime = 0;
   const province = { id: null, next: null, since: 0 }; // the province the ranger is in, for the notice on crossing a border
+  // what each frame costs this thread (the game's own work and handing the frame to the GPU), against
+  // the time between frames: if frames come slowly while the work is short, the wait is the GPU's (?debug)
+  const cost = { frames: 0, gap: 0, gapMax: 0, work: 0, workMax: 0 };
   const loop = (now) => {
     requestAnimationFrame(loop);
+    const begun = performance.now();
     const elapsed = (now - last) / 1000;
     const dt = Math.min(0.05, elapsed);
     last = now;
@@ -728,7 +737,9 @@ async function boot() {
         hud.debug.textContent =
           `fps ${fps.toFixed(0)}  calls ${i.calls}  tris ${(i.triangles / 1000).toFixed(0)}k  chunks ${ground.chunks.size}  foes ${enemies.list.length}\n` +
           `pos ${p.x.toFixed(0)}, ${p.y.toFixed(1)}, ${p.z.toFixed(0)}  tier ${dangerTier(p.x, p.z)}  blight ${blight.toFixed(2)}\n` +
-          `quality ${qualityName}  resolution x${sharpness.ratio}${input.haste ? '  HASTE (G)' : ''}`;
+          `quality ${qualityName}  resolution x${sharpness.ratio}${input.haste ? '  HASTE (G)' : ''}\n` +
+          `frame ${(cost.gap / cost.frames).toFixed(1)} ms (worst ${cost.gapMax.toFixed(0)})  work ${(cost.work / cost.frames).toFixed(1)} ms (worst ${cost.workMax.toFixed(0)})  geo ${renderer.info.memory.geometries} tex ${renderer.info.memory.textures}`;
+        Object.assign(cost, { frames: 0, gap: 0, gapMax: 0, work: 0, workMax: 0 });
       }
     }
     autosave += dt;
@@ -736,6 +747,8 @@ async function boot() {
 
     hud.update(dt, rig.bearing(), player.pos);
     renderer.render(scene, camera);
+    const work = performance.now() - begun;
+    cost.frames++; cost.gap += elapsed * 1000; cost.gapMax = Math.max(cost.gapMax, elapsed * 1000); cost.work += work; cost.workMax = Math.max(cost.workMax, work);
   };
   requestAnimationFrame(loop);
 

@@ -422,6 +422,10 @@ test('weapons wear, and can be mended, honed and restrung', async () => {
   assert.equal(s.silver, 100 - price);
   assert.equal(inv.stats(s).sword, full, 'mended');
   assert.equal(inv.repairPrice(s, 'rangerSword'), 0);
+  s.wear.haradBlade = 0; s.wear.yewBow = 0;
+  for (const [id, kit] of [['haradBlade', 'whetstone'], ['yewBow', 'bowstring']]) {
+    assert.ok(inv.repairPrice(s, id) < inv.buyPrice({ item: kit }), `mending ${id} costs less than a ${kit}, however fine it is`);
+  }
 
   for (let i = 0; i < 30; i++) inv.wearOnce(s, 'bow');
   inv.addItem(s, 'bowstring');
@@ -816,6 +820,13 @@ test('orcs carry orc bread, which mends less than waybread', async () => {
   const st = newState();
   st.health = 95; st.items = { orcBread: 1, draught: 1 };
   assert.equal(inv.quickHeal(st), 'orcBread', 'a scratch is mended with the lesser food');
+  // Out of a fight the cheapest food goes first, as much as is needed, and the remedies are kept.
+  st.health = 60; st.items = { orcBread: 3, waybread: 2, draught: 1, salve: 1 };
+  const eaten = inv.calmHeal(st);
+  assert.deepEqual(eaten, { orcBread: 3, waybread: 1 }, 'out of a fight: the orc bread, then waybread');
+  assert.ok(st.health === 100 && st.items.draught === 1 && st.items.salve === 1, 'and the draught and salve are kept');
+  st.health = 20; st.items = { draught: 1, salve: 1 };
+  assert.deepEqual(inv.calmHeal(st), { draught: 1, salve: 1 }, 'with no food, the remedies serve, the cheaper first');
 });
 
 test('Éowyn\'s first map is of the Window Woods, and its village', async () => {
@@ -969,5 +980,23 @@ test('the lesser ruins stand on level ground, and the sunken court is sunken', a
       assert.ok(around - floor > COURT.depth - 0.3, `the court lies ${(around - floor).toFixed(2)} m down`);
       assert.ok(Math.abs(heightAt(r.x + COURT.hw - 0.5, r.z + COURT.hd - 0.5) - floor) < 0.05, 'its floor is flat');
     }
+  }
+});
+
+test('settlers land in their own province, no other province\'s camp stands by a settlement, and mines face the road', async () => {
+  const { SETTLEMENTS } = await import('../src/world/settlements.js');
+  const { provinceAt, CAMP_PROVINCE } = await import('../src/world/provinces.js');
+  const { haradRoadX } = await import('../src/world/layout.js');
+  for (const s of SETTLEMENTS) {
+    assert.equal(provinceAt(s.landing.x, s.landing.z), s.province, `${s.name}'s boat puts in on its own province's shore`);
+    for (const c of CAMPS) {
+      if (CAMP_PROVINCE[c.id] === s.province) continue; // (cleared before they come)
+      assert.ok(Math.hypot(c.x - s.x, c.z - s.z) > 150, `${s.name} has no other province's camp (${c.id}) in sight`);
+    }
+  }
+  for (const c of CAMPS.filter((q) => q.kind === 'mine')) {
+    const off = c.x - haradRoadX(c.z);
+    assert.ok(off >= 33.5, `mine ${c.id} stands back from the Harad Road (${off.toFixed(0)} m)`);
+    if (off < 45) assert.equal(c.face, 0, `and one near it faces it (${c.id})`);
   }
 });

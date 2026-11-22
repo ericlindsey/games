@@ -108,7 +108,9 @@ export function migrate(raw) {
   s.settled = strings(raw.settled).filter((id) => settlementBySite[id]);
   s.homesteads = strings(raw.homesteads).filter((id) => homesteadBySite[id]);
   const e = raw.escort;
-  if (e && settlementBySite[e.site] && !s.settled.includes(e.site) && num(e.x) && num(e.z)) s.escort = { site: e.site, x: e.x, z: e.z, following: false };
+  // (before v0.7.3 Moonhallow's settlers waited on the Southwood's shore, at 87, 2247: they wait at their new landing now)
+  const moved = e?.site === 'hamlet3' && Math.hypot(e.x - 87, e.z - 2247) < 20;
+  if (e && !moved && settlementBySite[e.site] && !s.settled.includes(e.site) && num(e.x) && num(e.z)) s.escort = { site: e.site, x: e.x, z: e.z, following: false };
   s.told = strings(raw.told);
   s.picked = strings(raw.picked);
   s.savedAt = num(raw.savedAt) ? raw.savedAt : 0;

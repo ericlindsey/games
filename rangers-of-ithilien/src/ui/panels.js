@@ -166,7 +166,7 @@ export class MapPanel {
     title.textContent = opts.title ?? '';
     hint.textContent = opts.scouted ? 'The red rings are camps his scouts have seen. They are copied onto your map.'
       : !places.length ? 'The old places you find are marked here. You can travel to them by the old ways.'
-      : inFight ? 'Not while the enemy has seen you.' : 'Click an old place to travel there, or Henneth Ann\u00fbn to go home.';
+      : inFight ? 'Not while the enemy has seen you.' : 'Click an old place or a settlement to travel there, or Henneth Ann\u00fbn to go home.';
     if (!this.base) this.drawBase();
     const scale = 0.4; // canvas pixels per metre (600 by 1200 for the whole land)
     const cv = this.canvas, W = WORLD.width * scale, H = WORLD.length * scale;
@@ -489,6 +489,16 @@ export class TradePanel {
   draw() {
     const st = this.state;
     $('trade-purse').textContent = `You have ${st.silver} silver. Renown ${st.renown}: as your name grows he will bring out better things.`;
+    // what the ranger has on now, to weigh what he sells against
+    const worn = $('trade-worn'); worn.replaceChildren();
+    const line = (a, b) => { for (const t of [a, b]) { const el = document.createElement('span'); el.textContent = t; worn.append(el); } };
+    for (const slot of SLOTS) {
+      const id = st.equipped[slot], it = ITEMS[id];
+      if (!it) { line(SLOT_NAMES[slot], 'nothing'); continue; }
+      const up = it.damage ? inv.honed(st, id) : 0, pc = Math.round(inv.condition(st, id) * 100);
+      line(SLOT_NAMES[slot], `${it.name}${up ? ` +${up}` : ''}: ` + (it.damage ? `damage ${it.damage + up}${pc < 100 ? ` (${pc}% sound)` : ''}` : `turns ${Math.round(it.defence * 100)}% of each blow`));
+    }
+    line('In all', `armour turns ${Math.round(inv.stats(st).defence * 100)}% of each blow`);
     const bench = $('trade-bench'); bench.replaceChildren();
     const redraw = () => { this.h.onChange(); this.draw(); };
     for (const slot of ['sword', 'bow']) {
@@ -519,7 +529,7 @@ export class TradePanel {
     const ids = Object.keys(st.items).filter((id) => inv.sellable(id));
     for (const id of ids) {
       const it = ITEMS[id];
-      row(sell, st.items[id] > 1 ? `${it.name} \u00d7${st.items[id]}` : it.name, it.text, [[`Sell \u00b7 ${inv.sellPrice(id)}`, () => { inv.sell(st, id); this.h.onChange(); this.draw(); }]]);
+      row(sell, st.items[id] > 1 ? `${it.name} \u00d7${st.items[id]}` : it.name, itemNote(it), [[`Sell \u00b7 ${inv.sellPrice(id)}`, () => { inv.sell(st, id); this.h.onChange(); this.draw(); }]]);
     }
     if (!ids.length) empty(sell, 'You carry nothing he wants.');
   }

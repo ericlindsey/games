@@ -87,10 +87,17 @@ export function wearOnce(state, slot) {
   return tenth(after) < tenth(before) ? Math.max(0, tenth(after)) * 10 + 0 : null;
 }
 
-/** What Mablung asks to put a weapon right; 0 if it needs nothing. */
+/**
+ * What Mablung asks to put a weapon right; 0 if it needs nothing. Always a
+ * little less than the kit that would do the same (a whetstone, a spare string),
+ * however fine the weapon.
+ */
 export function repairPrice(state, id) {
   const c = condition(state, id);
-  return c > 0.98 ? 0 : 1 + Math.ceil(ITEMS[id].value * (1 - c) * 0.12);
+  if (c > 0.98) return 0;
+  const kit = Object.keys(ITEMS).find((k) => ITEMS[k].kind === 'kit' && ITEMS[k].mends === ITEMS[id].slot);
+  const most = kit ? buyPrice({ item: kit }) - 1 : Infinity;
+  return Math.min(most, 1 + Math.ceil(ITEMS[id].value * (1 - c) * 0.12));
 }
 export function repair(state, id) {
   const price = repairPrice(state, id);
@@ -150,6 +157,24 @@ export function quickHeal(state) {
   const have = Object.keys(state.items).filter((id) => ITEMS[id].kind === 'heal').sort((a, b) => ITEMS[a].heal - ITEMS[b].heal);
   if (!have.length) return null;
   return have.find((id) => ITEMS[id].heal >= missing) ?? have[have.length - 1];
+}
+
+/**
+ * Out of a fight there is time to eat: the cheapest food first (by its price for
+ * each point of health it gives: orc bread, then waybread, before any draught or
+ * salve), as much as the wound needs. Returns what was eaten, { id: count }.
+ */
+export function calmHeal(state) {
+  const eaten = {};
+  const order = Object.keys(state.items).filter((id) => ITEMS[id]?.kind === 'heal')
+    .sort((a, b) => ITEMS[a].value / ITEMS[a].heal - ITEMS[b].value / ITEMS[b].heal);
+  for (const id of order) {
+    while (state.health < BASE_HEALTH && count(state, id) > 0) {
+      if (!useItem(state, id)) break;
+      eaten[id] = (eaten[id] ?? 0) + 1;
+    }
+  }
+  return eaten;
 }
 
 // ---- trade ----

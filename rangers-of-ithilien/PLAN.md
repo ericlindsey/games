@@ -1167,6 +1167,49 @@ moving.
   changes in play (cleared and sown fields, walls for the grass) and the modules
   import three.js through the import map, which workers cannot use.
 
+### v0.7.3: fixes from a playtest on the phone
+
+- **Moonhallow's settlers** waited on the shore due west of the village, which is
+  the Southwood's shore: nobody looking along the Moonwood's would find them. A
+  boat now puts in on the nearest shore inside the settlement's own province
+  (`landingZ` in settlements.js); Moonhallow's 56 m north, Bridgefold's 8 m. A save
+  whose settlers still wait at the old spot sends them to the new one. The other
+  settlements were not affected.
+- **The Southwood's stockade c15** stood across the stream from Moonhallow, which
+  is settled once the Moonwood alone is free. It is moved 150 m south-east into
+  the Southwood's own woods (`MOVED` in campSites.js; every camp keeps its id and
+  every other its place).
+- **Mines**: the ridge of rock behind the cut and its shoulders could be walked
+  into; a row of circles now fills the ridge and one each the shoulders. A mine
+  within 45 m of the Harad Road stood with its hill toward the road, overhanging
+  it in the gorse fells (c40); now any such mine is set back to 34 m and turned
+  to face the road (c40, c77, c85, c89).
+- **Healing out of a fight** eats the cheapest food first (by price per point of
+  health: orc bread, then waybread), as much as the wound needs, and keeps the
+  draughts and salves for fights unless there is nothing else (`calmHeal`). In a
+  fight (or within three seconds of a blow) it reaches for one remedy as before.
+- **Travel to settlements**: every settlement lived in is a travel place on the
+  map, arriving on its green.
+- A camp roused from afar (an arrow) no longer says "They have not seen you yet"
+  when the ranger comes near it.
+- **Mablung's mending** costs at most a silver less than the kit that would do
+  the same (8 for a whetstone or a string), however fine the weapon (a worn-out
+  yew bow was 45).
+- **Mablung's stores** show what the ranger wears at the top (each piece's damage
+  or protection, and the armour's in all), and the stats of what he would buy
+  from the ranger.
+- **High slowing on the phone after running.** On the phone, high starts at about
+  50 fps and falls to 10-20 after running through the woods for 5-10 s, staying
+  there when still, until the browser is put away and brought back. Not seen on
+  the laptop, even with Chrome's main thread slowed five times and the phone's
+  shape and resolution: there no draw calls, plant buffers, geometries, shader
+  programs or heap grow (heap about 250 MB on medium and 270 on high; farms hold
+  62 MB of vertices on either). The `?debug` overlay now shows the time between
+  frames and the time this thread spends on each (the game's work and handing
+  the frame to the GPU), so the phone can show whether the time goes in the
+  game's code or waiting on the GPU; `?tune=minPixelRatio:2` (no lowering of the
+  resolution) and `?tune=shadowMap:1024` are the first things to try.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -1202,8 +1245,9 @@ moving.
   green without colliding. Enemies ignore them; in a fight they stand still.
 - Mended houses are built over the ruins, which stay inside them; a house's old
   rubble still lies about it.
-- The settlements have no trader beyond their seed, no rest or travel point
-  (11.3's stages 2 and 3 are partly built), and the fells have no one to settle.
+- The settlements have no trader beyond their seed and no rest (11.3's stages 2
+  and 3 are partly built; travel to them came in v0.7.3), and the fells have no
+  one to settle.
 - Homestead families say only a greeting; they ask nothing.
 
 ## 11. M6: provinces, captains and settlement (design)
@@ -1398,8 +1442,8 @@ Each step ends playable.
    and brings its settlers home (save version 7). Not built: per-province captain's tokens and plants.
 5. Settlement: rebuilt farms and villages, settlers, rest, travel, trade. **(first part built, v0.7)**:
    one settlement per province of the woods, led home from the river and grown in four stages by
-   its people's tasks; homesteads; seed sold. Still to come: rest and travel at a settlement, a
-   fuller trader. (Self-healing already removed in v0.4.1.)
+   its people's tasks; homesteads; seed sold; travel to a settlement lived in (v0.7.3). Still to
+   come: rest at a settlement, a fuller trader. (Self-healing already removed in v0.4.1.)
 6. Errands scoped to provinces; settlers' tasks. **(built, v0.6 and v0.7)**
 7. Companions and the three set-piece fights; the Marshal. (The Marshal stands in his hold since
    v0.7, a plain fight; the set pieces at the Cross-roads and Osgiliath, whose sightseeing tasks

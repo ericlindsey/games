@@ -170,6 +170,8 @@ body.panel-open #btn-attack, body.panel-open #btn-heal, body.panel-open #crossha
 .task .bar div { height: 100%; background: var(--leaf); border-radius: 3px; }
 .task.done .what b { color: #2f5f2a; }
 .empty { color: var(--ink-soft); font-style: italic; font-size: 14px; }
+.worn { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 14px; }
+.worn span:nth-child(odd) { color: var(--ink-soft); font-style: italic; }
 
 #hitmark { position: absolute; left: 50%; top: calc(50% - 46px); transform: translateX(-50%); color: #ffe08a; font-size: 20px; font-style: italic;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; }

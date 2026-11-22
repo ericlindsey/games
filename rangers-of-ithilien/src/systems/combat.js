@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { rng } from '../util/noise.js';
 import { pointBlocked, trunkAt } from '../world/collision.js';
 import { heightAt } from '../world/terrain.js';
-import { stats, addItem, describeLoot, enemyLoot, wantedTrophies, quickHeal, useItem, wearOnce, BASE_HEALTH } from './inventory.js';
+import { stats, addItem, describeLoot, enemyLoot, wantedTrophies, quickHeal, calmHeal, useItem, wearOnce, BASE_HEALTH } from './inventory.js';
 import { ITEMS } from '../data/items.js';
 import { GeoBuilder } from '../world/build.js';
 
@@ -58,7 +58,17 @@ export class Combat {
     this.syncWeapon();
   }
 
-  heal() {
+  /** Mend the ranger from the pack: in a fight one remedy, the one that serves; out of one (`calm`), the cheapest food first. */
+  heal(calm = false) {
+    if (calm && this.state.health < BASE_HEALTH) {
+      const eaten = calmHeal(this.state);
+      const list = Object.entries(eaten).map(([id, n]) => (n > 1 ? `${n} × ` : '') + ITEMS[id].name.toLowerCase());
+      if (list.length) {
+        this.hud.toast('', `You eat and drink: ${list.join(', ')}. You feel better.`);
+        this.hud.setHealth(this.state.health);
+        return;
+      }
+    }
     const id = quickHeal(this.state);
     if (!id) { this.hud.toast('', this.state.health >= BASE_HEALTH ? 'You are whole already.' : 'Nothing in the pack to mend you.'); return; }
     const got = useItem(this.state, id);

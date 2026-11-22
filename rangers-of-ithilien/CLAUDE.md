@@ -319,7 +319,9 @@ python3 -m http.server 8000     # open http://localhost:8000
    ax, ay, az)` holds the camera at a point looking at another and `roi.follow(dx, dy,
    dz)` at an offset behind the ranger (`null` gives it back), and `roi.state`,
    `roi.enemies`, `roi.combat`, `roi.quests` and `roi.inv` expose the rest; backtick toggles
-   the overlay; `G` toggles a fast debug run.
+   the overlay (which shows, besides, the time between frames and the time the game's own
+   work takes of it, for telling a slow GPU from slow code on a phone); `G` toggles a fast
+   debug run.
 5. For anything visual, shoot it: `node tools/shoot.mjs tools/views/henneth.json`
    (or `woods.json`, `people.json`, or a views file of your own; the format is at
    the top of shoot.mjs) saves a screenshot of each view; add `--ref origin/main`
