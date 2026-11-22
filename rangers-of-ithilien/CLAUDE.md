@@ -53,10 +53,14 @@ When a decision is unclear, choose the option that serves these, in this order:
   camera's view; those that cast shadows are drawn into the shadow map from
   their own meshes, only where it reaches. Draw calls cost a phone's browser as
   much as triangles: do not add one mesh per thing where one per kind will do.
+  Nothing slow may run whole in one frame while the ranger moves: land coming
+  into range (a chunk's ground and plants, a grass tile) is built by generators
+  that yield every row (`util/slice.js`), a couple of milliseconds a frame
+  (`buildMs`), and all at once only while loading or after a teleport.
   Anything with a swaying material must be built about its own base, not where it
   stands in the world. Check draw calls and triangle count (the `?debug` overlay,
-  `?bench`) when adding content; `high` runs about 1.2 to 3 million triangles and
-  about 200 draw calls.
+  `?bench`, whose running stretches count the slow frames) when adding content;
+  `high` runs about 1.2 to 3 million triangles and about 200 draw calls.
 
 ## Code layout
 
@@ -117,13 +121,14 @@ src/
     renown.js         renown points and levels; what deeds are worth; how the enemy grows (pure)
     combat.js         the ranger's sword and bow, arrows in flight, health, loot bags
   util/noise.js       hashing, value noise, seeded RNG
+  util/slice.js       finish(): runs a yielding builder to the end at once
 tests/
   unit.test.js        pure logic (node --test)
   smoke.mjs           drives the real game in headless Chromium, desktop + phone
 tools/                for looking at changes: shoot.mjs (screenshots from views, before and
                       after), perf.mjs (what is drawn where); views/*.json; common.mjs;
                       chrome.mjs (the game in this machine's Chrome, on its real GPU: --bench, --eval,
-                      --eval-file calls.js or costs.js, --shot)
+                      --eval-file calls.js or costs.js, --shot, --cpu 5 to slow it like a phone)
 ```
 
 Files marked (pure) must not import Three.js or touch the DOM, so they run in Node tests.
@@ -306,8 +311,8 @@ python3 -m http.server 8000     # open http://localhost:8000
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
    the title, `?debug` shows the overlay, `?quality=low|medium|high`,
-   `?tune=treeNear:150,grass:100` overrides quality settings, `?bench` runs the
-   frame-rate test.
+   `?tune=treeNear:150,grass:100` overrides quality settings (`buildMs:0` builds
+   new land whole, as before v0.7.2), `?bench` runs the frame-rate test.
    In the console, `roi.teleport(x, z, yaw)` moves the ranger (`roi.HA` and `roi.WORLD`
    give Henneth Annûn's layout and the world's size), `roi.lookFrom(x, y, z,
    ax, ay, az)` holds the camera at a point looking at another and `roi.follow(dx, dy,
@@ -335,7 +340,10 @@ python3 -m http.server 8000     # open http://localhost:8000
    a setting, `--eval-file tools/calls.js` for draw calls by kind, `tools/costs.js`
    for time by kind. It needs a server on port 8765 (or `--serve`). On a laptop
    high took 5.5 ms a frame at 2048x1536 in v0.7.1; a phone took about five times
-   as long as the laptop before it. `?bench` runs the same test on a phone.
+   as long as the laptop before it. `?bench` runs the same test on a phone. The
+   bench ends with two 15 s runs and counts the frames over 25 and 33 ms; `--cpu 5`
+   slows Chrome's main thread five times, roughly a phone's, to see hitches that a
+   fast laptop hides.
 
 Add a check to `tests/smoke.mjs` for each new player-facing behaviour.
 Report what was checked and what was not.

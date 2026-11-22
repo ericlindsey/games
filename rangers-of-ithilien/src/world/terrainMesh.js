@@ -10,7 +10,8 @@ import { regionWeights } from './regions.js';
 const _w = {};
 import { HA } from './layout.js';
 import { noise2 } from '../util/noise.js';
-import { buildVegetation, VegetationField } from './vegetation.js';
+import { vegetationSteps, VegetationField } from './vegetation.js';
+import { finish } from '../util/slice.js';
 import { setChunkCircles, removeChunkCircles } from './collision.js';
 import { surfaceMaterial, SURF, surfaceSettings, surfaceUniforms } from './surface.js';
 import { materials } from './build.js';
@@ -19,11 +20,15 @@ const rgb = [0, 0, 0], rgb2 = [0, 0, 0];
 const _c = new THREE.Color();
 
 /** A height-field grid mesh. `sample(x, z)` gives height; `paint` gives colour. */
-function gridGeometry(x0, z0, nx, nz, step, sample, paint, skip) {
+const gridGeometry = (...a) => finish(gridSteps(...a));
+
+/** The same, yielding after each row, so a chunk's ground can be laid over a few frames. */
+function* gridSteps(x0, z0, nx, nz, step, sample, paint, skip) {
   const W = nx + 3, H = nz + 3; // one extra ring of samples for normals
   const hs = new Float32Array(W * H);
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) hs[j * W + i] = sample(x0 + (i - 1) * step, z0 + (j - 1) * step);
+    yield;
   }
   const count = (nx + 1) * (nz + 1);
   const pos = new Float32Array(count * 3), nor = new Float32Array(count * 3), col = new Float32Array(count * 3);
@@ -42,6 +47,7 @@ function gridGeometry(x0, z0, nx, nz, step, sample, paint, skip) {
       col[k] = _c.r; col[k + 1] = _c.g; col[k + 2] = _c.b;
       k += 3;
     }
+    yield;
   }
   const idx = new (count > 65535 ? Uint32Array : Uint16Array)(nx * nz * 6);
   k = 0;
@@ -165,28 +171,38 @@ export class Ground {
   setQuality(quality) {
     this.quality = quality;
     this.field.setQuality(quality);
+    this.job = null;
     for (const key of [...this.chunks.keys()]) this.dropChunk(key);
   }
 
-  buildChunk(cx, cz, px, pz) {
-    const key = cx + ',' + cz;
+  /** Build one chunk now: its ground and its plants. */
+  buildChunk(cx, cz) {
+    if (this.job?.cx === cx && this.job?.cz === cz) this.job = null;
+    this.commit(cx, cz, finish(this.chunkSteps(cx, cz)));
+  }
+
+  /** The slow part of building a chunk (laying the ground, placing the plants), a row at a time. */
+  *chunkSteps(cx, cz) {
     const size = CHUNK.size, n = this.quality.terrainSegments ?? CHUNK.segments;
-    const group = new THREE.Group();
-    const mesh = new THREE.Mesh(gridGeometry(cx * size, cz * size, n, n, size / n, heightAt, paintGround, inRockSlot), this.material);
-    mesh.receiveShadow = true;
-    group.add(mesh);
+    const geos = [yield* gridSteps(cx * size, cz * size, n, n, size / n, heightAt, paintGround, inRockSlot)];
     { // turf over the cliff's slot, where it falls in this chunk
       const step = size / n, x0 = Math.max(cx * size, HA.x), x1 = Math.min((cx + 1) * size, HA.x + 4);
       const z0 = Math.max(cz * size, HA.rock.minZ), z1 = Math.min((cz + 1) * size, HA.rock.maxZ);
-      if (x1 > x0 && z1 > z0) {
-        for (const geo of cliffCap(Math.floor(x0 / step) * step, Math.floor(z0 / step) * step, Math.ceil(x1 / step) * step, Math.ceil(z1 / step) * step, step)) {
-          const cap = new THREE.Mesh(geo, this.material);
-          cap.receiveShadow = true;
-          group.add(cap);
-        }
-      }
+      if (x1 > x0 && z1 > z0) geos.push(...cliffCap(Math.floor(x0 / step) * step, Math.floor(z0 / step) * step, Math.ceil(x1 / step) * step, Math.ceil(z1 / step) * step, step));
     }
-    const veg = buildVegetation(cx, cz, this.quality);
+    const veg = yield* vegetationSteps(cx, cz, this.quality);
+    return { geos, veg };
+  }
+
+  /** Put a built chunk in the world. */
+  commit(cx, cz, { geos, veg }) {
+    const key = cx + ',' + cz;
+    const group = new THREE.Group();
+    for (const geo of geos) {
+      const mesh = new THREE.Mesh(geo, this.material);
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
     this.field.add(key, veg.groups);
     setChunkCircles(key, veg.circles);
     this.scene.add(group);
@@ -206,10 +222,11 @@ export class Ground {
   /** Build again the chunks over a rectangle, so their plants are placed again (a field has been cleared there). */
   refresh(r, margin = 6) {
     const size = CHUNK.size;
+    this.job = null; // (a chunk half built may have been placed before the change)
     for (const [key, ch] of [...this.chunks]) {
       if (ch.cx * size < r.maxX + margin && (ch.cx + 1) * size > r.minX - margin && ch.cz * size < r.maxZ + margin && (ch.cz + 1) * size > r.minZ - margin) {
         this.dropChunk(key);
-        this.buildChunk(ch.cx, ch.cz, this.lodAt?.x ?? 0, this.lodAt?.z ?? 0); // at once, so no hole shows
+        this.buildChunk(ch.cx, ch.cz); // at once, so no hole shows
       }
     }
   }
@@ -234,20 +251,24 @@ export class Ground {
 
   /**
    * Keep chunks loaded around the player.
-   * @param {number} budget how many chunks may be built this call
+   * @param {number} budget how many chunks may be built whole this call (while loading)
+   * @param {number} ms else how long may be spent this call on building the nearest, a piece a frame
    * @returns {number} chunks still waiting to be built
    */
-  update(px, pz, budget = 1) {
+  update(px, pz, budget = 1, ms = 0) {
     surfaceUniforms.uLodFrom.value.set(px, pz); // plants fade between forms by distance from here
     const want = this.wanted(px, pz);
     let missing = 0, holeR = this.quality.loadRadius;
+    const waiting = [];
     for (const wnt of want) {
       const key = wnt.cx + ',' + wnt.cz;
       if (this.chunks.has(key)) continue;
-      if (budget > 0) { this.buildChunk(wnt.cx, wnt.cz, px, pz); budget--; continue; }
+      if (budget > 0) { this.buildChunk(wnt.cx, wnt.cz); budget--; continue; }
+      waiting.push(wnt);
       missing++;
       holeR = Math.min(holeR, wnt.d);
     }
+    if (ms > 0 && waiting.length) missing -= this.work(waiting, ms);
     // every few metres walked (or a turn of the camera), each plant in view takes the form its distance calls for
     if (this.field.update(px, pz)) this.lodAt = this.field.at;
     const dropR = this.quality.loadRadius + CHUNK.size * 1.5;
@@ -257,5 +278,29 @@ export class Ground {
     }
     this.hole.set(px, pz, Math.max(0, holeR - 6));
     return missing;
+  }
+
+  /**
+   * Go on building the chunk begun (or the nearest waiting) for about `ms`, and
+   * longer when the nearest gap is well inside the range drawn. The work is cut
+   * so fine (a row of ground or of plants at a time) that no frame stalls.
+   * @returns {number} chunks finished
+   */
+  work(waiting, ms) {
+    const job = this.job;
+    if (job && !waiting.some((w) => w.cx === job.cx && w.cz === job.cz)) this.job = null; // walked out of range
+    const end = performance.now() + (waiting[0].d < this.quality.loadRadius * 0.6 ? 3 * ms : ms);
+    let done = 0, next = 0;
+    do {
+      if (!this.job) {
+        while (next < waiting.length && this.chunks.has(waiting[next].cx + ',' + waiting[next].cz)) next++;
+        if (next >= waiting.length) break;
+        const { cx, cz } = waiting[next++];
+        this.job = { cx, cz, steps: this.chunkSteps(cx, cz) };
+      }
+      const r = this.job.steps.next();
+      if (r.done) { this.commit(this.job.cx, this.job.cz, r.value); this.job = null; done++; }
+    } while (performance.now() < end);
+    return done;
   }
 }

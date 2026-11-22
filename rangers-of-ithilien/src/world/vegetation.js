@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { hash2 } from '../util/noise.js';
+import { finish } from '../util/slice.js';
 import { WORLD, CHUNK } from '../config.js';
 import { GeoBuilder, materials, SURF } from './build.js';
 import { ATLAS, surfaceUniforms } from './surface.js';
@@ -559,7 +560,10 @@ const _up = new THREE.Vector3(0, 1, 0), _col = new THREE.Color();
  * Place the plants of one terrain chunk.
  * @returns {{ groups: object[], circles: {x:number,z:number,r:number}[] }}
  */
-export function buildVegetation(cx, cz, quality) {
+export const buildVegetation = (cx, cz, quality) => finish(vegetationSteps(cx, cz, quality));
+
+/** The same, yielding after each row of cells, so it can be spread over frames (util/slice.js). */
+export function* vegetationSteps(cx, cz, quality) {
   const lists = {}; // species -> [x, y, z, rot, scale, tint r, g, b, tall]
   const circles = [];
   // `tall`: how much taller than its width a plant is drawn (the giants of the deep woods)
@@ -598,6 +602,7 @@ export function buildVegetation(cx, cz, quality) {
       const t = 0.84 + 0.26 * H(gx, gz, 6), sc = (0.9 + 0.5 * H(gx, gz, 8)) * (1 + 0.15 * old);
       put(name, x, h - 0.2, z, H(gx, gz, 7) * 6.283, sc, t, t * (0.97 + 0.06 * H(gx, gz, 9)), t * 0.95, 1 + 0.26 * old * (0.6 + 0.4 * H(gx, gz, 41)));
     }
+    yield;
   }
 
   // The understory: small trees and tall shrubs, one candidate per 8 m cell.
@@ -620,6 +625,7 @@ export function buildVegetation(cx, cz, quality) {
       const t = 0.85 + 0.25 * H(gx, gz, 15);
       put(name, x, h - 0.1, z, H(gx, gz, 16) * 6.283, 0.8 + 0.7 * H(gx, gz, 17), t, t, t * 0.95);
     }
+    yield;
   }
 
   // East of the road the tall thickets: one candidate per 4 m cell.
@@ -637,6 +643,7 @@ export function buildVegetation(cx, cz, quality) {
       const t = 0.82 + 0.3 * H(gx, gz, 28);
       put(H(gx, gz, 24) < 0.55 ? 'tallHeather' : 'gorse', x, h - 0.2, z, H(gx, gz, 29) * 6.283, 0.85 + 0.5 * H(gx, gz, 27), t, t, t);
     }
+    yield;
   }
 
   // Undergrowth: herbs, ferns and flowers, one candidate per 3.2 m cell.
@@ -667,6 +674,7 @@ export function buildVegetation(cx, cz, quality) {
         put(name, x, h - 0.05, z, H(gx, gz, 29) * 6.283, name.endsWith('ock') ? scale * 1.3 : scale, t, t, t * 0.95);
       }
     }
+    yield;
   }
 
   // Each species' plants as plain arrays: where each stands (its matrix), its tint,
@@ -687,6 +695,7 @@ export function buildVegetation(cx, cz, quality) {
       rs[i] = sp.reach * a[o + 4]; hs[i] = sp.top * a[o + 4] * a[o + 8];
     }
     groups.push({ name, sp, n, mats, cols, xs, ys, zs, rs, hs });
+    yield;
   }
   return { groups, circles };
 }

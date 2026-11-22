@@ -17,6 +17,7 @@ import { inPlot } from './settlements.js';
 import { roadDistance, ROAD_HALF_WIDTH, HA, gorgeZ, inClearing, bankX } from './layout.js';
 import { groundAt } from './collision.js';
 import { hash2 } from '../util/noise.js';
+import { finish } from '../util/slice.js';
 import { surfaceMaterial, SURF } from './surface.js';
 
 const TILE = 24;
@@ -97,6 +98,7 @@ export class Grass {
     this.nearR = q.grassNear ?? this.radius;
     this.spacing = q.grassSpacing ?? 0.7;
     this.shadows = q.shadows;
+    this.job = null;
     const fn = this.near.material.userData.surf, ff = this.far.material.userData.surf;
     // (each fade spread wide, so nothing is seen growing out of the ground)
     fn.uFade.value.set(this.nearR - 14, this.nearR);
@@ -108,6 +110,7 @@ export class Grass {
   drop(key, which = null) {
     const t = this.tiles.get(key);
     if (!t) return;
+    if (this.job?.key === key && (!which || which === (this.job.dense ? 'dense' : 'sparse'))) this.job = null;
     for (const w of which ? [which] : ['dense', 'sparse']) {
       if (t[w]) { this.scene.remove(t[w]); t[w].dispose(); t[w] = null; }
       t['has' + w] = false;
@@ -124,7 +127,10 @@ export class Grass {
   }
 
   /** Build one tile's clumps: all of them (dense), or the broad few that stand for them at a distance. */
-  build(tx, tz, dense) {
+  build(tx, tz, dense) { return finish(this.buildSteps(tx, tz, dense)); }
+
+  /** The same, yielding after each row, so a tile can be grown over a few frames. */
+  *buildSteps(tx, tz, dense) {
     const sp = this.spacing, n = Math.round(TILE / sp);
     const x0 = tx * TILE, z0 = tz * TILE;
     const keep = dense ? 1 : 0.28; // a far clump stands for about four near ones
@@ -138,6 +144,7 @@ export class Grass {
         cols.set([_c.r, _c.g, _c.b], (j * cn + i) * 3);
       }
     }
+    yield;
     const items = [];
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
@@ -155,6 +162,7 @@ export class Grass {
         const tall = 0.45 + 0.55 * hash2(gx, gz, S + 3) * (0.5 + 0.5 * dens);
         items.push(x, h - 0.05, z, hash2(gx, gz, S + 4) * 6.283, tall, cols[k], cols[k + 1], cols[k + 2]);
       }
+      yield;
     }
     const count = items.length / 8;
     if (!count) return null;
@@ -176,8 +184,12 @@ export class Grass {
     return mesh;
   }
 
-  /** Keep tiles within the radius; build at most `budget` a call. */
-  update(px, pz, budget = 2) {
+  /**
+   * Keep tiles within the radius: build at most `budget` whole this call (while
+   * loading), and else spend about `ms` on the nearest wanted, a row at a time,
+   * longer when the nearest gap is well inside where grass is seen.
+   */
+  update(px, pz, budget = 2, ms = 0) {
     if (!this.radius) return;
     const R = this.radius, N = this.nearR;
     const rect = (tx, tz) => Math.hypot(Math.max(tx * TILE - px, 0, px - (tx + 1) * TILE), Math.max(tz * TILE - pz, 0, pz - (tz + 1) * TILE));
@@ -189,20 +201,50 @@ export class Grass {
       }
     }
     want.sort((a, b) => a[0] - b[0]);
+    const needs = []; // [distance, key, tx, tz, dense], nearest first
     for (const [d, tx, tz] of want) {
-      if (budget <= 0) break;
       const key = tx + ',' + tz;
       let t = this.tiles.get(key);
       if (!t) this.tiles.set(key, (t = { dense: null, sparse: null }));
-      if (d < N && !t.hasdense) { t.dense = this.build(tx, tz, true); t.hasdense = true; budget--; }
-      if (!t.hassparse && budget > 0) { t.sparse = this.build(tx, tz, false); t.hassparse = true; budget--; }
+      if (d < N && !t.hasdense) needs.push([d, key, tx, tz, true]);
+      if (!t.hassparse) needs.push([d, key, tx, tz, false]);
     }
+    let i = 0;
+    for (; i < needs.length && budget > 0; i++, budget--) {
+      const [, key, tx, tz, dense] = needs[i];
+      if (this.job?.key === key && this.job.dense === dense) this.job = null;
+      this.put(key, dense, this.build(tx, tz, dense));
+    }
+    if (ms > 0 && i < needs.length) this.work(needs.slice(i), ms);
     for (const [key, t] of this.tiles) {
       const [tx, tz] = key.split(',').map(Number);
       const d = rect(tx, tz);
       if (d > R + TILE) this.drop(key);
       else if (t.hasdense && d > N + TILE * 0.75) this.drop(key, 'dense');
     }
+  }
+
+  put(key, dense, mesh) {
+    const t = this.tiles.get(key), w = dense ? 'dense' : 'sparse';
+    t[w] = mesh; t['has' + w] = true;
+  }
+
+  work(needs, ms) {
+    const job = this.job, has = (n) => this.tiles.get(n[1])['has' + (n[4] ? 'dense' : 'sparse')];
+    if (job && !needs.some((n) => n[1] === job.key && n[4] === job.dense)) this.job = null; // walked out of range
+    const [d, , , , dense] = needs[0];
+    const end = performance.now() + ((dense ? d < this.nearR - 16 : d < this.radius - 26) ? 3 * ms : ms);
+    let next = 0;
+    do {
+      if (!this.job) {
+        while (next < needs.length && has(needs[next])) next++;
+        if (next >= needs.length) break;
+        const [, key, tx, tz, dense] = needs[next++];
+        this.job = { key, dense, steps: this.buildSteps(tx, tz, dense) };
+      }
+      const r = this.job.steps.next();
+      if (r.done) { this.put(this.job.key, this.job.dense, r.value); this.job = null; }
+    } while (performance.now() < end);
   }
 }
 

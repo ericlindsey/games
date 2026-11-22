@@ -304,8 +304,11 @@ Touch devices are detected by capability, not user agent; a device with both get
   (shadows off on low). Chosen automatically, changeable in the menu.
 - Draw calls matter as much as triangles in a phone's browser: plants are drawn
   one mesh per species and form for the whole land, culled plant by plant.
-- `?bench` times seven fixed views on any device; `tools/chrome.mjs` runs it (or
-  anything else) in this machine's Chrome on its real GPU.
+- `?bench` times seven fixed views on any device, then two runs through new land
+  for the slow frames; `tools/chrome.mjs` runs it (or anything else) in this
+  machine's Chrome on its real GPU, `--cpu 5` slowing its main thread like a phone's.
+- New land is built a little each frame as the ranger moves (a row of ground or
+  of plants at a time), never a whole chunk in one frame.
 - A debug overlay (toggle with a key) showing fps, draw calls, triangles, position,
   region, and danger tier.
 
@@ -1130,6 +1133,31 @@ many again into the shadow map, at 5.2 ms a frame; medium 390 calls and 4.1 ms.
   as played and drawn flat out, with draw calls and triangles; `?tune=grass:100,...`
   overrides any quality setting for trying distances out.
 
+### v0.7.2: no hitches as new land comes into range
+
+On a phone (in portrait, 804x1428 at 2x) v0.7.1 ran medium and high alike at about
+18 ms a frame: the phone is now bound by its pixels, not by what is drawn, so
+high costs no more than medium. What was left was a hitch now and then while
+moving.
+
+- **New land is built a little each frame.** A chunk's ground (heights, then
+  colours), its plants, and each grass tile are now generators that yield after
+  every row (util/slice.js); the game loop gives them about 2 ms a frame (grass
+  1.5), three times that when the nearest gap is well inside the range drawn. While
+  loading and after a teleport everything is still built at once. Before, a chunk
+  took 10-15 ms in one frame on the laptop (ground 6, plants 5) and a grass tile up
+  to 2 ms, two a frame. `?tune=buildMs:0` brings back the old way, to compare.
+- Running at full speed with Chrome's main thread slowed five times
+  (`tools/chrome.mjs --cpu 5`, roughly a phone), frames over 33 ms on high fell from
+  8 to 1 in the deep woods and from 5 to 0 in the old fields; on medium from 5 to 1
+  and 3 to 0. The building keeps up: no chunk went missing nearer than 497 m (of
+  500) and no fine grass nearer than 58.6 m (of 60).
+- `?bench` ends with two 15 s runs (deep woods and old fields) and reports the
+  slowest frames and how many passed 25 and 33 ms.
+- A web worker was considered and left: the placement code reads state that
+  changes in play (cleared and sown fields, walls for the grass) and the modules
+  import three.js through the import map, which workers cannot use.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -1146,11 +1174,11 @@ many again into the shadow map, at 5.2 ms a frame; medium 390 calls and 4.1 ms.
 - The blight changes sky, fog and light but not the colour of ground and plants.
 - Trees appear at the edge of the loaded radius without a fade.
 - Before v0.7.1, high ran at about 40 fps on an iPhone with dips into the 20s and
-  medium steady at about 50. v0.7.1 cut the draw calls by three quarters and drew
-  everything further; it has not yet been timed on a phone (`?bench`). If it is
-  slow, lower `grass`, `treeNear` and `treeMid` in config.js, or `minPixelRatio`.
-- Building a chunk takes 10-15 ms on a laptop (several times that on a phone), all
-  at once on the main thread: a small hitch now and then as the ranger walks.
+  medium steady at about 50. v0.7.1 runs both at about 18 ms a frame there (bound
+  by pixels: `minPixelRatio` is the lever if it is ever slow).
+- A camp's company is built all at once when the ranger comes in reach of it
+  (`spawnCamp`: each figure's geometry made fresh): about 27 ms on the laptop, the
+  one long frame left in the runs (about 150 ms with the CPU slowed five times).
 - Leaf cards are alpha-tested, so the GPU shades every layer of them; on a large
   screen that overdraw is the biggest cost left. MSAA costs about a quarter of the
   frame at 5K (high draws at twice the pixels with 4x MSAA).
