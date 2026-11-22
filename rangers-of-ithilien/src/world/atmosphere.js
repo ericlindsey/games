@@ -19,6 +19,8 @@ const SHADE = { fog: hex(0xa9c08e), sun: 0.45, hemi: 0.8, hemiSky: hex(0xb9d69a)
 
 /** Unit vector pointing at the sun: low in the west, so it shines into the cave. */
 export const SUN_DIR = new THREE.Vector3(-0.86, 0.42, 0.28).normalize();
+/** The sun's shadow map reaches this far either side of the ranger, as the sun sees it. */
+export const SHADOW_HALF = 110;
 
 export class Atmosphere {
   constructor(scene, quality) {
@@ -28,7 +30,7 @@ export class Atmosphere {
     this.sun = new THREE.DirectionalLight(CLEAR.sun, CLEAR.sunPower);
     this.sun.shadow.mapSize.set(quality.shadowMap || 1024, quality.shadowMap || 1024);
     const sc = this.sun.shadow.camera;
-    sc.left = sc.bottom = -110; sc.right = sc.top = 110; sc.near = 10; sc.far = 700;
+    sc.left = sc.bottom = -SHADOW_HALF; sc.right = sc.top = SHADOW_HALF; sc.near = 10; sc.far = 700;
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.6;
     scene.add(this.sun, this.sun.target);

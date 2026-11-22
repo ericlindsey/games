@@ -392,11 +392,26 @@ varying vec2 vLodKeep;
 float surfD;      // the grain at this point, about 0.5
 float surfBump;   // how strongly it raises the surface
 float surfLeaf;   // 1 on leaves: they glow a little, more with the sun behind them
+// Triplanar: the grain seen from each axis, weighted by how squarely the surface
+// faces it. A face that barely faces an axis (flat ground from the side, a trunk
+// from above) is not looked up at all; the rest share its weight. (Gradients are
+// taken before the branches, so the mip chosen is the same either way.)
+#define TRI_SKIP 0.03
 vec4 surfTri(vec3 p, vec3 w) {
-  return texture2D(uDetail, p.zy) * w.x + texture2D(uDetail, p.xz) * w.y + texture2D(uDetail, p.xy) * w.z;
+  vec3 dx = dFdx(p), dy = dFdy(p);
+  vec4 c = vec4(0.0); float s = 0.0;
+  if (w.x > TRI_SKIP) { c += textureGrad(uDetail, p.zy, dx.zy, dy.zy) * w.x; s += w.x; }
+  if (w.y > TRI_SKIP) { c += textureGrad(uDetail, p.xz, dx.xz, dy.xz) * w.y; s += w.y; }
+  if (w.z > TRI_SKIP) { c += textureGrad(uDetail, p.xy, dx.xy, dy.xy) * w.z; s += w.z; }
+  return c / s;
 }
 float stoneTri(vec3 p, vec3 w) {
-  return texture2D(uStones, p.zy).r * w.x + texture2D(uStones, p.xz).r * w.y + texture2D(uStones, p.xy).r * w.z;
+  vec3 dx = dFdx(p), dy = dFdy(p);
+  float c = 0.0, s = 0.0;
+  if (w.x > TRI_SKIP) { c += textureGrad(uStones, p.zy, dx.zy, dy.zy).r * w.x; s += w.x; }
+  if (w.y > TRI_SKIP) { c += textureGrad(uStones, p.xz, dx.xz, dy.xz).r * w.y; s += w.y; }
+  if (w.z > TRI_SKIP) { c += textureGrad(uStones, p.xy, dx.xy, dy.xy).r * w.z; s += w.z; }
+  return c / s;
 }
 vec3 surfPerturb(vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection) {
   vec3 vSigmaX = normalize(dFdx(surf_pos));
@@ -408,12 +423,18 @@ vec3 surfPerturb(vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection)
   return normalize(abs(fDet) * surf_norm - vGrad);
 }
 `;
-const FRAG_COLOR = /* glsl */`
+// First of all (before the leaf atlas is even looked up): a plant between two
+// forms keeps only this form's share of a fine screen dither.
+const FRAG_DITHER = /* glsl */`
+#ifdef SURF_LOD
 {
-  // a plant between two forms: keep only this form's share of a fine screen dither
   float lodH = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
   if (lodH < vLodKeep.x || lodH >= vLodKeep.y) discard;
 }
+#endif
+`;
+// The grain, after the alpha test: nothing is spent on the clear part of a leaf card.
+const FRAG_COLOR = /* glsl */`
 {
   float k = floor(vSurfKind + 0.5);
   vec3 tn = normalize(vSurfNrm);
@@ -523,7 +544,8 @@ const SHADOW_PARS = THREE.ShaderChunk.shadowmap_pars_fragment.replace(SHADOW_RET
  * A Lambert material with surface detail.
  * @param {object} o kind (default SURF kind), cards (leaf atlas + alpha test),
  *   wind (sway, metres per metre squared of height), object (detail fixed to the
- *   object, for things that move), side, moss (0..1), detail (0..1)
+ *   object, for things that move), side, moss (0..1), detail (0..1), lod (false:
+ *   instanced, but never fading between forms, so built without the discard)
  */
 export function surfaceMaterial(o = {}) {
   const params = { vertexColors: true, side: o.side ?? THREE.FrontSide };
@@ -547,6 +569,10 @@ export function surfaceMaterial(o = {}) {
     if (surfaceSettings.lite) shader.defines = { ...(shader.defines || {}), SURF_LITE: '' };
     if (o.fade) shader.defines = { ...(shader.defines || {}), SURF_FADE: '' };
     if (o.object) shader.defines = { ...(shader.defines || {}), SURF_OBJECT: '' };
+    // Only instanced plants fade between forms. Anything else is built without the
+    // discard that fading needs: a shader that can discard costs more on a phone's GPU
+    // (and a Mac's), which then cannot skip drawing what is hidden behind it.
+    if (shader.instancing && o.lod !== false) shader.defines = { ...(shader.defines || {}), SURF_LOD: '' };
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + VERT_HEAD)
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_SWAY)
@@ -554,11 +580,12 @@ export function surfaceMaterial(o = {}) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <shadowmap_pars_fragment>', SHADOW_PARS)
       .replace('#include <common>', '#include <common>\n' + FRAG_HEAD)
-      .replace('#include <color_fragment>', '#include <color_fragment>\n' + FRAG_COLOR)
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n' + FRAG_DITHER)
+      .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\n' + FRAG_COLOR)
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + FRAG_NORMAL)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + FRAG_GLOW)
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n' + FRAG_TORCH);
   };
-  mat.customProgramCacheKey = () => `surf|${o.wind ? 1 : 0}|${o.object ? 1 : 0}|${o.fade ? 1 : 0}|${surfaceSettings.lite ? 1 : 0}`;
+  mat.customProgramCacheKey = () => `surf|${o.wind ? 1 : 0}|${o.object ? 1 : 0}|${o.fade ? 1 : 0}|${surfaceSettings.lite ? 1 : 0}|${o.lod === false ? 0 : 1}`;
   return mat;
 }

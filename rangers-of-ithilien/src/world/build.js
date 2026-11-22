@@ -19,8 +19,8 @@ export const materials = {
   wood: surfaceMaterial({ kind: SURF.wood }),
   plant: surfaceMaterial({ kind: SURF.leaf, cards: true, wind: 0.0016 }),
   tree: surfaceMaterial({ kind: SURF.leaf, cards: true, wind: 0.00022 }),
-  herb: surfaceMaterial({ kind: SURF.leaf, cards: true, wind: 0.06, fade: [38, 56] }),
-  rockCover: surfaceMaterial({ kind: SURF.rock, fade: [38, 56] }),
+  herb: surfaceMaterial({ kind: SURF.leaf, cards: true, wind: 0.06, fade: [38, 56], lod: false }),
+  rockCover: surfaceMaterial({ kind: SURF.rock, fade: [38, 56], lod: false }),
   still: surfaceMaterial({ kind: SURF.leaf, cards: true }),
 };
 

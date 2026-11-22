@@ -321,19 +321,46 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // A tree near where it changes form is drawn in both forms, to fade from one to the other.
   const fade = await page.evaluate(() => {
     roi.teleport(825, 1200, 0); // in the home woods, with trees all round
-    const q = roi.ground.quality, p = roi.player.pos;
+    const q = roi.ground.quality, p = roi.player.pos, field = roi.ground.field, cam = field.camera;
+    field.camera = null; field.fill(p.x, p.z); // every plant, whichever way the camera looks
     let both = 0, near = 0;
     for (const ch of roi.ground.chunks.values()) for (const g of ch.veg) {
       if (g.sp.cls !== 'tree') continue;
-      const [hi, mid] = g.meshes, has = (m, i) => { for (let k = 0; k < m.count; k++) if (m.instanceMatrix.array[k * 16 + 12] === g.mats[i * 16 + 12] && m.instanceMatrix.array[k * 16 + 14] === g.mats[i * 16 + 14]) return true; return false; };
       for (let i = 0; i < g.n; i++) {
         const d = Math.hypot(g.xs[i] - p.x, g.zs[i] - p.z);
-        if (Math.abs(d - q.treeNear) < 3) { near++; if (has(hi, i) && has(mid, i)) both++; }
+        if (Math.abs(d - q.treeNear) < 3) { near++; const f = field.formsAt(g.name, g.mats[i * 16 + 12], g.mats[i * 16 + 14]); if (f[0] && f[1]) both++; }
       }
     }
+    field.camera = cam; field.dirty = true;
     return { both, near };
   });
   check(fade.near > 0 && fade.both === fade.near, `trees at the change of form are drawn in both forms, to fade between them (${fade.both} of ${fade.near})`);
+  // Plants are drawn one mesh per species and form for the whole land, culled plant by plant:
+  // those behind the camera are left out of the view, but still cast their shadows.
+  const cull = await page.evaluate(async () => {
+    roi.teleport(825, 1200, 0); roi.rig.yaw = 0; roi.rig.pitch = -0.1;
+    for (let i = 0; i < 4; i++) await new Promise((r) => requestAnimationFrame(r));
+    const field = roi.ground.field, p = roi.player.pos;
+    field.fill(p.x, p.z);
+    const cam = field.camera.position, fwd = { x: Math.sin(roi.rig.yaw), z: Math.cos(roi.rig.yaw) };
+    let ahead = 0, aheadIn = 0, behind = 0, behindIn = 0, behindShade = 0;
+    for (const ch of roi.ground.chunks.values()) for (const g of ch.veg) {
+      if (g.sp.cls === 'cover' || g.sp.sameMid) continue;
+      const set = field.sets.get(g.name);
+      for (let i = 0; i < g.n; i++) {
+        const x = g.xs[i], z = g.zs[i], dx = x - cam.x, dz = z - cam.z, d = Math.hypot(dx, dz);
+        if (d < 18 || d > 150) continue;
+        const dot = (dx * fwd.x + dz * fwd.z) / d, inView = field.formsAt(g.name, x, z).some((f) => f);
+        let shaded = false;
+        for (const [k, m] of set.shade.entries()) if (m) for (let j = 0; j < set.ns[k]; j++) if (m.instanceMatrix.array[j * 16 + 12] === x && m.instanceMatrix.array[j * 16 + 14] === z) { shaded = true; break; }
+        if (dot > 0.8) { ahead++; if (inView) aheadIn++; }
+        if (dot < -0.8 && d > 22) { behind++; if (inView) behindIn++; if (shaded && d < 100) behindShade++; }
+      }
+    }
+    return { ahead, aheadIn, behind, behindIn, behindShade, shadows: !!roi.ground.quality.shadows };
+  });
+  check(cull.ahead > 0 && cull.aheadIn === cull.ahead, `every tree and bush ahead of the camera is drawn (${cull.aheadIn} of ${cull.ahead})`);
+  check(cull.behind > 0 && cull.behindIn === 0 && (!cull.shadows || cull.behindShade > 0), `those well behind it are not (${cull.behindIn} of ${cull.behind})${cull.shadows ? `, but still cast shadows (${cull.behindShade})` : ''}`);
   // The deep woods are old forest: fewer, far taller great trees and little growing under them;
   // the home woods keep their riot of younger growth.
   const forest = await page.evaluate(() => {
@@ -341,7 +368,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
       roi.teleport(x, z, 0);
       let great = 0, under = 0, giants = 0;
       for (const ch of roi.ground.chunks.values()) for (const g of ch.veg) {
-        if (g.sp.cls === 'cover' || g.sp.sameMid || ['log', 'stump'].includes(g.meshes[0].userData.species)) continue;
+        if (g.sp.cls === 'cover' || g.sp.sameMid || ['log', 'stump'].includes(g.name)) continue;
         for (let i = 0; i < g.n; i++) {
           if (Math.hypot(g.xs[i] - x, g.zs[i] - z) > 120) continue;
           if (g.sp.cls === 'tree') { great++; const m = g.mats; if (m[i * 16 + 5] > Math.hypot(m[i * 16], m[i * 16 + 2]) * 1.08) giants++; } // giants: drawn taller than wide

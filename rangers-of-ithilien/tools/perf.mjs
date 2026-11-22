@@ -33,9 +33,12 @@ function measure(TOP) {
   // What each mesh is, from the game's own structures (so it works on older versions too)
   const kinds = new Map();
   for (const ch of roi.ground.chunks.values()) {
-    for (const g of ch.veg) g.meshes.forEach((m, k) => kinds.set(m, 'plants: ' + (g.sp.cls === 'cover' ? 'ground cover' : g.sp.sameMid && k === 0 ? 'stone, near and middle' : ['near', 'middle', 'far'][k])));
+    if (ch.veg[0]?.meshes) for (const g of ch.veg) g.meshes.forEach((m, k) => kinds.set(m, 'plants: ' + (g.sp.cls === 'cover' ? 'ground cover' : g.sp.sameMid && k === 0 ? 'stone, near and middle' : ['near', 'middle', 'far'][k])));
     ch.group?.traverse((o) => { if (o.isMesh && !o.isInstancedMesh) kinds.set(o, 'ground'); });
   }
+  // since v0.8 every plant is in one mesh per species and form for the whole land (roi.ground.field);
+  // its shadow casters are shown only while the shadow map is drawn
+  for (const m of roi.ground.field?.meshes() ?? []) kinds.set(m, 'plants: ' + { cover: 'ground cover', stone: 'stone, near and middle', near: 'near', mid: 'middle', far: 'far' }[m.userData.form]);
   for (const t of roi.grass.tiles.values()) { if (t.dense) kinds.set(t.dense, 'grass'); if (t.sparse) kinds.set(t.sparse, 'grass (far clumps)'); }
   kinds.set(roi.ground.backdrop, 'far ground');
   kinds.set(roi.ground.canopy, 'far forest roof');
@@ -47,7 +50,8 @@ function measure(TOP) {
     let total = 0;
     scene.traverse((o) => {
       if (!o.isMesh || (onlyCasters && !o.castShadow)) return;
-      for (let p = o; p; p = p.parent) if (!p.visible) return;
+      if (o.userData.shade && !onlyCasters) return; // drawn only into the shadow map
+      for (let p = o.userData.shade ? o.parent : o; p; p = p.parent) if (!p.visible) return;
       const n = o.isInstancedMesh ? o.count : 1;
       if (!n) return;
       const sph = o.isInstancedMesh && o.boundingSphere ? o.boundingSphere : (o.geometry.boundingSphere ?? (o.geometry.computeBoundingSphere(), o.geometry.boundingSphere));

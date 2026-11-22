@@ -14,6 +14,8 @@ import { rng } from '../util/noise.js';
 const HIDES = [0xb08a5a, 0x9a4a32, 0xc2a070, 0x8a6a4a], CHAR = 0x26221f, RAG = 0xb3261e, BONE = 0xd8d2c0, STAKE = 0x4d3d2c, ROCK = 0x7d776c;
 const HOLD_IDS = new Set(Object.values(HOLDS).map((h) => h.id));
 const SMOKE_PER_CAMP = 14, SMOKE_CAMPS = 14, SMOKE_RANGE = 520;
+// Camps further off than this are not drawn (they are specks in the haze by then; their smoke still shows).
+const CAMP_SEEN = 700;
 
 export class Camps {
   /** @param {(id:string)=>boolean} isCleared */
@@ -160,9 +162,11 @@ export class Camps {
       flame.position.set(fx, y + 0.7, fz);
       site.occupied.add(flame);
       site.flame = flame;
+      site.always = always.mesh(materials.wood);
+      site.near = true;
       site.occupied.visible = !site.isCleared;
       site.cleared.visible = site.isCleared;
-      scene.add(always.mesh(materials.wood), site.occupied, site.cleared);
+      scene.add(site.always, site.occupied, site.cleared);
       return site;
     });
     this.byId = Object.fromEntries(this.sites.map((s) => [s.id, s]));
@@ -195,8 +199,13 @@ export class Camps {
   clear(id) {
     const s = this.byId[id];
     s.isCleared = true;
-    s.occupied.visible = false;
-    s.cleared.visible = true;
+    this.show(s);
+  }
+
+  show(s) {
+    s.always.visible = s.near;
+    s.occupied.visible = s.near && !s.isCleared;
+    s.cleared.visible = s.near && s.isCleared;
   }
 
   /** Let the land heal after a camp is cleared; keep the fires burning and smoking at the others. */
@@ -205,8 +214,12 @@ export class Camps {
       if (s.isCleared && s.strength > 0) s.strength = Math.max(0, s.strength - dt / 6);
     }
     this.smokeTick -= dt;
-    if (this.smokeTick <= 0) { // now and then, choose the nearest lit fires
+    if (this.smokeTick <= 0) { // now and then, choose the nearest lit fires, and draw only the camps near enough to see
       this.smokeTick = 1.5;
+      for (const s of this.sites) {
+        const d = Math.hypot(s.x - px, s.z - pz), near = s.near ? d < CAMP_SEEN + 30 : d < CAMP_SEEN;
+        if (near !== s.near) { s.near = near; this.show(s); }
+      }
       this.smoking = this.sites.filter((s) => !s.isCleared && Math.abs(s.x - px) < SMOKE_RANGE && Math.abs(s.z - pz) < SMOKE_RANGE)
         .sort((a, b) => Math.hypot(a.x - px, a.z - pz) - Math.hypot(b.x - px, b.z - pz)).slice(0, SMOKE_CAMPS);
     }
