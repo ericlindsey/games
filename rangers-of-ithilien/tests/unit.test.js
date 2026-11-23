@@ -1017,3 +1017,34 @@ test('settlers land in their own province, no other province\'s camp stands by a
     if (off < 45) assert.equal(c.face, 0, `and one near it faces it (${c.id})`);
   }
 });
+
+test('a settled place keeps its yards bare and trodden; the old planted trees stand', async () => {
+  const S = await import('../src/world/settlements.js');
+  const st = await import('../src/systems/settlement.js');
+  const home = S.SETTLEMENTS[0];
+  const yards = S.yardsOf(home.site);
+  assert.ok(yards.length >= home.houses.length + 1, 'a yard round every house it keeps, and its green');
+  const s = newState();
+  assert.equal(st.clearedGround(s).length, 0, 'nothing is cleared before anyone comes');
+  s.settled.push(home.site);
+  const ground = st.clearedGround(s);
+  S.setClearedPlots(ground);
+  const h = SITES_ALL.find((x) => x.id === home.site).houses[home.houses[0]];
+  assert.ok(S.inPlot(h.x + h.w / 2 + 2, h.z), 'brush keeps off a doorway');
+  assert.ok(!S.inPlot(h.x + h.w / 2 + 2, h.z, 0, false), 'but a yard is not a field: planted trees are left');
+  assert.equal(S.trodden(h.x + h.w / 2 + 2, h.z), 1, 'and the ground is trodden earth');
+  assert.equal(S.trodden(h.x + 200, h.z + 200), 0);
+  S.setClearedPlots([]);
+});
+
+test('stakes knocked down stop no one', async () => {
+  const { addCircle, removeCircles, resolveCircles } = await import('../src/world/collision.js');
+  addCircle(5000, 5000, 0.42, 'stake', 'down:test');
+  const p = { x: 5000.1, z: 5000 };
+  resolveCircles(p, 0.4);
+  assert.ok(p.x > 5000.5, 'a standing stake pushes the ranger off');
+  removeCircles('down:test');
+  const q = { x: 5000.1, z: 5000 };
+  resolveCircles(q, 0.4);
+  assert.equal(q.x, 5000.1, 'once knocked down it does not');
+});

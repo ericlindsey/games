@@ -239,6 +239,8 @@ Rules of thumb:
   new in a place (the well, a house, the cross) is built by its people over a few
   seconds (`p.queue`, `work`), never popped in; only loading a save shows it whole.
   Each has a reeve (tasks, seed), a storekeeper (`villageShop`) and a bed (`innNear`).
+  A lived-in place keeps its yards bare (`yardsOf`, part of `clearedGround`); a
+  mended house is solid, and a door above the ground has steps.
 - Notices (`hud.toast(big, small, kind)`) are all one size; `kind` only colours
   them ('great', 'task', 'warn', and the fight's 'seen', 'felled', 'hurt', which
   `hud.callout` uses). Up to ten stack, the newest at the bottom.
@@ -288,7 +290,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.7.6`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.7.7`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add
@@ -310,8 +312,14 @@ python3 -m http.server 8000     # open http://localhost:8000
    pre-installed Playwright). It fails on any console error or failed request.
    It plays through at `?quality=low` (software rendering cannot click through
    medium or high in time) and then only loads medium and high to see they draw.
-   A full run takes 20 to 40 minutes; `SMOKE_ONLY=phone` (any part of a suite's
-   name) runs only the matching suites.
+   `SMOKE_ONLY=settlers` (any part of a suite's name: desktop, phone, phone upright,
+   settlers, testing, quality) runs only the matching suites. **Run the whole suite
+   only for a major release (0.8, 0.9, ...)**: in software rendering it now takes three
+   hours or more, and a run cut short by a time limit or sharing the machine with
+   another fails on timing, not on the game. For a point release (0.7.x) run the unit
+   tests and the suites the change touches, say which, and run each suite alone
+   (one at a time: two at once slow each other into timeouts). On a machine with a
+   GPU it is much quicker.
 3. For hands-on checking, open `debug.html`: it has its own save and shortcuts
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips

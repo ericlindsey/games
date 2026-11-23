@@ -29,9 +29,19 @@ export function addSolid(s) {
   insert(solidGrid, s, s.minX - 1, s.maxX + 1, s.minZ - 1, s.maxZ + 1);
   return s;
 }
-/** @param tag optional label; resolveCircles can be told to ignore circles with a given tag */
-export function addCircle(x, z, r, tag) {
-  insert(circleGrid, { x, z, r, tag }, x - r - 1, x + r + 1, z - r - 1, z + r + 1);
+/**
+ * @param tag optional label; resolveCircles can be told to ignore circles with a given tag
+ * @param group optional name for a set of circles that may later be taken away together (removeCircles)
+ */
+export function addCircle(x, z, r, tag, group) {
+  insert(circleGrid, { x, z, r, tag, group }, x - r - 1, x + r + 1, z - r - 1, z + r + 1);
+}
+/** Take away every circle added with this group (stakes knocked down when a stockade falls). */
+export function removeCircles(group) {
+  for (const [k, list] of circleGrid) {
+    const keep = list.filter((c) => c.group !== group);
+    if (keep.length !== list.length) circleGrid.set(k, keep);
+  }
 }
 export function setChunkCircles(key, list) { chunkCircles.set(key, list); }
 export function removeChunkCircles(key) { chunkCircles.delete(key); }

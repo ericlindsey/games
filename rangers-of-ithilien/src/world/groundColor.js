@@ -10,6 +10,7 @@ import { pathWear } from './paths.js';
 import { inCourt } from './relicSites.js';
 import { roadDistance, ROAD_HALF_WIDTH, bankX, southRoadZ, HA, gorgeZ } from './layout.js';
 import { streamDistance } from './terrain.js';
+import { trodden } from './settlements.js';
 
 const S = WORLD.seed;
 const hex = (h) => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];
@@ -19,7 +20,7 @@ const C = {
   heather: hex(0x94708f), river: hex(0x86a85c), fen: hex(0x6f8450), foothill: hex(0x8b8562),
   floor: hex(0x4b6a3a), meadow: hex(0x9dbb62), track: hex(0xb3a37c),
   rock: hex(0x8f8877), darkRock: hex(0x5d5a61), mud: hex(0xa3966f), bed: hex(0x55604c),
-  road: hex(0xb9ae93), canopy: hex(0x3f7436), canopySouth: hex(0x2f5c33), sick: hex(0x6b6f55),
+  road: hex(0xb9ae93), yard: hex(0x9a8462), canopy: hex(0x3f7436), canopySouth: hex(0x2f5c33), sick: hex(0x6b6f55),
 };
 
 const w = {};
@@ -59,6 +60,8 @@ export function groundColor(x, z, h, slope, out) {
     if (wear > 0) mix(out, C.track, Math.min(1, wear * 1.1));
   }
   if (inCourt(x, z)) mix(out, [0.36, 0.29, 0.17], 0.85); // the sunken courts: old leaves, dark earth
+  const yard = trodden(x, z); // (since v0.7.7) the yards and green of a settlement: trodden earth, a little grass at the edges
+  if (yard > 0) mix(out, C.yard, yard * (0.78 + 0.12 * noise2(x / 4, z / 4, S + 450)));
 
   // Roads: pale paving, broken up by grass.
   const rd = roadDistance(x, z);

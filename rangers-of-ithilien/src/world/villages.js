@@ -14,6 +14,7 @@ import { plantGeometry } from './herbs.js';
 import { addSolid, addCircle } from './collision.js';
 import { makeFigure, animateFigure } from '../entities/figure.js';
 import { rng } from '../util/noise.js';
+import { yardsOf } from './settlements.js';
 import { SETTLEMENTS, settlementBySite, homesteadBySite, stageOf, housesMended, cropsSown, homesteadsLived, STAGE_MAX } from '../systems/settlement.js';
 
 const siteById = Object.fromEntries(SITES.map((s) => [s.id, s]));
@@ -386,7 +387,7 @@ export class Villages {
     for (const id of homesteadsLived(state)) want.set(id, -1);
     for (const [id, stage] of want) {
       let p = this.places.get(id);
-      if (!p) p = this.buildPlace(state, id);
+      if (!p) { p = this.buildPlace(state, id); sown.push(...yardsOf(id)); } // (their yards are cleared of brush, too)
       if (p.stage !== stage) this.dress(p, stage);
       // what should stand: the well (a village's), the houses, the cross once the place is whole
       const s = settlementBySite[id], hamlet = siteById[id].kind === 'hamlet';
@@ -499,6 +500,12 @@ export class Villages {
         const b = new GeoBuilder(Math.round(hs.x + hs.z), 0.06), rb = new GeoBuilder(Math.round(hs.x + hs.z) + 1, 0.06), chimneys = [];
         const info = mendHouse(b, rng(Math.round(hs.x * 3 + hs.z)), hs, chimneys, rb, p.settlement && job.i === p.inn);
         h = { walls: holder(b.mesh(materials.stone, this.shadows), y), roof: holder(rb.mesh(materials.stone, this.shadows), E), chimneys, door: info.door, y };
+        // (since v0.7.7) a mended house is solid, door and all, from the first course; and a door
+        // above the ground has steps up to it
+        const { lo } = houseFloor(hs);
+        addSolid({ minX: hs.x - hs.w / 2 - 0.42, maxX: hs.x + hs.w / 2 + 0.42, minZ: hs.z - hs.d / 2 - 0.42, maxZ: hs.z + hs.d / 2 + 0.42, bottom: lo - 1, top: E });
+        const steps = doorSteps(info.door, y);
+        if (steps) p.group.add(steps);
         if (job.i === p.inn) p.innDoor = { x: info.door.x + info.door.nx * 1.3, z: info.door.z + info.door.nz * 1.3 };
       } else {
         const b = new GeoBuilder(Math.round(site.x) + (job.type === 'well' ? 3 : 5), 0.06);
@@ -808,6 +815,30 @@ export class Villages {
     const st = siteById[site];
     return st.kind === 'hamlet' ? { x: st.x - 2, z: st.z + 13 } : { x: st.x, z: st.z + st.houses[0].d / 2 + 7 };
   }
+}
+
+/**
+ * Steps of stone up to a door that stands above the ground before it (a house on a
+ * slope, its floor held up by a footing): a landing at the threshold, then steps
+ * of about 0.2 m down to the ground, each a floor to walk on. Null if none is needed.
+ */
+function doorSteps(door, y) {
+  const g = heightAt(door.x + door.nx * 1.2, door.z + door.nz * 1.2);
+  if (y - g < 0.12) return null;
+  const n = Math.max(1, Math.ceil((y - g) / 0.2)), rise = (y - g) / n, W = 1.6, ry = Math.atan2(door.nx, door.nz);
+  const b = new GeoBuilder(Math.round(door.x * 5 + door.z), 0.06);
+  b.kind = SURF.masonry;
+  for (let k = 0; k < n; k++) {
+    const d0 = k === 0 ? 0 : 0.55 + (k - 1) * 0.38, d1 = k === 0 ? 0.55 : d0 + 0.38; // out from the wall
+    const top = y - k * rise, cx = door.x + door.nx * (d0 + d1) / 2, cz = door.z + door.nz * (d0 + d1) / 2;
+    const foot = Math.min(heightAt(door.x + door.nx * d0, door.z + door.nz * d0), heightAt(door.x + door.nx * d1, door.z + door.nz * d1)) - 0.4;
+    b.box(W, top - foot, d1 - d0, cx, foot, cz, k === 0 ? 0xa8a294 : STONE, ry);
+    const hx = Math.abs(door.ax) * W / 2 + Math.abs(door.nx) * (d1 - d0) / 2, hz = Math.abs(door.az) * W / 2 + Math.abs(door.nz) * (d1 - d0) / 2;
+    addSolid({ minX: cx - hx, maxX: cx + hx, minZ: cz - hz, maxZ: cz + hz, bottom: foot - 1, top });
+  }
+  const m = b.mesh(materials.stone, true);
+  m.name = 'villages';
+  return m;
 }
 
 const jobKey = (j) => (j.type === 'house' ? 'h' + j.i : j.type);

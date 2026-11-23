@@ -180,13 +180,49 @@ export const homesteadBySite = Object.fromEntries(HOMESTEADS.map((h) => [h.site,
 /** The place a site is known by on the ground: { x, z, kind, houses } from oldworks.js. */
 export const siteOf = (id) => siteById[id];
 
-// ---- which plots are cleared now ----
+// ---- the ground the settlers have cleared: their fields, and (since v0.7.7) their yards ----
+
+/**
+ * The ground a settled place keeps bare, trodden to earth: round every house
+ * they mend (a rect, `margin` out from its walls), and a village's green. The
+ * woods and grass keep off it, and it is drawn as earth (`trodden`), so no bush
+ * stands in a doorway. Each { minX, maxX, minZ, maxZ, yard: true } or { x, z, r, yard: true }.
+ */
+export function yardsOf(site) {
+  const s = siteById[site], houses = settlementBySite[site]?.houses ?? homesteadBySite[site]?.houses ?? [];
+  const m = 5;
+  const out = houses.map((i) => { const h = s.houses[i]; return { minX: h.x - h.w / 2 - m, maxX: h.x + h.w / 2 + m, minZ: h.z - h.d / 2 - m, maxZ: h.z + h.d / 2 + m, yard: true }; });
+  if (s.kind === 'hamlet') out.push({ x: s.x - 1, z: s.z + 2, r: 16, yard: true }, { x: s.x + 2, z: s.z - 9, r: 5, yard: true }); // the green, and where their goods stand
+  else out.push({ x: s.x + s.houses[0].w / 2 + 4, z: s.z - 2, r: 4.5, yard: true });
+  return out;
+}
+/** The rectangle round any cleared shape. */
+export const boundsOf = (a) => (a.r !== undefined ? { minX: a.x - a.r, maxX: a.x + a.r, minZ: a.z - a.r, maxZ: a.z + a.r } : a);
 
 let cleared = [];
-/** Set the plots now cleared (from systems/settlement.js clearedPlots), for the woods and grass to keep off. */
+/** Set the ground now cleared (from systems/settlement.js clearedGround): fields and yards, for the woods and grass to keep off. */
 export function setClearedPlots(list) { cleared = list.map((p) => p.rect ?? p); }
-/** True inside a cleared plot (or within `margin` of one). */
-export function inPlot(x, z, margin = 0) {
-  for (const r of cleared) if (x > r.minX - margin && x < r.maxX + margin && z > r.minZ - margin && z < r.maxZ + margin) return true;
+/**
+ * True inside cleared ground (or within `margin` of it). `yards` false asks only
+ * after the sown fields (the old planted trees, an avenue or the oak on the green,
+ * are left standing in a yard).
+ */
+export function inPlot(x, z, margin = 0, yards = true) {
+  for (const r of cleared) {
+    if (r.yard && !yards) continue;
+    if (r.r !== undefined) { if (Math.hypot(x - r.x, z - r.z) < r.r + margin) return true; }
+    else if (x > r.minX - margin && x < r.maxX + margin && z > r.minZ - margin && z < r.maxZ + margin) return true;
+  }
   return false;
+}
+/** How far (0..1) the ground at a point is trodden to earth by the settlers: 1 in a yard, easing off over two metres. */
+export function trodden(x, z) {
+  let t = 0;
+  for (const r of cleared) {
+    if (!r.yard) continue;
+    const out = r.r !== undefined ? Math.hypot(x - r.x, z - r.z) - r.r : Math.max(r.minX - x, x - r.maxX, r.minZ - z, z - r.maxZ);
+    if (out < 2) t = Math.max(t, Math.min(1, 1 - out / 2));
+    if (t >= 1) break;
+  }
+  return t;
 }

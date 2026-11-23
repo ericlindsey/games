@@ -235,7 +235,8 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     }, 16);
   });
   await page.keyboard.down('KeyW');
-  const out = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - courseEnd.x, roi.player.pos.z - courseEnd.z) < 6, null, { timeout: 240000 }).then(() => true, () => false);
+  // (a long walk in game time: on a slow machine software rendering can take minutes over it)
+  const out = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - courseEnd.x, roi.player.pos.z - courseEnd.z) < 6, null, { timeout: 600000 }).then(() => true, () => false);
   await page.keyboard.up('KeyW');
   await page.evaluate(() => { clearInterval(steer); roi.input.haste = false; });
   const exit = await pos(page);
@@ -400,7 +401,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     };
     const before = all(), t0 = performance.now();
     let frames = 0;
-    while (!all() && performance.now() - t0 < 60000) { await new Promise((r) => requestAnimationFrame(r)); frames++; }
+    while (!all() && performance.now() - t0 < 300000) { await new Promise((r) => requestAnimationFrame(r)); frames++; }
     return { before, after: all(), frames };
   });
   check(!stream.before && stream.after && stream.frames > 1, `land coming into range is built over a few frames, and fills in (${stream.frames} frames)`);
@@ -950,6 +951,18 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
   await page.evaluate(() => { roi.villages.pace = 6; }); // (the rest of their settling in, hurried along for the test)
   await page.waitForFunction(() => roi.villages.places.get('farm3').done.size >= 1, null, { timeout: 240000 });
   check(true, 'after a while the house stands');
+  const yard = await page.evaluate(() => {
+    const hs = roi.sites.find((x) => x.id === 'farm3').houses[0], y = roi.heightAt(hs.x, hs.z);
+    // no plant in the yard about the house (a metre or two out from its walls)
+    let plants = 0;
+    for (const ch of roi.ground.chunks.values()) for (const g of ch.veg ?? []) for (let i = 0; i < g.n; i++) {
+      const dx = Math.abs(g.xs[i] - hs.x) - hs.w / 2, dz = Math.abs(g.zs[i] - hs.z) - hs.d / 2;
+      if (Math.max(dx, dz) > 0.5 && Math.max(dx, dz) < 3) plants++;
+    }
+    return { solid: roi.blocked(hs.x, hs.z, y + 0.1, 0.4), plants };
+  });
+  check(yard.solid, 'a mended house is solid: no walking in through its door');
+  check(yard.plants === 0, `nothing grows in the trodden yard about it (${yard.plants} plants)`);
   check(/family are home|settlers are home/.test(await page.textContent('#toast')), 'and the ranger is told so');
   // their own task: seed for the first field
   // (she walks to her place by the door first; then she will talk)

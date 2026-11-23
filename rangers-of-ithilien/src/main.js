@@ -25,7 +25,7 @@ import { updateSurfaces, surfaceSettings } from './world/surface.js';
 import { Herbs } from './world/herbs.js';
 import { Camps } from './world/camps.js';
 import { Villages } from './world/villages.js';
-import { setClearedPlots } from './world/settlements.js';
+import { setClearedPlots, boundsOf } from './world/settlements.js';
 import { Player, CameraRig } from './entities/player.js';
 import { Enemies } from './entities/enemies.js';
 import { makeFigure, animateFigure, LOOKS } from './entities/figure.js';
@@ -35,7 +35,7 @@ import { Combat } from './systems/combat.js';
 import * as inv from './systems/inventory.js';
 import * as quests from './systems/quests.js';
 import { addHonour, HONOUR } from './systems/renown.js';
-import { SETTLEMENTS, settlementIn, settlementBySite, homesteadBySite, sownPlots, stageOf, seedForSale, STAGE_MAX } from './systems/settlement.js';
+import { SETTLEMENTS, settlementIn, settlementBySite, homesteadBySite, clearedGround, stageOf, seedForSale, STAGE_MAX } from './systems/settlement.js';
 import { rng } from './util/noise.js';
 import { Hud } from './ui/hud.js';
 import { DialoguePanel, MapPanel, MenuPanel, PackPanel, TradePanel } from './ui/panels.js';
@@ -136,7 +136,7 @@ async function boot() {
   buildRelics(scene, quality.shadows);
   label('lesser ruins and waymarks');
   // the settlements as far as they have come (before the woods are planted, so the woods keep off their fields)
-  setClearedPlots(sownPlots(state));
+  setClearedPlots(clearedGround(state));
   const villages = new Villages(scene, quality.shadows);
   villages.sync(state);
   label('villages');
@@ -204,8 +204,8 @@ async function boot() {
   const settle = () => {
     const fresh = villages.sync(state, true); // (in play, new houses go up one at a time, built by the people)
     if (!fresh.length) return;
-    setClearedPlots(sownPlots(state));
-    for (const r of fresh) { ground.refresh(r); grass.refresh(r); }
+    setClearedPlots(clearedGround(state));
+    for (const r of fresh) { ground.refresh(boundsOf(r)); grass.refresh(boundsOf(r)); }
   };
   /** What the ranger sees happen at a settlement when its people's task is done. */
   const STAGE_NEWS = [

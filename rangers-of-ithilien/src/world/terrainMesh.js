@@ -133,7 +133,7 @@ export class Ground {
     this.quality = quality;
     this.chunks = new Map();
     this.hole = new THREE.Vector3(0, 0, 0); // x, z, radius
-    this.material = surfaceMaterial({ kind: SURF.ground });
+    this.material = surfaceMaterial({ kind: SURF.ground, camps: true });
     this.field = new VegetationField(scene, quality); // every plant in the loaded chunks
     // herbs and small stones shrink away toward the edge of where they are shown
     for (const m of [materials.herb, materials.rockCover]) m.userData.surf.uFade.value.set(quality.coverFar * 0.68, quality.coverFar - 1);

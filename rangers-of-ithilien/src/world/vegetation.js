@@ -576,7 +576,7 @@ export function* vegetationSteps(cx, cz, quality) {
   const H = (gx, gz, k) => hash2(gx, gz, S + k);
 
   // Trees planted in rows long ago.
-  for (const p of plantedIn(cx, cz)) if (!inPlot(p.x, p.z, 3)) put(p.species, p.x, heightAt(p.x, p.z) - 0.2, p.z, p.x * 1.7, p.scale, 0.95, 0.95, 0.92);
+  for (const p of plantedIn(cx, cz)) if (!inPlot(p.x, p.z, 3, false)) put(p.species, p.x, heightAt(p.x, p.z) - 0.2, p.z, p.x * 1.7, p.scale, 0.95, 0.95, 0.92);
 
   // The great trees: one candidate per 16 m cell. Density 1 closes the roof.
   const TC = 16, tn = size / TC;

@@ -453,8 +453,8 @@ story is expanded into three acts.
 
 ### Things, tasks and trade (M2, M4, rebuilt for v0.2)
 
-- **Gear** (`data/items.js`): 17 swords (damage 14 to 34), 11 bows (16 to 32),
-  and armour in three slots that add up (body to 27%, helm to 8%, greaves to 7%;
+- **Gear** (`data/items.js`): 17 swords (damage 14 to 50), 11 bows (16 to 50),
+  and armour in three slots that add up (body to 32%, helm to 10%, greaves to 8%;
   50% at most). Several pieces share each damage level, with different looks:
   curved, broad, long or short blades; horn bows with pale tips; black mail,
   bronze scale, blue brigandine; caps, nasal helms, a winged helm; greaves. What
@@ -1286,6 +1286,39 @@ land here, on top of v0.7.1 to v0.7.4.
 - The HUD keeps the last two hundred notices (`hud.recent`) so the tests can find a fight's
   call-out after it has faded: the game now runs fast enough in the smoke test that
   the 3 s call-outs were gone before it looked.
+
+### v0.7.7: steps to the doors, trodden yards; dry camps that green
+
+- **Doors above the ground get steps.** A house on a slope stands on a footing
+  (v0.7a), and its door could be two metres up in the air (Beechwell's inn): now
+  a stone landing at the threshold and steps of about 0.2 m down to the ground,
+  each one a floor to walk on (`doorSteps` in villages.js).
+- **A mended house is solid**, door and all, from when its building starts (a box
+  over its footprint; the ruin's own walls had a gap for the door and others broken
+  away, so the ranger could walk in).
+- **Trodden yards**: once a place is lived in, the ground for 5 m round every house
+  it keeps, a village's green and where the cart stands are trodden earth (`yardsOf`
+  in world/settlements.js; `trodden` colours the ground); no bush, shrub or grass
+  grows there, so nothing stands in a doorway. The old planted trees (the oak on the
+  green, the avenues) are left. The fallen stone about a ruin that will be mended now
+  lies inside its walls, under the new house, not on the doorstep.
+- **Dry camps**: the ground and grass of an enemy camp are dry and brown while it is
+  held (the camp's size sets how far: 12 to 25 m), and green again over about six
+  seconds once it is broken, as the blight lifts (`uCamps` in surface.js, set by
+  camps.js from each camp's `strength`, for the nearest ten).
+- **A broken stockade** has about half its stakes knocked flat, lying where they fell;
+  they stop no one (`removeCircles`).
+- **Flowers in the cold fire ring** of every camp broken.
+- **Gear stretched for the late stockades**, which had grown very hard: the best
+  sword and bow now do 50 (they did 34 and 32), and the best armour adds up to 50%
+  (body 32%, helm 10%, greaves 8%; it was 42%). The starting gear is unchanged and
+  every step between is stretched evenly (swords 14 + 1.8 a step, bows 16 + 2.1 a
+  step, armour by about a fifth), so mid-game gear is a little better and the top
+  much better. Prices and renown gates are as they were. A guess until the south is
+  played with good gear.
+- **The full smoke test is for major releases now** (CLAUDE.md): on this machine
+  software rendering has grown slow enough that the whole run takes three hours or
+  more. Point releases run the unit tests and the suites the change touches.
 
 ### Known gaps to pick up
 
