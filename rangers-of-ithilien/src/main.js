@@ -5,6 +5,7 @@ import { QUALITY, SAVE, WORLD } from './config.js';
 import { HA, LANDMARKS, haradRoadX } from './world/layout.js';
 import { trunkAt, blockedBySolid } from './world/collision.js';
 import { CAMPS, blightAt } from './world/campSites.js';
+import { MARSHAL_CAMP } from './data/enemies.js';
 import { SITES } from './world/oldworks.js';
 import { RELICS, RELIC_KINDS } from './world/relicSites.js';
 import { forestDensity } from './world/forest.js';
@@ -23,7 +24,7 @@ import { Motes } from './world/motes.js';
 import { Grass } from './world/grass.js';
 import { updateSurfaces, surfaceSettings } from './world/surface.js';
 import { Herbs } from './world/herbs.js';
-import { Camps } from './world/camps.js';
+import { Camps, stockadeRadius } from './world/camps.js';
 import { Villages } from './world/villages.js';
 import { setClearedPlots, boundsOf } from './world/settlements.js';
 import { Player, CameraRig } from './entities/player.js';
@@ -144,7 +145,7 @@ async function boot() {
   const grass = new Grass(scene, quality);
   const herbs = new Herbs(scene, state.picked);
   label('herbs');
-  const camps = new Camps(scene, (id) => state.cleared.includes(id));
+  const camps = new Camps(scene, (id) => state.cleared.includes(id), (id) => state.broken.includes(id));
   label('camps');
 
   // ---- people ----
@@ -240,11 +241,14 @@ async function boot() {
     hurtPlayer: (amount) => combat.hurt(amount),
     shoot: (from, to, damage) => combat.shoot(from, to, damage, 27, false),
     onKill: (e) => {
-      state.stats.kills++; combat.dropLoot(e); honour(HONOUR.kill[e.type] ?? 1); hud.callout(`${e.def.name} felled`, 'felled');
-      if (e.type === 'marshal') hud.toast('The Marshal is dead', 'The last war-chief of the Vale. His company will not stand long without him.', 'great');
+      state.stats.kills++; combat.dropLoot(e); honour(HONOUR.kill[e.type] ?? 1);
+      hud.callout(e.type === 'marshal' ? 'The Marshal falls!' : `${e.def.name} felled`, 'felled');
+      if (e.type === 'marshal') hud.toast('The Marshal is dead', 'The last war-chief of the Vale lies in the mud of his own hold. His company will not stand long without him.', 'great');
     },
     onSpotted: (camp, how) => hud.callout(
       camp.patrol ? (camp.patrol.host ? 'The host has seen you!' : 'The band on the road has seen you!')
+        : camp.scout ? (camp.scout.courier ? 'A runner and his guard have seen you!' : 'Scouts have seen you!')
+        : camp.id === MARSHAL_CAMP ? 'The Marshal has seen you!'
         : how === 'called' ? (camp.size >= 3 ? 'A stockade takes up the chase!' : 'Another camp takes up the chase!')
         : how === 'struck' ? (camp.size >= 3 ? 'The stockade is roused!' : 'The camp is roused!')
         : camp.size >= 3 ? 'The stockade has seen you!' : 'They have seen you!', 'seen'),
@@ -252,24 +256,58 @@ async function boot() {
     onHost: () => hud.toast('A host on the road', 'Too many for one bow. Get off the road and let them pass.'),
     onPatrolBeaten: (camp) => {
       state.stats.bands = (state.stats.bands ?? 0) + 1;
-      hud.toast('', camp?.patrol?.host ? 'The host is broken! That will be sung of.' : 'The road is quiet again.');
-      honour(camp?.patrol?.host ? HONOUR.host : HONOUR.band);
+      const host = !!camp?.patrol?.host;
+      hud.toast('', host ? 'The host is broken! That will be sung of.' : 'The road is quiet again.');
+      honour(host ? HONOUR.host : HONOUR.band);
+      // (since v0.8) what they carried between them: in place of the stores a camp has
+      combat.give(inv.bandLoot(camp?.count ?? 3, camp?.tier ?? 2, host, lootRand), host ? 'From the host\u2019s baggage' : 'From their packs');
       hud.setTracker(quests.trackers(state));
+    },
+    // (since v0.8) scouts going between the camps of a province not yet free; a courier between two holds carries a map
+    provinceFree: (pid) => provinceStatus(state, pid).freed,
+    onScoutsBeaten: (camp) => {
+      honour(HONOUR.scouts);
+      const to = camp.scout?.courier;
+      if (!to) { hud.toast('', 'The scouts will carry no word back.'); return; }
+      const hold = CAMPS.find((c) => c.id === to), pname = provinceById[CAMP_PROVINCE[to]].name.replace(/^The /, 'the ');
+      if (state.discovered.includes('camp:' + to) || state.told.includes(to) || state.cleared.includes(to)) {
+        hud.toast('A scout\u2019s map', `Scratched on a scrap of hide: the way to the hold of ${pname}. Nothing you did not know.`);
+      } else {
+        state.told.push(to);
+        hud.toast('A scout\u2019s map', `Scratched on a scrap of hide: the way to the hold of ${pname}, marked plain. You copy it onto your own map.`, 'great');
+      }
+      if (hold) save();
     },
     onCampCleared: (camp) => {
       const pid = CAMP_PROVINCE[camp.id], before = pid && provinceStatus(state, pid); // (a camp made up for a test has none)
       camps.clear(camp.id);
       state.cleared.push(camp.id);
       if (!state.discovered.includes('camp:' + camp.id)) state.discovered.push('camp:' + camp.id);
-      if (camp.size >= 3) hud.toast(camp.size === 4 ? 'The war-camp is broken' : 'The stockade is broken', 'Word of it will reach Henneth Ann\u00fbn.');
-      else hud.toast('The camp is broken', 'Give it a little while. The land remembers how to be green.');
+      // (since v0.8 the camp still stands: the ranger breaks it up, and takes its stores, when they choose)
+      hud.toast(camp.size === 4 ? 'The war-camp is taken' : camp.size === 3 ? 'The stockade is taken' : 'The last of them is down',
+        `Break ${campWord(camp)} up before you go: pull down their shelters and put out the fire, and see what they kept.`);
       if (pid) provinceNews(pid, before, provinceStatus(state, pid));
       honour(HONOUR.camp[camp.size] ?? 3);
-      combat.give(inv.stashLoot(camp, lootRand), 'From their stores');
       hud.setTracker(quests.trackers(state));
       save();
     },
   });
+  /** What a camp is called: 'the war-camp', 'the stockade', 'their lair' (a mine), 'the camp'. */
+  function campWord(c) { return c.kind === 'mine' ? 'their lair' : c.size === 4 ? 'the war-camp' : stockadeRadius(c) ? 'the stockade' : 'the camp'; }
+  /**
+   * (since v0.8) Break up a camp whose company is dead: its shelters come down,
+   * the fire is put out, the blight lifts, and its stores are the ranger's.
+   */
+  function breakUp(site) {
+    if (state.broken.includes(site.id) || !state.cleared.includes(site.id)) return;
+    state.broken.push(site.id);
+    camps.breakUp(site.id);
+    hud.toast(site.size === 4 ? 'The war-camp is broken up' : site.size === 3 || stockadeRadius(site) ? 'The stockade is broken up' : 'The camp is broken up',
+      site.size >= 3 ? 'Word of it will reach Henneth Ann\u00fbn. Give the land a little while; it remembers how to be green.' : 'Give it a little while. The land remembers how to be green.');
+    combat.give(inv.stashLoot(site, lootRand), 'From their stores');
+    hud.setTracker(quests.trackers(state));
+    save();
+  }
   /** What the ranger is told when a camp falls and its province moves on. */
   function provinceNews(pid, before, after) {
     const name = provinceById[pid].name;
@@ -485,6 +523,10 @@ async function boot() {
         ? `A night at ${s.inn}, in ${s.name}: a hot supper, a clean bed, and no reckoning in the morning. You rise whole.`
         : `A night in ${s.name}, ${s.inn}, with the house asleep about you. You rise whole.`) };
     }
+    const standing = camps.standingNear(p.x, p.z); // (since v0.8) a camp taken, still to break up
+    if (standing && !enemies.inCombat()) {
+      return { label: `Break up ${campWord(standing)}`, use: () => breakUp(standing) };
+    }
     const v = villages.speakerNear(p.x, p.z);
     if (v?.role === 'trader') {
       const sp = traderSpeaker(v.site);
@@ -561,11 +603,17 @@ async function boot() {
     e.x = lead.x; e.z = lead.z;
   };
 
-  const found = (id, title, blurb) => {
+  const FARM_WORDS = [
+    'Someone ploughed here once. The walls remember the fields.',
+    'A farmhouse with the sky for a roof, and an orchard gone wild behind it.',
+    'Old field walls under the brambles, and a hearth-stone by the door.',
+    'Here a family kept bees, and sheep, and a garden. The hives are ash; the garden is not quite gone.',
+  ];
+  const found = (id, title, blurb, kind) => {
     state.discovered.push(id);
     if (ruinIds.includes(id)) honour(HONOUR.place);
     else if (id.startsWith('site:')) honour(HONOUR.village);
-    if (title) hud.toast(title, blurb);
+    if (title) hud.toast(title, blurb, kind);
     hud.setTracker(quests.trackers(state));
     save();
   };
@@ -576,8 +624,7 @@ async function boot() {
       const id = 'site:' + st.id;
       if (has(id) || Math.hypot(p.x - st.x, p.z - st.z) > 45) continue;
       if (st.kind === 'hamlet') found(id, 'A ruined village', 'Hearths cold these many lives of men, and the trees coming in at the doors.');
-      else if (!state.discovered.some((d) => d.startsWith('site:farm'))) found(id, 'An old farmstead', 'Someone ploughed here once. The walls remember the fields.');
-      else found(id);
+      else found(id, 'An old farmstead', FARM_WORDS[Number(st.id.replace(/\D/g, '')) % FARM_WORDS.length]); // (since v0.8 every one is told, not only the first)
     }
     for (const r of RELICS) if (!has(r.id) && Math.hypot(p.x - r.x, p.z - r.z) < 26) found(r.id, ...RELIC_KINDS[r.kind]);
     for (const c of CAMPS) {
@@ -585,7 +632,9 @@ async function boot() {
       if (has(id) || Math.hypot(p.x - c.x, p.z - c.z) > 45) continue;
       // (a camp already roused, by an arrow from afar, is found without a word: the fight says enough)
       if (enemies.list.some((e) => e.camp.id === c.id && e.alerted && !e.dead)) { found(id); continue; }
-      found(id, 'An enemy camp', state.cleared.includes(c.id) ? 'Cleared, and mending.' : c.size === 3 ? 'A stockade, and a captain within. Think before you go in.' : 'They have not seen you yet.');
+      if (c.id === MARSHAL_CAMP && !state.cleared.includes(c.id)) { found(id, 'The Marshal\u2019s hold', 'Among them stands one head and shoulders over the rest, crooked and huge, all in black. That is the Marshal.', 'warn'); continue; }
+      found(id, 'An enemy camp', state.broken.includes(c.id) ? 'Broken, and mending.' : state.cleared.includes(c.id) ? 'Its company is dead, but it stands. Break it up.'
+        : c.size === 4 ? 'A war-camp, two rows of stakes deep. Think hard before you go in.' : c.size === 3 ? 'A stockade, and a captain within. Think before you go in.' : 'They have not seen you yet.');
     }
     const herb = herbs.gatherAt(p.x, p.z);
     if (herb) {

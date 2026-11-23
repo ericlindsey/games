@@ -1,6 +1,7 @@
 # Rangers of Ithilien: Plan
 
-Status: **v0.7a: the story by province, and the first settlers.** The land, the enemy, fighting, gear, tasks and trade are built and
+Status: **v0.8: camps broken up by hand, scouts between the camps, the Marshal made plain.** (Before that,
+v0.7a: the story by province, and the first settlers.) The land, the enemy, fighting, gear, tasks and trade are built and
 have had several rounds of playtest; v0.3 reworked how all of it looks (section 4); v0.4 laid
 eight provinces over the land (section 11); v0.5 shrank the land to 1.5 by 3 km with a hundred
 camps. v0.7 rebuilds the tasks round the provinces (Faramir frees them and ends on the Marshal;
@@ -431,11 +432,16 @@ story is expanded into three acts.
   chase, strike with a visible wind-up, and shoot. They give up 80 m from camp
   and will not come within about 200 m of the falls.
 - **Bands on the Harad Road**: while the ranger is near the road, a band comes
-  marching down it every minute or two. Usually two to four; about one in eight
+  marching down it every minute or so (since v0.8 always southward, set down ahead
+  of the ranger so it is met). Usually two to four; about one in eight
   is a host of ten or more with a captain, announced so the ranger can get clear.
-  Beating a band is loot and practice; it clears no camp.
-- When the last of a camp's company falls, the camp is cleared for good, its
-  stores are taken, and the blight (55 to 140 m by size) lifts.
+  Beating a band is loot and practice (and what they carry: v0.8); it clears no camp.
+- **Scouts** (v0.8): parties of one to three going between the camps of a province
+  not yet free, round Henneth Annûn; some are couriers between two holds, whose map
+  marks the hold they were bound for.
+- When the last of a camp's company falls, the camp is cleared for good. Since v0.8
+  the ranger then breaks it up (the prompt, near it): only then are its stores taken,
+  its shelters fold away, its fire goes out, and the blight (55 to 140 m by size) lifts.
 - Sword: click or F. Bow: hold to draw, release to loose; over-shoulder camera
   and an aiming mark; arrows fly in an arc and are spent. Q or 1/2 to change.
 - **Aim mode** (hold right mouse, or R; the Aim button on touch): the view closes
@@ -1320,13 +1326,63 @@ land here, on top of v0.7.1 to v0.7.4.
   software rendering has grown slow enough that the whole run takes three hours or
   more. Point releases run the unit tests and the suites the change touches.
 
+### v0.8: camps broken up by hand, scouts, the Marshal made plain
+
+From a playtest of v0.7.7.
+- **Breaking up a camp is its own act.** Killing the last of a company still clears
+  the camp (`state.cleared`: tasks, provinces, renown count from it, as before), but
+  the camp stands, blighted and burning, until the ranger breaks it up: near a camp
+  taken the prompt offers "Break up the camp" (the stockade, the war-camp, their lair).
+  Then its shelters fold down into the ground one after another, the fire goes out
+  with a last breath of smoke, half the stakes are knocked flat, the ranger's marker
+  goes up, the blight lifts and the dry ground greens, and its stores are taken
+  ("From their stores", which used to come at the kill). Saved as `state.broken`
+  (save version 8; a camp cleared before is broken up already). The map rings a
+  camp taken but standing in gold. Not while any enemy has seen the ranger.
+- **Camps in more detail** (camps.js): ridge tents of hide sagging between their
+  poles, a door tied back on the dark inside, patches, guy ropes and pegs; round tents
+  on eight crossed poles (the captain's, and some in the larger camps). Every shelter
+  stops the ranger and the enemy (circles, `tent:<camp>`). Round the fire: logs to sit
+  on, a spit, embers; firewood, sacks and barrels by the stores, a rack of drying
+  hides, a rack of spears in a stockade.
+- **War-camps look like war-camps**: two rows of stakes (the inner set between the
+  outer), a great fire (a pyre of logs, a ring of stones half as wide again, four
+  flames and a wider smoke), and a dozen shelters (a stockade has five).
+- **The Marshal** is a giant (1.85 times a man; a captain is 1.28), hunched, with a
+  great lopsided hump, spiked shoulder plates, a club of a right arm, all in black:
+  no captain's red to mistake him by. Finding his hold, being seen by him and his
+  fall are each called out.
+- **Bands on the road**: all now march south, from the Black Gate toward the Morgul
+  Vale (a quarter used to march north, which looked like a mistake), and each is set
+  down ahead of the ranger: coming to meet them if they go north or stand, ahead to
+  be overtaken if they go south (before, one going south was never seen). One comes
+  every 45 to 100 s near the road (it was 50 to 120), about two or three on a walk
+  from one end of the road to the other. A band beaten gives what they carried between
+  them (`bandLoot`: some silver, arrows, food; a host more, and often gear), and
+  those on the road carry a little more silver each.
+- **Scouts**: while the ranger is in a province not yet free, every minute or two
+  a party of one to three goes from one of its camps to another, on a way chosen to
+  pass within 90 m of the ranger and set down about 160 m off, out of sight. Their
+  ways bend round Henneth Annûn (`scoutRoute`, outside `SCOUT_BERTH`). About a third,
+  where the province's hold stands, are couriers between it and the hold of another
+  province: killed, a courier gives up his map, and the hold he was bound for is
+  marked on the ranger's map (`state.told`; a broken square; the place line says
+  so). Faramir speaks of them in "Who leads them".
+- **Kingsfoil** grows about twice as thick (396 plants; every one that stood before
+  still does).
+- **Every old farmstead found is told of** (before, only the first was; the rest
+  were found without a word).
+- **The testing page folds on a phone** (a CSS rule for touch kept it open).
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
   was comfortable, five was too many at starting gear). The north should now be
   gentle; nobody has yet tried the south with good gear.
 - Enemies steer simply: straight at the ranger, side-stepping what blocks them.
-  They pass through their own stockade stakes (which stop the ranger).
+  They pass through their own stockade stakes (which stop the ranger); since v0.8
+  the shelters stop them. Scouts walk straight between camps, and may be held up by
+  a steep bank or a thicket until they are set aside.
 - A mine (since v0.7 a timbered adit at the end of a rock cut, with rails and a
   cart) is still not a cave you can enter.
 - Streams bend at 9 m joints and have no falls of their own. Paths and roads

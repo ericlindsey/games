@@ -25,7 +25,8 @@ export const PLACES = [
 
 /**
  * Where a province stands:
- * { camps, cleared, need, hold, holdFound, holdCleared, freed, places, found }
+ * { camps, cleared, need, hold, holdFound, holdKnown, holdCleared, freed, places, found }
+ * (`holdKnown`: found, or marked on the ranger's map from a scout's map or Faramir's, since v0.8)
  * `need` is how many camps in all (the hold among them) free it.
  */
 export function provinceStatus(state, id) {
@@ -37,6 +38,7 @@ export function provinceStatus(state, id) {
   return {
     camps: list.length, cleared, need, hold,
     holdFound: holdCleared || state.discovered.includes('camp:' + hold.id),
+    holdKnown: holdCleared || state.discovered.includes('camp:' + hold.id) || (state.told ?? []).includes(hold.id),
     holdCleared,
     freed: holdCleared && cleared >= need,
     places: places.length,
@@ -68,6 +70,6 @@ export function freeProgress(s) {
 export function statusLine(s) {
   if (s.freed) return `Free. ${s.cleared} of ${s.camps} camps broken.`;
   const left = Math.max(0, s.need - s.cleared);
-  const hold = s.holdCleared ? 'The hold is broken.' : s.holdFound ? 'The hold stands.' : 'The hold is not yet found.';
+  const hold = s.holdCleared ? 'The hold is broken.' : s.holdFound ? 'The hold stands.' : s.holdKnown ? 'The hold is marked on your map, not yet found.' : 'The hold is not yet found.';
   return `${s.cleared} of ${s.camps} camps broken` + (left ? `; ${left} more to free it. ` : '. ') + hold;
 }

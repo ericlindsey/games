@@ -312,6 +312,17 @@ export function* figureSteps(o) {
     addHead(b, o, hy);
     b.kind = CLOTH;
     if (o.orc) ball(b, 0.27, 0.11, 0.17, 0, 0.52, -0.06, o.tunic);    // hunched shoulders
+    if (o.brute) { // (since v0.8) the Marshal: a great lopsided hump, one shoulder higher, spiked plates
+      ball(b, 0.21, 0.17, 0.18, 0.1, 0.6, -0.14, o.tunic, 10, 8);
+      ball(b, 0.13, 0.1, 0.12, -0.06, 0.66, -0.1, o.tunic, 8, 6);
+      b.kind = METAL;
+      for (const sx of [-1, 1]) {
+        const up = sx > 0 ? 0.06 : 0; // the right shoulder rides higher
+        ball(b, 0.14, 0.07, 0.13, sx * 0.21, 0.56 + up, -0.01, o.mail ?? o.helm, 10, 6);
+        for (let k = 0; k < 3; k++) b.add(new THREE.ConeGeometry(0.022, 0.13, 6), 0x8a8478, M(sx * (0.2 + k * 0.03), 0.62 + up + k * 0.005, -0.06 + k * 0.05, -0.3, 0, -sx * 0.6), true);
+      }
+      b.kind = CLOTH;
+    }
     else {
       // hair: a cap over the crown and the back of the head
       b.add(new THREE.SphereGeometry(0.114, 18, 10, 0, Math.PI * 2, 0, 1.45), o.hair, M(0, hy + 0.012, -0.012, -0.42, 0, 0, 1.0, 1.08, 1.05), true);
@@ -470,6 +481,13 @@ export function* figureSteps(o) {
     for (const arm of [limbs.armL, limbs.armR]) { arm.scale.y = 1.2; arm.position.y -= drop; arm.position.z += 0.1; }
     g.userData.bodyY = 0.92 - drop;
     g.userData.hunch = 0.3;
+  }
+  if (o.brute) { // thick, uneven limbs and a deeper stoop: the right arm is a club
+    limbs.body.scale.set(1.16, 1, 1.12);
+    limbs.armR.scale.set(1.45, 1.3, 1.45); limbs.armR.position.x += 0.04;
+    limbs.armL.scale.set(1.15, 1.22, 1.15);
+    for (const leg of [limbs.legL, limbs.legR]) leg.scale.set(1.3, 0.84, 1.3);
+    g.userData.hunch = 0.44;
   }
 
   /** Which weapons are in hand (the rest are sheathed or slung). */
@@ -708,6 +726,7 @@ export const LOOKS = {
   archer: { orc: true, tunic: 0xcfc2a0, legs: 0x4a4236, skin: 0x9aa670, hair: 0x2a2a1e, cloak: 0xd8ccaa, hood: true, boots: 0x26221f, heldBow: 0x2a2420, quiver: 0x6a4a2a, sleeve: 0xcfc2a0 },
   uruk: { orc: true, tunic: 0x2e2e36, legs: 0x26262c, skin: 0x5a6248, hair: 0x101010, cloak: null, belt: 0x7a2a22, sleeve: 0x3a3a44, boots: 0x1c1c20, blade: 0x7a7a82, helm: 0x3a3a42, badge: 0xb3261e },
   haradrim: { tunic: 0x8a2a22, legs: 0x3a2a22, skin: 0x8a5a3a, hair: 0x1a1210, cloak: 0x2a2220, hood: true, belt: 0xc9a84a, sleeve: 0x8a2a22, circlet: 0xc9a84a, blade: 0xd8c890 },
-  marshal: { orc: true, tunic: 0x1c1c22, legs: 0x18181c, skin: 0x5a6248, hair: 0x101010, cloak: 0x4a0f0c, longCloak: true, belt: 0xc9a84a, sleeve: 0x26262e, boots: 0x101012, blade: 0x2a2a30, helm: 0x2a2a30, horns: true, badge: 0xc9a84a, mail: 0x3a3a40 },
+  // (since v0.8) a giant, misshapen, all in black: no captain's red about him to mistake him by
+  marshal: { orc: true, brute: true, tunic: 0x0e0e10, legs: 0x0c0c0e, skin: 0x4a5040, hair: 0x080808, cloak: 0x0a0a0c, longCloak: true, belt: 0x2a2a2e, sleeve: 0x111114, boots: 0x08080a, blade: 0x1e1e22, helm: 0x1a1a1e, horns: true, badge: 0x6a1410, mail: 0x26262a },
   chief: { orc: true, tunic: 0x34343e, legs: 0x26262c, skin: 0x626a50, hair: 0x101010, cloak: 0x8a1f1a, belt: 0xc9a84a, sleeve: 0x3c3c46, boots: 0x16161a, blade: 0xa2a2aa, helm: 0x4a4a52, horns: true, badge: 0xb3261e },
 };

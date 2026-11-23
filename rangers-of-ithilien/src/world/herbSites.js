@@ -14,7 +14,9 @@ import { houseDistance } from './oldworks.js';
  * `d` is forest density, `h` distance to the nearest old house.
  */
 export const PLANTS = {
-  athelas: { cell: 55, rate: 0.34, salt: 600, grows: (x, z, d) => d <= 0.93 },
+  // (since v0.8 about twice as many kingsfoil, for the tasks that want it besides the draughts;
+  // as with the seed plants, a higher rate and a wider reach keep every plant that stood before)
+  athelas: { cell: 55, rate: 0.66, salt: 600, grows: (x, z, d) => d <= 0.96 },
   // (since v0.6a about twice as many seed plants as before: they were hard to
   // find. A higher rate keeps every plant that stood before, so saved ids hold.)
   thymeSeed: { cell: 70, rate: 0.62, salt: 640, grows: (x, z, d) => d < 0.45 && z < 1725 },

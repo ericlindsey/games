@@ -10,7 +10,8 @@ import { CAMPS } from '../world/campSites.js';
 import { heightAt } from '../world/terrain.js';
 import { groundAt, blockedBySolid, resolveCircles } from '../world/collision.js';
 import { makeFigure, figureSteps, animateFigure, LOOKS, figureMaterial } from './figure.js';
-import { ENEMY_TYPES, CHASE, rosterFor, patrolRoster } from '../data/enemies.js';
+import { ENEMY_TYPES, CHASE, rosterFor, patrolRoster, scoutRoster, scoutRoute, meetingPoint } from '../data/enemies.js';
+import { PROVINCE_CAMPS, HOLDS, CAMP_PROVINCE, provinceAt } from '../world/provinces.js';
 import { enemyStrength } from '../systems/renown.js';
 import { haradRoadX } from '../world/layout.js';
 import { dangerTier, REFUGE } from '../world/regions.js';
@@ -49,6 +50,12 @@ export class Enemies {
     this.toMake = [];       // types still to make
     this.making = null;     // { type, steps }: the figure being made
     this.nextPatrol = null; // the next band, chosen a few seconds before it comes
+    // (since v0.8) scouting parties going between the camps of a province not yet free
+    this.scoutIn = 40;
+    this.scoutCount = 0;
+    this.nextScout = null;  // the next party's roster, chosen a few seconds ahead
+    this.lastZ = null;      // where the ranger was, to tell which way along the road they are going
+    this.headingSouth = 0;  // > 0 while they make southward
   }
 
   /** A figure for an enemy of this type: one made ahead if there is one, else made now. */
@@ -95,9 +102,21 @@ export class Enemies {
   spawnPatrol(z, dir, forced) {
     const x = haradRoadX(z);
     const { list, host } = forced ?? patrolRoster(dangerTier(x - 60, z), this.rand, this.api.renown?.() ?? 0);
-    const camp = { id: 'patrol' + ++this.patrolCount, x, z, tier: Math.max(2, dangerTier(x - 60, z)), size: 2, patrol: { dir, host } };
+    const camp = { id: 'patrol' + ++this.patrolCount, x, z, tier: Math.max(2, dangerTier(x - 60, z)), size: 2, count: list.length, patrol: { dir, host } };
     this.spawnCamp(camp, list);
     if (host) this.api.onHost?.(camp);
+    return camp;
+  }
+
+  /**
+   * (since v0.8) A scouting party, set down `at` a point on its route (`route`,
+   * from scoutRoute) and walking on to the end of it. `courier` is the id of the
+   * hold a courier is bound for (he carries a map of the way), else null.
+   */
+  spawnScouts(route, at, list, courier = null) {
+    const tier = Math.max(1, dangerTier(at.x, at.z));
+    const camp = { id: 'scout' + ++this.scoutCount, x: at.x, z: at.z, tier, size: 1, scout: { route, leg: at.leg, courier, arrived: false } };
+    this.spawnCamp(camp, list);
     return camp;
   }
 
@@ -112,6 +131,10 @@ export class Enemies {
       // a camp's company stands about its fire; a band on the road walks in file
       let x = camp.patrol ? haradRoadX(camp.z - camp.patrol.dir * i * 1.8) + (i % 2 ? 1.2 : -1.2) : camp.x + Math.cos(a) * r;
       let z = camp.patrol ? camp.z - camp.patrol.dir * i * 1.8 : camp.z + Math.sin(a) * r;
+      if (camp.scout) { // scouts walk in file, the first ahead
+        const nx = camp.scout.route[camp.scout.leg], d = Math.hypot(nx.x - camp.x, nx.z - camp.z) || 1;
+        x = camp.x - ((nx.x - camp.x) / d) * i * 2; z = camp.z - ((nx.z - camp.z) / d) * i * 2;
+      }
       const spot = this.clearSpot(x, z);
       x = spot.x; z = spot.z;
       const fig = this.figureFor(type);
@@ -161,7 +184,7 @@ export class Enemies {
     const c = this.camps.get(campId);
     const company = this.list.filter((e) => e.camp.id === campId);
     // Remember a camp's wounds and dead (not a band's: a band marches on and is gone).
-    if (c && !c.camp.patrol && company.some((e) => e.dead || e.hp < e.maxHp)) {
+    if (c && !c.camp.patrol && !c.camp.scout && company.some((e) => e.dead || e.hp < e.maxHp)) {
       const wounds = this.wounds.get(campId) ?? [];
       for (const e of company) wounds[e.idx] = e.dead ? 0 : e.hp / e.maxHp;
       this.wounds.set(campId, wounds);
@@ -222,7 +245,11 @@ export class Enemies {
     e.bar.visible = false;
     this.api.onKill(e);
     const c = this.camps.get(e.camp.id);
-    if (c && --c.alive === 0) { if (e.camp.patrol) this.api.onPatrolBeaten?.(e.camp); else this.api.onCampCleared(e.camp); }
+    if (c && --c.alive === 0) {
+      if (e.camp.patrol) this.api.onPatrolBeaten?.(e.camp);
+      else if (e.camp.scout) this.api.onScoutsBeaten?.(e.camp);
+      else this.api.onCampCleared(e.camp);
+    }
   }
 
   /** Try to move an enemy to (nx, nz), sliding along what blocks it. Returns true if it moved. */
@@ -307,6 +334,60 @@ export class Enemies {
   }
 
   /**
+   * (since v0.8) Now and then, while the ranger is in a province not yet free, a
+   * party of one to three scouts goes from one of its camps to another, on a way
+   * that passes near the ranger (so that it is met, not only told of), and round
+   * Henneth Annûn rather than near it. Some, where the province's hold still
+   * stands, are couriers going between it and the hold of another province.
+   * `soon` gathers the rosters whose figures should be made ahead.
+   */
+  tendScouts(p, alive, soon) {
+    const atHome = Math.hypot(p.x - HA.x, p.z - HA.z) < REFUGE + 20;
+    const pid = provinceAt(p.x, p.z);
+    const busy = [...this.camps.values()].some((c) => c.camp.scout);
+    if (atHome || busy || !alive || this.api.provinceFree?.(pid) !== false) { this.nextScout = null; return; }
+    this.scoutIn -= 0.5;
+    const tier = Math.max(1, dangerTier(p.x, p.z));
+    if (this.scoutIn <= 5 && !this.nextScout) {
+      const courier = this.rand() < 0.35;
+      this.nextScout = { courier, list: scoutRoster(tier, this.rand, courier) };
+    }
+    if (this.nextScout) soon.push(this.nextScout.list);
+    if (this.scoutIn > 0) return;
+    const standing = (c) => !this.api.isCleared(c.id);
+    const optionsFor = (routes) => {
+      const out = [];
+      for (const [a, b, courier] of routes) {
+        // from the edge of one camp to the edge of the other, not fire to fire
+        const d = Math.hypot(b.x - a.x, b.z - a.z), ux = (b.x - a.x) / d, uz = (b.z - a.z) / d;
+        const route = scoutRoute({ x: a.x + ux * 12, z: a.z + uz * 12 }, { x: b.x - ux * 12, z: b.z - uz * 12 }), at = meetingPoint(route, p.x, p.z);
+        if (at && Math.hypot(at.x - HA.x, at.z - HA.z) > REFUGE + 20) out.push({ route, at, courier });
+      }
+      return out;
+    };
+    let options = [];
+    const hold = HOLDS[pid];
+    if (this.nextScout.courier && standing(hold)) { // between this province's hold and another's, either way
+      const routes = [];
+      for (const other of Object.values(HOLDS)) if (other !== hold && standing(other)) routes.push([hold, other, other.id], [other, hold, hold.id]);
+      options = optionsFor(routes);
+    }
+    if (!options.length) { // else (or if no such way passes near) from camp to camp within the province
+      const camps = PROVINCE_CAMPS[pid].filter(standing), routes = [];
+      for (const a of camps) for (const b of camps) {
+        const d = Math.hypot(a.x - b.x, a.z - b.z);
+        if (a !== b && d > 120 && d < 650) routes.push([a, b, null]);
+      }
+      options = optionsFor(routes);
+    }
+    if (!options.length) { this.scoutIn = 8; return; } // none passes near: look again in a little while
+    const pick = options[Math.floor(this.rand() * options.length)];
+    this.spawnScouts(pick.route, pick.at, this.nextScout.list, pick.courier);
+    this.nextScout = null;
+    this.scoutIn = 50 + this.rand() * 60;
+  }
+
+  /**
    * @param player { pos, speed }  @param quiet true if the ranger is walking softly
    * @param alive false while the ranger is down
    */
@@ -337,26 +418,36 @@ export class Enemies {
       // Bands on the road: forgotten when far behind, and a new one now and then
       // while the ranger is anywhere near the road.
       for (const [id, c] of this.camps) {
-        if (!c.camp.patrol) continue;
+        if (!c.camp.patrol && !c.camp.scout) continue;
         const lead = this.list.find((e) => e.camp === c.camp && !e.dead);
         const any = this.list.some((e) => e.camp === c.camp);
+        const roused = this.list.some((e) => e.camp === c.camp && e.alerted && !e.dead);
         if (!any) this.camps.delete(id); // all fallen and gone
         else if (lead && (Math.hypot(lead.x - p.x, lead.z - p.z) > 300 || lead.z < 60 || lead.z > 2850)) this.forgetCamp(id);
+        // scouts who have reached where they were going go in among the camp, once the ranger is not watching
+        else if (lead && c.camp.scout?.arrived && !roused && Math.hypot(lead.x - p.x, lead.z - p.z) > 70) this.forgetCamp(id);
       }
-      const nearRoad = Math.abs(p.x - haradRoadX(p.z)) < 240 && p.z > 195 && p.z < 2775;
+      // Which way along the road the ranger is going: a band is set down ahead of them, so it
+      // is met, not left behind. (Before v0.8 it came from behind as often as not, and a quarter
+      // of them marched north; now all come south from the Black Gate, toward the Morgul Vale.)
+      if (this.lastZ !== null) this.headingSouth += ((p.z - this.lastZ > 1 ? 1 : p.z - this.lastZ < -1 ? -1 : 0) - this.headingSouth) * 0.2;
+      this.lastZ = p.z;
+      const nearRoad = Math.abs(p.x - haradRoadX(p.z)) < 200 && p.z > 195 && p.z < 2775;
       this.patrolIn -= nearRoad ? 0.5 : 0;
       const band = () => {
-        const dir = this.rand() < 0.75 ? 1 : -1; // most come south from the Black Gate
-        const z = p.z - dir * 190;
-        return { dir, ...patrolRoster(dangerTier(haradRoadX(z) - 60, z), this.rand, this.api.renown?.() ?? 0) };
+        const z = p.z - 170;
+        return { dir: 1, ...patrolRoster(dangerTier(haradRoadX(z) - 60, z), this.rand, this.api.renown?.() ?? 0) };
       };
       if (nearRoad && this.patrolIn <= 5) this.nextPatrol ??= band(); // chosen early, to be made ready
       if (nearRoad && this.patrolIn <= 0 && alive && ![...this.camps.values()].some((c) => c.camp.patrol)) {
         const next = this.nextPatrol ?? band();
         this.nextPatrol = null;
-        this.spawnPatrol(p.z - next.dir * 190, next.dir, next);
-        this.patrolIn = 50 + this.rand() * 70;
+        // going south, the ranger overtakes a band ahead of them; else it comes down the road to meet them
+        const z = this.headingSouth > 0.4 ? Math.min(2790, p.z + 130) : Math.max(70, p.z - 190);
+        this.spawnPatrol(z, 1, next);
+        this.patrolIn = 45 + this.rand() * 55;
       }
+      this.tendScouts(p, alive, soon);
       if (this.nextPatrol) soon.push(this.nextPatrol.list);
       this.plan(soon);
     }
@@ -382,7 +473,7 @@ export class Enemies {
         continue;
       }
       const dx = p.x - e.x, dz = p.z - e.z, dist = Math.hypot(dx, dz), dy = Math.abs(p.y - e.y);
-      const pat = e.camp.patrol;
+      const pat = e.camp.patrol, sc = e.camp.scout;
       // a band's "camp" is the road itself: how far it has strayed from it
       const fromCamp = pat ? Math.abs(e.x - haradRoadX(e.z)) : Math.hypot(e.x - e.camp.x, e.z - e.camp.z);
       e.cooldown -= dt;
@@ -403,6 +494,19 @@ export class Enemies {
 
       switch (e.state) {
         case 'idle': {
+          if (sc && !sc.arrived) { // on their way: the first along the route, the rest in file behind
+            let ahead = null; // the nearest of the party before this one in the file
+            for (const o of this.list) if (o.camp === e.camp && !o.dead && o.idx < e.idx && (!ahead || o.idx > ahead.idx)) ahead = o;
+            if (!ahead) {
+              const w = sc.route[sc.leg];
+              if (Math.hypot(w.x - e.x, w.z - e.z) < 3) {
+                if (sc.leg < sc.route.length - 1) sc.leg++;
+                else { sc.arrived = true; for (const o of this.list) if (o.camp === e.camp) o.home = { x: o.x, z: o.z }; }
+              }
+              this.moveToward(e, w.x, w.z, 2.3, dt, 'shift');
+            } else if (Math.hypot(ahead.x - e.x, ahead.z - e.z) > 2.2) this.moveToward(e, ahead.x, ahead.z, 2.5, dt, 'shift');
+            break;
+          }
           if (pat) { // on the march
             const tz = e.z + pat.dir * 8;
             this.moveToward(e, haradRoadX(tz) + (e.side > 0 ? 1.2 : -1.2), tz, 2.1, dt, 'shift');
@@ -414,6 +518,7 @@ export class Enemies {
           break;
         }
         case 'return': {
+          if (sc) { e.state = 'idle'; break; } // (back to the way they were going)
           if (pat) { // back to the road, then march on
             if (fromCamp < 3) e.state = 'idle'; else this.moveToward(e, haradRoadX(e.z), e.z + pat.dir * 4, e.def.speed * 0.8, dt, 'shift');
           } else if (Math.hypot(e.home.x - e.x, e.home.z - e.z) < 1) e.state = 'idle'; // (still wounded: they do not mend while the ranger is about)
@@ -428,7 +533,7 @@ export class Enemies {
               this.face(e, dx / dist, dz / dist, dt);
               if (e.cooldown <= 0) { e.state = 'aim'; e.timer = 0.8; }
             }
-          } else if (dist > REACH) this.moveToward(e, p.x, p.z, e.def.speed, dt, 'jump');
+          } else if (dist > REACH * Math.max(1, e.def.scale * 0.75)) this.moveToward(e, p.x, p.z, e.def.speed, dt, 'jump');
           else {
             this.face(e, dx / dist, dz / dist, dt);
             if (e.cooldown <= 0) { e.state = 'windup'; e.timer = 0.45; }
@@ -440,7 +545,7 @@ export class Enemies {
           this.face(e, dx / dist, dz / dist, dt);
           pose.armR = -2.7;
           if (e.timer <= 0) {
-            if (dist < REACH + 0.7 && dy < 2) this.api.hurtPlayer(e.damage * (0.85 + 0.3 * ((time * 13) % 1)), e);
+            if (dist < REACH * Math.max(1, e.def.scale * 0.75) + 0.7 && dy < 2) this.api.hurtPlayer(e.damage * (0.85 + 0.3 * ((time * 13) % 1)), e);
             e.state = 'strike'; e.timer = 0.22; e.cooldown = 1.0;
           }
           break;
