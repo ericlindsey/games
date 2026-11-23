@@ -928,14 +928,25 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
   const home = await page.evaluate(async () => {
     const s = roi.state, st = roi.settlements.find((x) => x.province === 'southwood');
     const step = () => new Promise((r) => requestAnimationFrame(r));
+    const who = roi.villages.escort.people;
+    let gap = Infinity;
     for (let n = 0; n < 4000 && !s.settled.includes(st.site); n++) {
       const p = roi.player.pos, dx = st.x - p.x, dz = st.z - p.z, d = Math.hypot(dx, dz);
       if (d > 1) roi.player.place(p.x + (dx / d) * 0.3, p.z + (dz / d) * 0.3, Math.atan2(dx, dz));
+      if (n > 60) for (let i = 0; i < who.length; i++) for (let j = i + 1; j < who.length; j++) gap = Math.min(gap, Math.hypot(who[i].x - who[j].x, who[i].z - who[j].z));
       await step();
     }
-    return { settled: s.settled.includes(st.site), built: roi.villages.places.has(st.site), done: roi.quests.isComplete(roi.quests.byId['s-southwood'], s) };
+    const pl = roi.villages.places.get(st.site);
+    return { settled: s.settled.includes(st.site), built: !!pl, done: roi.quests.isComplete(roi.quests.byId['s-southwood'], s), many: who.length, bags: who.filter((q) => q.fig.props.sack.visible).length, gap,
+      building: !!pl && (!!pl.build || pl.queue.length > 0) && pl.shown.size === 0, travel: roi.travelPlaces().some((t) => t.id === 'v:' + st.site) };
   });
-  check(home.settled && home.built && home.done, 'led home, they settle in, and the farm is mended and lived in');
+  check(home.many === 7 && home.bags >= 4, `the family (${home.many}) carry their bags (${home.bags}), and one pushes a cart`);
+  check(home.gap > 0.9, `on the way they keep a step apart (closest ${home.gap.toFixed(2)} m)`);
+  check(home.settled && home.built && home.done, 'led home, they settle in, and the farm is lived in');
+  check(home.building, 'on arriving they set to work, and the house goes up while they build it, not all at once');
+  check(home.travel, 'a settlement whose people are home can be travelled to');
+  await page.waitForFunction(() => roi.villages.places.get('farm3').shown.size === 1, null, { timeout: 240000 });
+  check(true, 'after a while the house stands');
   check(/family are home|settlers are home/.test(await page.textContent('#toast')), 'and the ranger is told so');
   // their own task: seed for the first field
   await page.evaluate(() => { const p = roi.villages.places.get('farm3').people.find((q) => q.reeve); roi.teleport(p.x + 2, p.z + 0.5, Math.atan2(-2, -0.5)); });
