@@ -453,8 +453,8 @@ story is expanded into three acts.
 
 ### Things, tasks and trade (M2, M4, rebuilt for v0.2)
 
-- **Gear** (`data/items.js`): 17 swords (damage 14 to 34), 11 bows (16 to 32),
-  and armour in three slots that add up (body to 27%, helm to 8%, greaves to 7%;
+- **Gear** (`data/items.js`): 17 swords (damage 14 to 50), 11 bows (16 to 50),
+  and armour in three slots that add up (body to 32%, helm to 10%, greaves to 8%;
   50% at most). Several pieces share each damage level, with different looks:
   curved, broad, long or short blades; horn bows with pale tips; black mail,
   bronze scale, blue brigandine; caps, nasal helms, a winged helm; greaves. What
@@ -1309,6 +1309,16 @@ land here, on top of v0.7.1 to v0.7.4.
 - **A broken stockade** has about half its stakes knocked flat, lying where they fell;
   they stop no one (`removeCircles`).
 - **Flowers in the cold fire ring** of every camp broken.
+- **Gear stretched for the late stockades**, which had grown very hard: the best
+  sword and bow now do 50 (they did 34 and 32), and the best armour adds up to 50%
+  (body 32%, helm 10%, greaves 8%; it was 42%). The starting gear is unchanged and
+  every step between is stretched evenly (swords 14 + 1.8 a step, bows 16 + 2.1 a
+  step, armour by about a fifth), so mid-game gear is a little better and the top
+  much better. Prices and renown gates are as they were. A guess until the south is
+  played with good gear.
+- **The full smoke test is for major releases now** (CLAUDE.md): on this machine
+  software rendering has grown slow enough that the whole run takes three hours or
+  more. Point releases run the unit tests and the suites the change touches.
 
 ### Known gaps to pick up
 

@@ -401,7 +401,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     };
     const before = all(), t0 = performance.now();
     let frames = 0;
-    while (!all() && performance.now() - t0 < 60000) { await new Promise((r) => requestAnimationFrame(r)); frames++; }
+    while (!all() && performance.now() - t0 < 300000) { await new Promise((r) => requestAnimationFrame(r)); frames++; }
     return { before, after: all(), frames };
   });
   check(!stream.before && stream.after && stream.frames > 1, `land coming into range is built over a few frames, and fills in (${stream.frames} frames)`);

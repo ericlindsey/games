@@ -312,8 +312,14 @@ python3 -m http.server 8000     # open http://localhost:8000
    pre-installed Playwright). It fails on any console error or failed request.
    It plays through at `?quality=low` (software rendering cannot click through
    medium or high in time) and then only loads medium and high to see they draw.
-   A full run takes 20 to 40 minutes; `SMOKE_ONLY=phone` (any part of a suite's
-   name) runs only the matching suites.
+   `SMOKE_ONLY=settlers` (any part of a suite's name: desktop, phone, phone upright,
+   settlers, testing, quality) runs only the matching suites. **Run the whole suite
+   only for a major release (0.8, 0.9, ...)**: in software rendering it now takes three
+   hours or more, and a run cut short by a time limit or sharing the machine with
+   another fails on timing, not on the game. For a point release (0.7.x) run the unit
+   tests and the suites the change touches, say which, and run each suite alone
+   (one at a time: two at once slow each other into timeouts). On a machine with a
+   GPU it is much quicker.
 3. For hands-on checking, open `debug.html`: it has its own save and shortcuts
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
