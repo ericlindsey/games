@@ -239,19 +239,24 @@ export class MapPanel {
       ctx.beginPath(); ctx.arc(t.target.x * scale, t.target.z * scale, 9, 0, 7); ctx.stroke();
     }
     // camps Faramir has told of and the ranger has not yet found: a red ring, a broken one if only told
+    // (a hold known only from a scout's map, since v0.8, is a broken square: the keep it will be once found)
+    const holdIds = new Set(status.map((s) => s.hold.id));
     for (const c of CAMPS) {
       if (state.discovered.includes('camp:' + c.id) || state.cleared.includes(c.id)) continue;
       const fresh = opts.scouted?.includes(c);
       if (!fresh && !state.told.includes(c.id)) continue;
       ctx.strokeStyle = '#8a2a22'; ctx.lineWidth = fresh ? 2.5 : 1.5;
       ctx.setLineDash(fresh ? [] : [3, 2]);
-      ctx.beginPath(); ctx.arc(c.x * scale, c.z * scale, fresh ? 8 : 6, 0, 7); ctx.stroke();
+      ctx.beginPath();
+      if (holdIds.has(c.id)) ctx.rect(c.x * scale - 7, c.z * scale - 7, 14, 14); else ctx.arc(c.x * scale, c.z * scale, fresh ? 8 : 6, 0, 7);
+      ctx.stroke();
       ctx.setLineDash([]);
     }
     for (const c of CAMPS) {
       if (!state.discovered.includes('camp:' + c.id)) continue;
       const x = c.x * scale, y = c.z * scale, done = state.cleared.includes(c.id);
-      ctx.strokeStyle = done ? '#3f6b3a' : '#8a2a22'; ctx.lineWidth = 2;
+      // a green ring once broken up; (since v0.8) a gold one while its company is dead but it stands
+      ctx.strokeStyle = done ? (state.broken.includes(c.id) ? '#3f6b3a' : '#b8902a') : '#8a2a22'; ctx.lineWidth = 2;
       ctx.beginPath();
       if (done) { ctx.arc(x, y, 4, 0, 7); } else { ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4); ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4); }
       ctx.stroke();

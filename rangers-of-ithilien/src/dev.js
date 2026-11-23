@@ -22,7 +22,7 @@ export function attach(g) {
     <style>
       #dev { position: fixed; left: 8px; bottom: 8px; z-index: 50; width: 250px; max-height: 70vh; overflow-y: auto; padding: 8px 10px;
         font: 12.5px/1.4 system-ui, sans-serif; color: #e8ffe0; background: rgba(10, 18, 10, 0.86); border: 1px solid #4d6238; border-radius: 6px; }
-      #dev.shut { max-height: 30px; overflow: hidden; }
+      #dev.shut, body.touch #dev.shut { max-height: 30px; overflow: hidden; } /* (the touch rule below is more particular, and kept it open: v0.8) */
       #dev h4 { margin: 8px 0 3px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #9be07a; font-weight: normal; }
       #dev header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: bold; }
       #dev button, #dev select { font: inherit; padding: 2px 7px; margin: 2px 2px 2px 0; border-radius: 3px; border: 1px solid #6b8a4e; background: #26331f; color: inherit; cursor: pointer; }
@@ -49,7 +49,7 @@ export function attach(g) {
     <h4>Provinces</h4>
     <div class="line"><select id="dev-province"></select><button data-a="phold">Go to hold</button><button data-a="pfree">Free it</button></div>
     <div class="line"><button data-a="pvillage">Go to its village</button><button data-a="psettle">Settle it</button><button data-a="pgrow">Grow it</button></div>
-    <div class="line"><button data-a="patrol">Band on the road</button><button data-a="host">Host on the road</button></div>
+    <div class="line"><button data-a="patrol">Band on the road</button><button data-a="host">Host on the road</button><button data-a="scouts">Scouts</button></div>
     <h4>Save</h4>
     <div class="line"><button data-a="wipe">Wipe testing save</button> <small>kept apart from your real game</small></div>`;
   document.body.appendChild(el);
@@ -74,10 +74,9 @@ export function attach(g) {
     g.refreshHud();
   };
   const go = (x, z) => { g.enemies.reset(); g.combat.reset(); g.teleport(x, z); };
-  const clear = (camp) => {
-    if (state.cleared.includes(camp.id)) return;
-    state.cleared.push(camp.id);
-    g.camps.clear(camp.id);
+  const clear = (camp) => { // (and broken up: since v0.8 that is the ranger's own doing, after)
+    if (!state.cleared.includes(camp.id)) { state.cleared.push(camp.id); g.camps.clear(camp.id); }
+    if (!state.broken.includes(camp.id)) { state.broken.push(camp.id); g.camps.breakUp(camp.id); }
   };
 
   const actions = {
@@ -147,6 +146,7 @@ export function attach(g) {
     },
     patrol() { const p = g.player.pos; g.enemies.spawnPatrol(p.z - 60, 1, { list: ['snaga', 'snaga', 'archer'], host: false }); },
     host() { const p = g.player.pos; g.enemies.spawnPatrol(p.z - 90, 1, { list: ['chief', 'uruk', 'uruk', 'haradrim', 'archer', 'archer', 'snaga', 'snaga', 'snaga', 'snaga', 'snaga'], host: true }); },
+    scouts() { g.enemies.scoutIn = 0; }, // (the next party that can pass near, in a province not yet free)
     wipe() { g.store.clear(); addEventListener('pagehide', (e) => e.stopImmediatePropagation(), true); location.reload(); },
   };
   el.addEventListener('click', (e) => {

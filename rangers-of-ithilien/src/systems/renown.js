@@ -36,6 +36,7 @@ export const HONOUR = {
   kill: { snaga: 2, archer: 2, uruk: 3, haradrim: 3, chief: 9, marshal: 60 },
   camp: [0, 4, 9, 20, 48],      // by camp size
   band: 6, host: 40,            // a band beaten on the road; a great host
+  scouts: 4,                    // (since v0.8) a scouting party caught between camps
   place: 3, village: 2,         // an old place found; a farm or village found
 };
 

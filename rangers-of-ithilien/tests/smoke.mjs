@@ -438,7 +438,13 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // finish the rest by decree, to keep the test short
   await page.evaluate(() => { for (const e of [...roi.enemies.list]) roi.enemies.damage(e, 9999); });
   check(await page.evaluate(() => roi.state.cleared.includes(roi.quests.NEAREST_CAMP.id) && roi.camps.byId[roi.quests.NEAREST_CAMP.id].isCleared), 'when the last falls the camp is cleared');
-  check(await page.evaluate(() => roi.state.silver > 0), 'and its stores are taken');
+  // (since v0.8 the camp stands until the ranger breaks it up, and only then are its stores taken)
+  check(await page.evaluate(() => !roi.state.broken.includes(roi.quests.NEAREST_CAMP.id) && roi.camps.byId[roi.quests.NEAREST_CAMP.id].strength === 1), 'it stands, blighted, until it is broken up');
+  await page.evaluate(() => { const c = roi.camps.byId[roi.quests.NEAREST_CAMP.id]; roi.teleport(c.fire.x + 4, c.fire.z, -Math.PI / 2); });
+  await page.waitForFunction(() => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes('Break up'), null, { timeout: 60000 });
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => roi.state.broken.includes(roi.quests.NEAREST_CAMP.id), null, { timeout: 20000 });
+  check(await page.evaluate(() => roi.state.silver > 0 && roi.hud.recent.some((t) => /From their stores/.test(t))), 'broken up, its stores are taken');
   check((await page.textContent('#tracker')).includes('Return to Faramir'), 'the task shows as done');
 
   // The bow: hold to draw, release to loose.
@@ -1042,6 +1048,120 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
   await page.reload();
   await ready(page);
   check(await page.evaluate(() => roi.state.settled.includes('farm3') && roi.villages.places.has('farm3') && roi.villages.places.get('farm3').plots.length === 1), 'after a reload the farm is lived in still, its field sown');
+});
+
+// (v0.8) Camps broken up after their company falls; tents that stop people and fold
+// away; the Marshal; bands met ahead on the road; scouts between camps, and a
+// courier's map; every farmstead told of.
+await run('camps and scouts', { viewport: { width: 800, height: 500 } }, async (page) => {
+  await page.goto(base + '?quality=low&autostart');
+  await ready(page);
+  const war = await page.evaluate(() => { const c = roi.camps.sites.find((c) => c.size === 4); roi.combat.god = true; roi.teleport(c.x + 30, c.z, -Math.PI / 2); return c.id; });
+  await page.waitForFunction((id) => roi.enemies.list.some((e) => e.camp.id === id), war, { timeout: 60000 });
+  const t = await page.evaluate((id) => { // a shelter stops the ranger: set down in one, the first step puts them out
+    const t = roi.camps.byId[id].pitched[0].circles[0];
+    roi.enemies.reset(); roi.player.place(t[0], t[1], 0); roi.rig.yaw = 0;
+    return t;
+  }, war);
+  const first = page.evaluate(async (t) => { // where the ranger is the first frame they move: out past the shelter's edge, not a step into it
+    for (let k = 0; k < 6000; k++) {
+      await new Promise((r) => requestAnimationFrame(r));
+      const d = Math.hypot(roi.player.pos.x - t[0], roi.player.pos.z - t[1]);
+      if (d > 0.01) return d;
+    }
+    return 0;
+  }, t);
+  await page.keyboard.down('KeyW');
+  const pushed = await first;
+  await page.keyboard.up('KeyW');
+  check(pushed > t[2], `a shelter is solid: the first step puts the ranger out of it (${pushed.toFixed(1)} m, its edge ${t[2].toFixed(1)} m)`);
+  check(await page.evaluate((id) => roi.camps.byId[id].pitched.length >= 8 && roi.camps.byId[id].flames.children.length > 2, war), 'a war-camp has many shelters and a great fire');
+  await page.evaluate((id) => { const c = roi.camps.byId[id]; roi.teleport(c.x + 30, c.z, -Math.PI / 2); }, war);
+  await page.waitForFunction((id) => roi.enemies.list.some((e) => e.camp.id === id), war, { timeout: 60000 });
+  await page.evaluate((id) => { for (const e of [...roi.enemies.list]) if (e.camp.id === id) roi.enemies.damage(e, 1e9); }, war);
+  check(await page.evaluate((id) => roi.state.cleared.includes(id) && !roi.state.broken.includes(id) && roi.camps.byId[id].occupied.visible, war), 'the last of a war-camp down, it is taken but still stands');
+  check(await page.evaluate(() => roi.hud.recent.some((t) => /war-camp is taken/.test(t) && /Break the war-camp up/.test(t))), 'and the ranger is told to break it up');
+  await page.evaluate((id) => { roi.enemies.reset(); const c = roi.camps.byId[id]; roi.teleport(c.fire.x + 5, c.fire.z + 1, -Math.PI / 2); }, war);
+  await page.waitForFunction(() => !document.getElementById('prompt').hidden && document.getElementById('prompt').textContent.includes('Break up the war-camp'), null, { timeout: 60000 });
+  const silver = await page.evaluate(() => roi.state.silver);
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction((id) => roi.state.broken.includes(id), war, { timeout: 20000 });
+  check(await page.evaluate((s) => roi.state.silver > s, silver), 'breaking it up takes its stores');
+  check(await page.evaluate((id) => !roi.camps.byId[id].flames.visible, war), 'and puts out the fire');
+  await page.waitForFunction((id) => !roi.camps.byId[id].occupied.visible && roi.camps.byId[id].cleared.visible, war, { timeout: 600000 });
+  check(true, 'the shelters fold away, and the ranger\u2019s marker stands');
+  await page.waitForFunction((id) => roi.camps.byId[id].strength < 0.9, war, { timeout: 600000 });
+  check(true, 'and the land begins to heal');
+  await shot(page, 'war-camp-broken');
+
+  // the Marshal: a giant
+  check(await page.evaluate(() => { roi.enemies.reset(); roi.enemies.spawnCamp({ id: 'look', x: roi.player.pos.x + 30, z: roi.player.pos.z, tier: 4, size: 2 }, ['marshal', 'chief']);
+    const [m, c] = roi.enemies.list; const big = m.fig.scale.x > c.fig.scale.x * 1.35; roi.enemies.reset(); return big; }), 'the Marshal stands head and shoulders over a captain');
+
+  // a band on the road is set down ahead of the ranger going north, and marches south
+  const band = await page.evaluate(async () => {
+    roi.enemies.reset();
+    const z = 2000; roi.teleport(roi.haradRoadX(z) - 20, z, Math.PI);
+    roi.player.place(roi.haradRoadX(z - 10) - 20, z - 10, Math.PI); // (a step north, so they know which way the ranger goes)
+    roi.enemies.patrolIn = 0;
+    for (let t = 0; t < 1200 && ![...roi.enemies.camps.values()].some((c) => c.camp.patrol); t++) await new Promise((r) => setTimeout(r, 100));
+    const c = [...roi.enemies.camps.values()].find((c) => c.camp.patrol);
+    return c ? { z: c.camp.z, dir: c.camp.patrol.dir, rz: roi.player.pos.z } : null;
+  });
+  check(band && band.dir === 1 && band.z < band.rz - 100, `a band comes down the road to meet the ranger going north${band ? '' : ' (none came)'}`);
+  const packs = await page.evaluate(() => { const s = roi.state.silver; for (const e of [...roi.enemies.list]) if (e.camp.patrol) roi.enemies.damage(e, 1e9); return roi.state.silver > s && roi.hud.recent.some((t) => /From their packs|baggage/.test(t)); });
+  check(packs, 'beaten, a band gives up what it carried');
+
+  // scouts: in a province not yet free, a party is set down out of sight and walks its way
+  const scouts = await page.evaluate(async () => {
+    roi.enemies.reset();
+    const camps = roi.provinces.PROVINCE_CAMPS.henneth, a = camps[0], b = camps[camps.length - 1];
+    roi.teleport((a.x + b.x) / 2, (a.z + b.z) / 2, 0);
+    roi.enemies.scoutIn = 0;
+    for (let t = 0; t < 1200 && ![...roi.enemies.camps.values()].some((c) => c.camp.scout); t++) await new Promise((r) => setTimeout(r, 100));
+    const c = [...roi.enemies.camps.values()].find((c) => c.camp.scout);
+    if (!c) return null;
+    const lead = roi.enemies.list.find((e) => e.camp === c.camp), x0 = lead.x, z0 = lead.z, d0 = Math.hypot(x0 - roi.player.pos.x, z0 - roi.player.pos.z);
+    const t0 = roi.state.stats.playSeconds;
+    for (let t = 0; t < 3000 && roi.state.stats.playSeconds - t0 < 6; t++) await new Promise((r) => setTimeout(r, 100));
+    return { d0, moved: Math.hypot(lead.x - x0, lead.z - z0), n: roi.enemies.list.filter((e) => e.camp === c.camp).length };
+  });
+  check(scouts && scouts.d0 > 120 && scouts.n >= 1 && scouts.n <= 3, `a scouting party of one to three is set down out of sight${scouts ? ` (${scouts.d0.toFixed(0)} m)` : ' (none came)'}`);
+  check(scouts && scouts.moved > 5, 'and walks on its way');
+  const map = await page.evaluate(() => {
+    roi.enemies.reset();
+    const to = roi.provinces.HOLDS.forlad, p = roi.player.pos;
+    const camp = roi.enemies.spawnScouts([{ x: p.x + 40, z: p.z }, { x: to.x, z: to.z }], { x: p.x + 40, z: p.z, leg: 1 }, ['snaga'], to.id);
+    for (const e of [...roi.enemies.list]) if (e.camp === camp) roi.enemies.damage(e, 1e9);
+    return roi.state.told.includes(to.id) && roi.provinces.status(roi.state, 'forlad').holdKnown && roi.hud.recent.some((t) => /scout\u2019s map/.test(t));
+  });
+  check(map, 'a courier killed gives up his map, and the hold he was bound for is marked');
+
+  // every old farmstead found is told of, not only the first
+  const farms = await page.evaluate(async () => {
+    roi.enemies.reset();
+    const told = [], count = () => roi.hud.recent.filter((t) => t.startsWith('An old farmstead')).length;
+    for (const f of roi.sites.filter((s) => s.kind === 'farm' && !roi.state.discovered.includes('site:' + s.id)).slice(0, 2)) {
+      const before = count();
+      roi.teleport(f.x + 5, f.z + 5, 0);
+      for (let t = 0; t < 1200 && !roi.state.discovered.includes('site:' + f.id); t++) await new Promise((r) => setTimeout(r, 100));
+      told.push(count() > before);
+    }
+    return told;
+  });
+  check(farms.length === 2 && farms.every(Boolean), 'each old farmstead found is told of');
+});
+
+// The testing panel folds away by a tap on a phone (it would not before v0.8)
+await run('testing page on a phone', { ...devices['iPhone 13'] }, async (page) => {
+  await page.goto(base + '?dev&quality=low&autostart');
+  await ready(page);
+  await page.waitForSelector('#dev header');
+  const tall = await page.evaluate(() => document.getElementById('dev').getBoundingClientRect().height);
+  await page.tap('#dev header');
+  await page.waitForTimeout(300);
+  const short = await page.evaluate(() => document.getElementById('dev').getBoundingClientRect().height);
+  check(tall > 100 && short < 40, `the testing panel folds at a tap (${tall.toFixed(0)} to ${short.toFixed(0)} px)`);
 });
 
 await run('testing page', { viewport: { width: 1280, height: 720 } }, async (page) => {

@@ -227,7 +227,7 @@ test('a save round-trips', () => {
   assert.equal(store.load(), null);
   const s = newState();
   s.player = { x: 1234.5, y: 30, z: 2345.5, heading: 1.2 };
-  assert.equal(s.version, 7);
+  assert.equal(s.version, 8);
   assert.equal(s.settings.fps, false, 'the frame-rate counter starts off');
   s.items = { draught: 2, orcTrinket: 3 }; s.equipped.body = 'mailShirt'; s.equipped.helm = 'leatherCap'; s.silver = 77; s.quests.done = ['f1']; s.health = 61.5; s.picked = ['h3_4'];
   s.honour = 140; s.renown = 4; s.wear = { rangerSword: 0.5 }; s.honed = { rangerBow: 1 }; s.skills = { repair: true }; s.told = ['c9']; s.stats.bands = 2;
@@ -1047,4 +1047,48 @@ test('stakes knocked down stop no one', async () => {
   const q = { x: 5000.1, z: 5000 };
   resolveCircles(q, 0.4);
   assert.equal(q.x, 5000.1, 'once knocked down it does not');
+});
+
+test('v0.8: breaking up a camp is saved apart from clearing it; a camp cleared before is broken up already', () => {
+  assert.deepEqual(newState().broken, []);
+  const v7 = migrate({ version: 7, cleared: ['c5', 'c9'] });
+  assert.deepEqual(v7.broken, ['c5', 'c9'], 'before v0.8, clearing a camp broke it up at once');
+  const v8 = migrate({ version: 8, cleared: ['c5', 'c9'], broken: ['c9', 'c40', 7] });
+  assert.deepEqual(v8.broken, ['c9'], 'only a cleared camp can be broken up');
+});
+
+test('v0.8: scouts go round Henneth Annûn, and are set down out of sight on a way that passes near the ranger', async () => {
+  const { scoutRoute, meetingPoint, alongRoute, routeLength, scoutRoster, SCOUT_BERTH } = await import('../src/data/enemies.js');
+  // straight through the refuge, east to west: bent round it
+  const r = scoutRoute({ x: HA.x - 400, z: HA.z + 5 }, { x: HA.x + 400, z: HA.z - 5 });
+  assert.ok(r.length > 2, 'a way through Henneth Annûn bends');
+  const L = routeLength(r);
+  for (let s = 0; s <= L; s += 3) { const p = alongRoute(r, s); assert.ok(Math.hypot(p.x - HA.x, p.z - HA.z) > SCOUT_BERTH - 3, 'and keeps outside the berth'); }
+  // every pair of camps that might be walked between keeps out of the refuge
+  for (let i = 0; i < CAMPS.length; i += 3) for (let j = 1; j < CAMPS.length; j += 7) {
+    const route = scoutRoute(CAMPS[i], CAMPS[j]), n = routeLength(route);
+    for (let s = 0; s <= n; s += 10) { const p = alongRoute(route, s); assert.ok(Math.hypot(p.x - HA.x, p.z - HA.z) > REFUGE + 10, `${CAMPS[i].id} to ${CAMPS[j].id} keeps out of the refuge`); }
+  }
+  const straight = scoutRoute({ x: 300, z: 2000 }, { x: 900, z: 2000 });
+  const at = meetingPoint(straight, 600, 2040);
+  assert.ok(at && Math.hypot(at.x - 600, at.z - 2040) >= 160 && at.x < 600, 'set down out of sight, before the ranger');
+  assert.equal(meetingPoint(straight, 600, 2200), null, 'not if the way never comes near');
+  let rs = 1; const rand = () => ((rs = (rs * 16807) % 2147483647) / 2147483647);
+  for (let k = 0; k < 200; k++) {
+    const a = scoutRoster(3, rand), c = scoutRoster(3, rand, true);
+    assert.ok(a.length >= 1 && a.length <= 3 && c.length >= 1 && c.length <= 2);
+  }
+});
+
+test('v0.8: the Marshal stands head and shoulders over his captains; bands carry more; kingsfoil is twice as thick', async () => {
+  const { ENEMY_TYPES } = await import('../src/data/enemies.js');
+  assert.ok(ENEMY_TYPES.marshal.scale > ENEMY_TYPES.chief.scale * 1.35);
+  const inv = await import('../src/systems/inventory.js');
+  let rs = 7; const rand = () => ((rs = (rs * 16807) % 2147483647) / 2147483647);
+  let band = 0, host = 0;
+  for (let k = 0; k < 100; k++) { band += inv.bandLoot(3, 2, false, rand)[0][1]; host += inv.bandLoot(11, 3, true, rand)[0][1]; }
+  assert.ok(band / 100 > 8 && band / 100 < 20, `a band carries a little silver (${band / 100})`);
+  assert.ok(host / 100 > 40 && host / 100 < 70, `a host more (${host / 100})`);
+  const { herbSites } = await import('../src/world/herbSites.js');
+  assert.ok(herbSites().filter((h) => h.kind === 'athelas').length > 350, 'kingsfoil grows thickly');
 });

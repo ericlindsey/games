@@ -269,7 +269,8 @@ export function wantedTrophies(state) {
  */
 export function enemyLoot(type, tier, rand, onRoad = false, want = {}) {
   const loot = [];
-  if (rand() < 0.4) loot.push(['silver', 1 + Math.floor(rand() * (2 + tier * 2.5))]);
+  // (since v0.8 those on the road carry a little more: they have no stores to break up)
+  if (rand() < (onRoad ? 0.55 : 0.4)) loot.push(['silver', 1 + Math.floor(rand() * (2 + tier * 2.5) * (onRoad ? 1.4 : 1))]);
   if (type === 'archer' ? rand() < 0.6 : rand() < 0.12) loot.push(['arrows', 1 + Math.floor(rand() * (type === 'archer' ? 3 : 2))]);
   if (rand() < 0.25) loot.push([type === 'haradrim' ? (rand() < 0.4 ? 'haradGold' : 'blackCoin') : rand() < 0.75 ? 'orcTrinket' : 'blackCoin', 1]);
   // trophies for Faramir's count, while he has asked for them
@@ -283,6 +284,23 @@ export function enemyLoot(type, tier, rand, onRoad = false, want = {}) {
     loot.push(['silver', type === 'marshal' ? 80 : 16 + Math.floor(rand() * 19)]);
     if (want.captainToken) loot.push(['captainToken', 1]);
     if (rand() < 0.5) loot.push(['draught', 1]);
+  }
+  return loot;
+}
+
+/**
+ * (since v0.8) What a band or host on the road carries between them, found on
+ * the last of them: in place of the stores a camp has to break up.
+ */
+export function bandLoot(size, tier, host, rand) {
+  const loot = [['silver', 4 + size * 2 + Math.floor(rand() * (3 + tier * 3)) + (host ? 25 : 0)]];
+  if (rand() < 0.45) loot.push(['arrows', 2 + Math.floor(rand() * 5)]);
+  if (rand() < 0.35) loot.push(['orcBread', 1 + Math.floor(rand() * 2)]);
+  if (rand() < 0.35) loot.push([rand() < 0.6 ? 'orcTrinket' : 'blackCoin', 1 + Math.floor(rand() * 2)]);
+  if (rand() < (host ? 0.6 : 0.12)) loot.push([rand() < 0.6 ? 'waybread' : 'draught', 1]);
+  if (host) {
+    loot.push(['haradGold', 1]);
+    if (rand() < 0.5) loot.push([['ironGreaves', 'yewBow', 'dolAmrothSword'][Math.floor(rand() * 3)], 1]);
   }
   return loot;
 }

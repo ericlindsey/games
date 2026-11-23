@@ -196,11 +196,15 @@ Rules of thumb:
 ## Game rules worth knowing before changing things
 
 - All the ranger's progress lives in the saved state object (`systems/save.js`
-  `newState()`): position, discoveries, cleared camps, health, gear, pack,
-  silver, renown, tasks, gathered herbs. Enemies, arrows and loot bags are
+  `newState()`): position, discoveries, camps cleared and broken up, health,
+  gear, pack, silver, renown, tasks, gathered herbs. Enemies, arrows and loot bags are
   never saved; they are rebuilt from the camps as the ranger moves.
 - A camp is cleared only by `Enemies.damage` reducing its last defender to no
   health, which calls `onCampCleared` in main.js. Do not add other routes.
+  Since v0.8 a cleared camp still stands until the ranger breaks it up (`breakUp`
+  in main.js, from the prompt near it; `state.broken`): only that takes its stores,
+  folds its shelters, puts out its fire and lifts its blight. Tasks, provinces and
+  renown count cleared camps, never broken ones.
 - Provinces (`world/provinces.js`) are places to win; the terrain regions
   (`world/regions.js`) are kinds of country. Do not mix them up: the place line
   and the tasks speak of provinces, plants and looks follow regions. How a
@@ -290,7 +294,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.7.7`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.8`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

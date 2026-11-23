@@ -16,7 +16,8 @@ export function newState() {
     savedAt: 0,
     player: { x: HA.spawn.x, z: HA.spawn.z, heading: HA.spawn.heading },
     discovered: ['henneth'],
-    cleared: [],
+    cleared: [],  // camps whose company is all dead
+    broken: [],   // (since v0.8) camps the ranger has broken up after: shelters down, fire out, stores taken
     settings: { quality: null, fps: false, cap: 0 },
     stats: { playSeconds: 0, kills: 0, deaths: 0, bands: 0 },
     // the ranger
@@ -69,6 +70,9 @@ export function migrate(raw) {
   }
   s.discovered = [...new Set(['henneth', ...strings(raw.discovered)])];
   s.cleared = [...new Set(strings(raw.cleared))];
+  // v7 -> v8 (release 0.8) parted breaking up a camp from killing its company: a
+  // camp cleared before then was broken up and its stores taken at the same moment.
+  s.broken = raw.version < 8 ? [...s.cleared] : [...new Set(strings(raw.broken))].filter((id) => s.cleared.includes(id));
   if (raw.settings && ['low', 'medium', 'high'].includes(raw.settings.quality)) s.settings.quality = raw.settings.quality;
   // v4 -> v5 only added the frame-rate counter setting (off unless chosen); all else carries over
   if (raw.settings?.fps === true) s.settings.fps = true;
