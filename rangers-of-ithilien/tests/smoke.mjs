@@ -44,6 +44,12 @@ async function run(label, contextOptions, body) {
   const ctx = await browser.newContext(contextOptions);
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000); // a slow machine can be busy building the world for more than Playwright's 30 s
+  // (since v0.8.1) a wait that times out says what it was waiting for, and who was about
+  const wait = page.waitForFunction.bind(page);
+  page.waitForFunction = (fn, arg, opts) => wait(fn, arg, opts).catch(async (e) => {
+    const about = await page.evaluate(() => window.roi && JSON.stringify({ companies: [...roi.enemies.camps.keys()], alerted: roi.enemies.list.filter((e) => e.alerted && !e.dead).map((e) => e.camp.id), aim: roi.combat.aim, shaken: roi.combat.shaken, arrows: roi.combat.arrows.length })).catch(() => '');
+    throw new Error(`${e.message.split('\n')[0]} waiting for ${String(fn).replace(/\s+/g, ' ').slice(0, 160)} ${about ?? ''}`);
+  });
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(e.message));
