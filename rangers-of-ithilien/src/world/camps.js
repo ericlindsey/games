@@ -242,9 +242,11 @@ export class Camps {
     }
     // the dry, trodden ground of the nearest camps (since v0.7.7), greening as each heals (strength 1 -> 0 over 6 s)
     this.tintTick = (this.tintTick ?? 0) - dt;
-    if (!(this.tintTick > 0) || !this.tinted) { // (also on the first call, and after a strange dt)
+    const moved = !this.tintAt || Math.abs(px - this.tintAt.x) + Math.abs(pz - this.tintAt.z) > 30; // (a teleport, or a long run)
+    if (!(this.tintTick > 0) || !this.tinted || moved) { // (also on the first call, and after a strange dt)
       this.tintTick = 0.5;
-      this.tinted = this.sites.filter((s) => s.strength > 0 && Math.abs(s.x - px) < 400 && Math.abs(s.z - pz) < 400)
+      this.tintAt = { x: px, z: pz };
+      this.tinted = this.sites.filter((s) => s.strength > 0 && Math.abs(s.x - px) < 250 && Math.abs(s.z - pz) < 250)
         .sort((a, b) => Math.hypot(a.x - px, a.z - pz) - Math.hypot(b.x - px, b.z - pz)).slice(0, CAMP_TINTS);
     }
     const tints = surfaceUniforms.uCamps.value;
@@ -252,6 +254,7 @@ export class Camps {
       const s = this.tinted[k];
       if (s) tints[k].set(s.x, s.z, [0, 12, 15, 19, 25][s.size] ?? 14, s.strength); else tints[k].set(0, 0, 0, 0);
     }
+    surfaceUniforms.uCampN.value = this.tinted.length;
     this.smokeTick -= dt;
     if (this.smokeTick <= 0) { // now and then, choose the nearest lit fires, and draw only the camps near enough to see
       this.smokeTick = 1.5;

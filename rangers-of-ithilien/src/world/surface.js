@@ -290,6 +290,7 @@ export const surfaceUniforms = {
   // (since v0.7.7) The ground and grass of the nearest enemy camps are dry and
   // brown: (x, z, radius, how blighted 0..1), eased back to green as a camp heals (camps.js).
   uCamps: { value: Array.from({ length: CAMP_TINTS }, () => new THREE.Vector4()) },
+  uCampN: { value: 0 }, // how many of them are in use (the loop stops there; none, and it costs nothing)
 };
 export function updateSurfaces(time) { surfaceUniforms.uTime.value = time; }
 
@@ -380,6 +381,7 @@ if (lod.x > 0.5) {
 
 const FRAG_HEAD = /* glsl */`
 uniform vec4 uCamps[${CAMP_TINTS}];
+uniform int uCampN;
 uniform sampler2D uDetail;
 uniform sampler2D uStones;
 uniform vec3 uMossColor;
@@ -503,16 +505,19 @@ const FRAG_COLOR = /* glsl */`
 `;
 /** The dry, trodden grass of an enemy camp (ground and grass only: `camps` in surfaceMaterial). */
 const FRAG_CAMPS = /* glsl */`
-{
+if (uCampN > 0) {
   float dead = 0.0;
   for (int i = 0; i < ${CAMP_TINTS}; i++) {
+    if (i >= uCampN) break;
     vec4 c = uCamps[i];
-    if (c.w <= 0.0) continue;
-    float dd = distance(vSurfPos.xz, c.xy);
-    dead = max(dead, c.w * (1.0 - smoothstep(c.z * 0.55, c.z, dd)));
+    vec2 dv = vSurfPos.xz - c.xy;
+    if (abs(dv.x) > c.z || abs(dv.y) > c.z) continue; // (most of the ground is nowhere near)
+    dead = max(dead, c.w * (1.0 - smoothstep(c.z * 0.55, c.z, length(dv))));
   }
-  float lum = dot(diffuseColor.rgb, vec3(0.3, 0.55, 0.15));
-  diffuseColor.rgb = mix(diffuseColor.rgb, lum * vec3(1.32, 1.04, 0.56), dead * 0.88);
+  if (dead > 0.0) {
+    float lum = dot(diffuseColor.rgb, vec3(0.3, 0.55, 0.15));
+    diffuseColor.rgb = mix(diffuseColor.rgb, lum * vec3(1.32, 1.04, 0.56), dead * 0.88);
+  }
 }
 `;
 const FRAG_GLOW = /* glsl */`
