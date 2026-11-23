@@ -515,7 +515,7 @@ export class Villages {
         f.props.sack.visible = !pusher && !small;
         // standing about in a loose crowd, inland of where they wait, a step apart
         const col = i % 4, row = Math.floor(i / 4);
-        const x = at.x + col * 1.7 + (row % 2) * 0.8, z = at.z + (row - 1) * 1.9;
+        const x = at.x + col * 2.2 + (row % 2) * 1.1, z = at.z + (row - 1) * 2.4;
         f.position.set(x, heightAt(x, z), z);
         f.rotation.y = pusher ? Math.PI / 2 : -Math.PI / 2; // (the cart stands inland of whoever will push it)
         f.name = 'villages';
