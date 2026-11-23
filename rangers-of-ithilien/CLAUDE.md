@@ -313,7 +313,8 @@ python3 -m http.server 8000     # open http://localhost:8000
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
    the title, `?debug` shows the overlay, `?quality=low|medium|high`,
    `?tune=treeNear:150,grass:100` overrides quality settings (`buildMs:0` builds
-   new land whole, as before v0.7.2), `?bench` runs the frame-rate test.
+   new land whole, as before v0.7.2; `fpsCap:30` holds the frame rate to 30, as the
+   menu's setting does), `?bench` runs the frame-rate test.
    In the console, `roi.teleport(x, z, yaw)` moves the ranger (`roi.HA` and `roi.WORLD`
    give Henneth Annûn's layout and the world's size), `roi.lookFrom(x, y, z,
    ax, ay, az)` holds the camera at a point looking at another and `roi.follow(dx, dy,

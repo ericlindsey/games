@@ -1210,6 +1210,24 @@ moving.
   game's code or waiting on the GPU; `?tune=minPixelRatio:2` (no lowering of the
   resolution) and `?tune=shadowMap:1024` are the first things to try.
 
+### v0.7.4: a frame-rate cap
+
+The phone's readings settled what slows high: the `?debug` overlay showed the
+game's own work at 5-8 ms a frame throughout, while the time between frames went
+from 20-30 ms to 60. It slows even standing still, after about ten seconds,
+whatever the resolution (held at x2 or let fall to x1.5) or the shadow map, and
+is quick again at once when the browser is put away and brought back: the phone
+itself holding the GPU (or the browser) back after being worked flat out, not
+anything the game does.
+
+- **The menu has a frame-rate setting**: as fast as it can (as before), or a
+  steady 30, which leaves the GPU rest in every frame, so it may never be held
+  back. Saved with the game; `?tune=fpsCap:30` tries it from the address bar. The
+  frames between are let go by in the loop (a display frame comes sooner than
+  4 ms short of the 33 ms due).
+- With a cap the sharpness of the picture is judged against it (slow under two
+  thirds of it, quick over 95%), so a steady 30 does not lower the resolution.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp

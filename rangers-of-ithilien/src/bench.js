@@ -28,7 +28,10 @@ export const RUNS = [
   ['running, old fields', 560, 1650, Math.PI * 0.25, 15],
 ];
 
-const frame = () => new Promise((r) => requestAnimationFrame(r));
+const tick = () => new Promise((r) => requestAnimationFrame(r));
+let drawn = null; // the renderer's frame count: with a frame-rate cap, not every display frame is drawn
+/** The next frame the game draws (a display frame it lets go by under a cap does not count). */
+async function frame() { const f0 = drawn?.frame; do await tick(); while (drawn && drawn.frame === f0); }
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
 const pct = (a, p) => a[Math.min(a.length - 1, Math.floor(a.length * p))];
 
@@ -51,10 +54,11 @@ export function drawCost(renderer, scene, camera, n = 6, tries = 5) {
 export async function runBench(api, { secs = 3, views = TOUR, runs = RUNS, show = true } = {}) {
   const { renderer, rig, ground, grass } = api;
   const scene = api.player.figure.parent, camera = rig.camera;
+  drawn = renderer.info.render;
   const box = document.createElement('pre');
   box.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;margin:0;padding:8px 10px;background:rgba(0,0,0,.72);color:#e8e2c8;font:11px/1.35 ui-monospace,monospace;white-space:pre-wrap;user-select:text;-webkit-user-select:text';
   if (show) document.body.appendChild(box);
-  const lines = [`quality ${api.qualityName}  ${renderer.domElement.width}x${renderer.domElement.height} (x${renderer.getPixelRatio()})  ${navigator.userAgent.match(/(iPhone|iPad|Android|Mac OS X|Windows|Linux)[^;)]*/)?.[0] ?? ''}`];
+  const lines = [`quality ${api.qualityName}  ${renderer.domElement.width}x${renderer.domElement.height} (x${renderer.getPixelRatio()})${api.frameCap?.() ? `  held to ${api.frameCap()} fps` : ''}  ${navigator.userAgent.match(/(iPhone|iPad|Android|Mac OS X|Windows|Linux)[^;)]*/)?.[0] ?? ''}`];
   const say = (s) => { if (s) lines.push(s); box.textContent = lines.join('\n') + '\n'; };
   say('view                      frame ms (median / slowest 5%)   draw ms   calls  tris');
   api.holdResolution(true);

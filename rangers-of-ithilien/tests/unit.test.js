@@ -236,6 +236,8 @@ test('a save round-trips', () => {
   s.discovered.push('arch', 'camp:c1');
   s.cleared.push('c1');
   s.settings.quality = 'low';
+  assert.equal(s.settings.cap, 0, 'the frame rate starts uncapped');
+  s.settings.cap = 30;
   s.settled = ['hamlet4']; s.homesteads = ['farm5']; s.escort = { site: 'hamlet2', x: 300, z: 480, following: true };
   assert.ok(store.save(s));
   const back = store.load();
@@ -243,6 +245,7 @@ test('a save round-trips', () => {
   assert.deepEqual(back.discovered, s.discovered);
   assert.deepEqual(back.cleared, ['c1']);
   assert.equal(back.settings.quality, 'low');
+  assert.equal(back.settings.cap, 30, 'a frame-rate cap is kept');
   for (const k of ['items', 'equipped', 'silver', 'quests', 'health', 'picked', 'arrows', 'renown', 'honour', 'wear', 'honed', 'skills', 'told', 'stats', 'settled', 'homesteads']) assert.deepEqual(back[k], s[k], k);
   assert.deepEqual(back.escort, { site: 'hamlet2', x: 300, z: 480, following: false }, 'settlers on the way wait where they were left');
   store.clear();
