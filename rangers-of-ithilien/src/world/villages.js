@@ -652,6 +652,7 @@ export class Villages {
   // ---- every frame ----
 
   update(dt, time, player) {
+    dt *= this.pace ?? 1; // (the tests may hurry village life along: software rendering is slow)
     const px = player.pos.x, pz = player.pos.z;
     for (const p of this.places.values()) {
       const d = Math.hypot(p.x - px, p.z - pz);

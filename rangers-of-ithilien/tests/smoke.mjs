@@ -928,7 +928,7 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
   const home = await page.evaluate(async () => {
     const s = roi.state, st = roi.settlements.find((x) => x.province === 'southwood');
     const step = () => new Promise((r) => requestAnimationFrame(r));
-    const who = roi.villages.escort.people, cart0 = roi.villages.escort.cart;
+    const who = roi.villages.escort.people, cart0 = roi.villages.escort.cart, bags = who.filter((q) => q.fig.props.sack.visible).length; // (counted on the way: at home they put them down)
     let gap = Infinity;
     for (let n = 0; n < 4000 && !s.settled.includes(st.site); n++) {
       const p = roi.player.pos, dx = st.x - p.x, dz = st.z - p.z, d = Math.hypot(dx, dz);
@@ -937,7 +937,7 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
       await step();
     }
     const pl = roi.villages.places.get(st.site);
-    return { settled: s.settled.includes(st.site), built: !!pl, done: roi.quests.isComplete(roi.quests.byId['s-southwood'], s), many: who.length, bags: who.filter((q) => q.fig.props.sack.visible).length, gap,
+    return { settled: s.settled.includes(st.site), built: !!pl, done: roi.quests.isComplete(roi.quests.byId['s-southwood'], s), many: who.length, bags, gap,
       building: !!pl && (!!pl.build || pl.queue.length > 0) && pl.done.size === 0, travel: roi.travelPlaces().some((t) => t.id === 'site:' + st.site),
       handed: !!pl && pl.people.filter((q) => who.some((w) => w.fig === q.fig)).length === who.length && pl.cart === cart0 };
   });
@@ -947,6 +947,7 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
   check(home.building, 'on arriving they set to work, and the house goes up while they build it, not all at once');
   check(home.handed, 'the same people who walked home are the ones who live there, with their cart (nobody jumps or changes)');
   check(home.travel, 'a settlement whose people are home can be travelled to');
+  await page.evaluate(() => { roi.villages.pace = 6; }); // (the rest of their settling in, hurried along for the test)
   await page.waitForFunction(() => roi.villages.places.get('farm3').done.size >= 1, null, { timeout: 240000 });
   check(true, 'after a while the house stands');
   check(/family are home|settlers are home/.test(await page.textContent('#toast')), 'and the ranger is told so');

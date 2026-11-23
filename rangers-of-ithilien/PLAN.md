@@ -1283,7 +1283,7 @@ land here, on top of v0.7.1 to v0.7.4.
 - **The heal button out of a fight eats one thing a touch** (still the cheapest
   first): orc bread takes a good deal of chewing, which is the point. It used to eat
   as many as the wound needed at once (v0.7.3).
-- The HUD keeps the last forty notices (`hud.recent`) so the tests can find a fight's
+- The HUD keeps the last two hundred notices (`hud.recent`) so the tests can find a fight's
   call-out after it has faded: the game now runs fast enough in the smoke test that
   the 3 s call-outs were gone before it looked.
 
