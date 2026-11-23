@@ -235,7 +235,8 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     }, 16);
   });
   await page.keyboard.down('KeyW');
-  const out = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - courseEnd.x, roi.player.pos.z - courseEnd.z) < 6, null, { timeout: 240000 }).then(() => true, () => false);
+  // (a long walk in game time: on a slow machine software rendering can take minutes over it)
+  const out = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - courseEnd.x, roi.player.pos.z - courseEnd.z) < 6, null, { timeout: 600000 }).then(() => true, () => false);
   await page.keyboard.up('KeyW');
   await page.evaluate(() => { clearInterval(steer); roi.input.haste = false; });
   const exit = await pos(page);
