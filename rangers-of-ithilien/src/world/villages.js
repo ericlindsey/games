@@ -54,7 +54,7 @@ export function houseFloor(hs) {
  * thatched roof, a door and a chimney; on a slope, a stone footing under its low
  * side (since v0.7a; it was set on the lowest ground and half sunk in the hill).
  */
-function mendHouse(b, rand, hs, chimneys, roofB = b) {
+function mendHouse(b, rand, hs, chimneys, roofB = b, inn = false) {
   const { y, lo } = houseFloor(hs), E = y + 4.1, t = 0.82; // (above the tallest of the old walls, which are hidden inside)
   const long = hs.w >= hs.d, L = long ? hs.w : hs.d, D = long ? hs.d : hs.w; // ridge along the long side
   const plaster = PLASTER[Math.floor(rand() * PLASTER.length)], thatch = THATCH[Math.floor(rand() * THATCH.length)];
@@ -97,8 +97,10 @@ function mendHouse(b, rand, hs, chimneys, roofB = b) {
   b.kind = SURF.wood;
   const doorV = hs.door === undefined ? 1 : long ? (hs.door === 1 ? 1 : -1) : (hs.door === 3 ? 1 : -1);
   const onLong = hs.door === undefined || (long ? hs.door <= 1 : hs.door >= 2);
+  let door;
   if (onLong) {
     const [dx, dz] = at(0.6, doorV * (D / 2 + t / 2 + 0.03));
+    door = { x: dx, z: dz, nx: long ? 0 : doorV, nz: long ? doorV : 0, ax: long ? 1 : 0, az: long ? 0 : 1 };
     b.box(long ? 1.1 : 0.08, 2.1, long ? 0.08 : 1.1, dx, y - 0.05, dz, DOOR);
     for (const w of [-1, 1]) {
       const [wx, wz] = at(0.6 + w * Math.min(2.4, L / 2 - 1), doorV * (D / 2 + t / 2 + 0.03));
@@ -106,13 +108,24 @@ function mendHouse(b, rand, hs, chimneys, roofB = b) {
     }
   } else {
     const [dx, dz] = at(doorV * (L / 2 + t / 2 + 0.03), 0);
+    door = { x: dx, z: dz, nx: long ? doorV : 0, nz: long ? 0 : doorV, ax: long ? 0 : 1, az: long ? 1 : 0 };
     b.box(long ? 0.08 : 1.1, 2.1, long ? 1.1 : 0.08, dx, y - 0.05, dz, DOOR);
+  }
+  if (inn) { // the inn's sign: a board hung from a bracket beside the door, and a lantern
+    const sx = door.x + door.ax * 1.5, sz = door.z + door.az * 1.5, ry = Math.atan2(door.nx, door.nz);
+    b.box(0.08, 0.08, 1.0, sx + door.nx * 0.5, y + 2.75, sz + door.nz * 0.5, TIMBER, ry);
+    b.box(0.03, 0.3, 0.03, sx + door.nx * 0.9, y + 2.55, sz + door.nz * 0.9, 0x3a3a3e);
+    b.box(0.9, 0.62, 0.06, sx + door.nx * 0.9, y + 1.85, sz + door.nz * 0.9, 0x2f5a3a, ry + Math.PI / 2);
+    b.box(0.74, 0.46, 0.08, sx + door.nx * 0.9, y + 1.93, sz + door.nz * 0.9, 0xc9a84a, ry + Math.PI / 2);
+    b.box(0.34, 0.3, 0.1, sx + door.nx * 0.9, y + 2.0, sz + door.nz * 0.9, 0x2f5a3a, ry + Math.PI / 2);
+    b.cyl(0.1, 0.12, 0.3, door.x - door.ax * 1.0 + door.nx * 0.25, y + 2.2, door.z - door.az * 1.0 + door.nz * 0.25, 0xf0c060, 6);
   }
   // a stone chimney through the ridge at one end, with smoke over it
   b.kind = SURF.masonry;
   const cs = rand() < 0.5 ? -1 : 1, [cx, cz] = at(cs * (L / 2 - 0.9), 0);
   b.box(0.9, E + rise + 1.1 - (E - 0.5), 0.9, cx, E - 0.5, cz, STONE);
   chimneys.push({ x: cx, y: E + rise + 1.1, z: cz });
+  return { door, y };
 }
 
 /** The well on the green, roofed over with a winding beam. */
@@ -125,17 +138,6 @@ function wellHouse(b, x, z) {
   b.cyl(0.22, 0.2, 0.32, x, y + 1.0, z, 0x6a4a2a, 8); // and the bucket
   b.kind = SURF.plain;
   for (const s of [-1, 1]) b.box(3.0, 0.1, 1.2, x, y + 2.55, z + s * 0.42, THATCH[0], 0, s * 0.7);
-}
-
-/** What the settlers brought: a handcart and their bundles, by the green. */
-function goods(b, rand, x, z) {
-  const y = heightAt(x, z);
-  b.kind = SURF.wood;
-  b.box(1.4, 0.5, 2.2, x, y + 0.55, z, 0x7a5a38, 0.4);
-  for (const s of [-1, 1]) b.cyl(0.42, 0.42, 0.1, x + Math.cos(0.4) * s * 0.78, y + 0.42, z - Math.sin(0.4) * s * 0.78, 0x4a3524, 10, 0, Math.PI / 2);
-  b.box(0.1, 0.1, 1.6, x - 0.9, y + 0.65, z + 1.6, 0x5a4530, 0.4);
-  b.kind = SURF.cloth;
-  for (let i = 0; i < 4; i++) b.blob(0.32 + rand() * 0.1, x + (rand() - 0.5), y + 1.1 + rand() * 0.2, z + (rand() - 0.5) * 1.4, [0xb8a878, 0x8a6a4a, 0x6a7a8a][i % 3], 1.2, 0.8, 1);
 }
 
 /** The market cross set up again: a new shaft and arms on the old steps. */
@@ -341,6 +343,17 @@ function workSpots(hs) {
 
 const turnTo = (fig, want, k) => { let t = want - fig.rotation.y; t = Math.atan2(Math.sin(t), Math.cos(t)); fig.rotation.y += t * k; };
 
+/** A settlement's storekeeper, and the goodwife who speaks for a farm. */
+const TRADER = { tunic: 0x8a5a2a, legs: 0x8a5a2a, skin: 0xe0b48e, hair: 0x5a3a20, cloak: null, skirt: true, longHair: true, belt: 0x3a2a1c, sleeve: 0x6a4a2a };
+const GOODWIFE = { tunic: 0x3f5a6a, legs: 0x3f5a6a, skin: 0xd8aa86, hair: 0x8a8a84, cloak: 0x5a3a2a, skirt: true, longHair: true, belt: 0xc9a84a };
+/** Who comes off a boat, in order: whoever speaks for them, the storekeeper, then the rest (two of them children; the last pushes the cart). */
+function settlerLook(s, i) {
+  if (i === 0) return s.kind === 'hamlet' ? REEVE : GOODWIFE;
+  if (i === 1) return TRADER;
+  return FOLK[i % FOLK.length];
+}
+const isChild = (i) => i === 4 || i === 8;
+
 export class Villages {
   constructor(scene, shadows = true) {
     this.scene = scene;
@@ -348,7 +361,7 @@ export class Villages {
     this.places = new Map(); // site id -> place (see buildPlace)
     this.boats = new Map();  // site id -> boat mesh
     this.escort = null;      // { site, people, trail, following, cart }
-    this.arrivals = new Map(); // site id -> where its settlers stood when they came home
+    this.arrivals = new Map(); // site id -> { people, cart }: the settlers just come home, handed over whole
     this.smokePos = new Float32Array(PUFFS * CHIMNEYS * 3);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.smokePos, 3));
@@ -362,8 +375,9 @@ export class Villages {
 
   /**
    * Build whatever has changed since the last call. With `animate` (anything
-   * that happens in play, not the loading of a save) new houses are built one at
-   * a time by the people, instead of standing at once. Returns the plots newly sown.
+   * that happens in play, not the loading of a save) what is new is built by the
+   * people, a piece at a time: the well, then the houses one by one, the cross at
+   * the last. Returns the plots newly sown.
    */
   sync(state, animate = false) {
     const sown = [];
@@ -372,14 +386,19 @@ export class Villages {
     for (const id of homesteadsLived(state)) want.set(id, -1);
     for (const [id, stage] of want) {
       let p = this.places.get(id);
-      if (!p) p = this.buildPlace(state, id, animate);
-      if (p.stage !== stage || !p.extras) this.dress(p, state, stage);
-      // houses: whichever should stand and do not yet, built now or put in hand
-      const s = settlementBySite[id];
+      if (!p) p = this.buildPlace(state, id);
+      if (p.stage !== stage) this.dress(p, stage);
+      // what should stand: the well (a village's), the houses, the cross once the place is whole
+      const s = settlementBySite[id], hamlet = siteById[id].kind === 'hamlet';
       const order = s ? s.houses : homesteadBySite[id].houses;
-      for (const i of order.slice(0, s ? housesMended(state, id) : 1)) {
-        if (p.shown.has(i) || p.queue.includes(i) || p.build?.i === i) continue;
-        if (animate) p.queue.push(i); else this.raise(p, i, 1);
+      const jobs = [];
+      if (s && hamlet) jobs.push({ type: 'well' });
+      for (const i of order.slice(0, s ? housesMended(state, id) : 1)) jobs.push({ type: 'house', i });
+      if (s && hamlet && stage >= STAGE_MAX) jobs.push({ type: 'cross' });
+      for (const j of jobs) {
+        const k = jobKey(j);
+        if (p.done.has(k) || p.queue.some((q) => jobKey(q) === k) || (p.build && jobKey(p.build.job) === k)) continue;
+        if (animate) p.queue.push(j); else this.raise(p, j, 1);
       }
       // plots
       const crops = s ? cropsSown(state, id) : [homesteadBySite[id].crop];
@@ -401,8 +420,12 @@ export class Villages {
     return sown;
   }
 
-  /** A place newly lived in: its people (where the settlers came in, if they just have), and nothing built yet. */
-  buildPlace(state, id, animate) {
+  /**
+   * A place newly lived in, and its people. Settlers just led home are handed
+   * over whole (the same people, where they stand, with their cart); otherwise
+   * (a save loaded) they are made, about the place.
+   */
+  buildPlace(state, id) {
     const s = settlementBySite[id], site = siteById[id];
     const rand = rng(Math.round(site.x * 7 + site.z * 3));
     const group = new THREE.Group();
@@ -410,69 +433,88 @@ export class Villages {
     this.scene.add(group);
     const hamlet = site.kind === 'hamlet';
     const home = hamlet ? { x: site.x - 1, z: site.z + 2, r: 11 } : { x: site.x, z: site.z + site.houses[0].d / 2 + 3.5, r: 4 };
-    const goodsAt = hamlet ? { x: site.x + 2, z: site.z - 9 } : { x: site.x + site.houses[0].w / 2 + 4, z: site.z - 2 };
+    const goods = hamlet ? { x: site.x + 2, z: site.z - 9 } : { x: site.x + site.houses[0].w / 2 + 4, z: site.z - 2 };
+    const order = s ? s.houses : homesteadBySite[id].houses;
     const p = {
-      site: id, settlement: !!s, x: site.x, z: site.z, group, home, goods: goodsAt, rand,
-      shown: new Set(), houses: new Map(), queue: [], build: null, chimneys: [], plots: [], people: [], stage: null, extras: null,
+      site: id, settlement: !!s, x: site.x, z: site.z, group, home, goods, rand,
+      inn: s ? order[hamlet ? Math.min(1, order.length - 1) : 0] : null, // a village's second house is its inn; a farm's bed is in the farmhouse
+      done: new Set(), houses: new Map(), queue: [], build: null, chimneys: [], plots: [], people: [], stage: null, extras: null, cart: null,
     };
-    // the people: whoever speaks for them stands by the well or the door; the others about the place
-    const came = this.arrivals.get(id) ?? [];
+    // where the reeve and the storekeeper keep to: by the well (a farm: before the door), and beside the cart
+    const posts = {
+      reeve: hamlet ? { x: site.x - 1.5, z: site.z + 7.5 } : { x: home.x + 3.5, z: home.z + 1 }, // (a farm's, before the house but clear of its door)
+      trader: { x: goods.x - 1.6, z: goods.z + 1.2 },
+    };
+    const came = this.arrivals.get(id);
     this.arrivals.delete(id);
-    if (s) {
-      const fx = hamlet ? site.x - 1.5 : home.x + 1.5, fz = hamlet ? site.z + 7.5 : home.z;
-      const f = folk(REEVE, 1.0);
-      f.position.set(fx, heightAt(fx, fz), fz);
-      group.add(f);
-      p.people.push({ fig: f, x: fx, z: fz, reeve: true, heading: 0, speed: 0 });
-      addCircle(fx, fz, 0.45); // (the reeve stands still; walk round them)
-    }
-    const n = s ? (hamlet ? 11 : 6) : 2;
+    const n = s ? (hamlet ? 12 : 7) : 2;
     for (let i = 0; i < n; i++) {
-      const small = s ? (i === 3 || i === 8) : false; // children
-      const f = equip(folk(FOLK[(i + Math.floor(site.x)) % FOLK.length], small ? 0.66 : 0.95 + rand() * 0.08));
-      const c = came[i], a = rand() * 6.28, r = rand() * home.r;
-      const x = c ? c.x : home.x + Math.cos(a) * r, z = c ? c.z : home.z + Math.sin(a) * r;
+      const role = s && i === 0 ? 'reeve' : s && i === 1 ? 'trader' : null;
+      const c = came?.people[i];
+      let f, x, z, small;
+      if (c) { // the settler who walked here, just as they are
+        f = c.fig; x = c.x; z = c.z; small = c.small;
+        f.props.sack.visible = false; // (put down: they are home)
+      } else {
+        small = s ? isChild(i) : false;
+        f = equip(folk(s ? settlerLook(s, i) : FOLK[(i + Math.floor(site.x)) % FOLK.length], small ? 0.66 : 0.95 + rand() * 0.08));
+        const post = role && posts[role], a = rand() * 6.28, r = rand() * home.r;
+        x = post ? post.x : home.x + Math.cos(a) * r; z = post ? post.z : home.z + Math.sin(a) * r;
+      }
       f.position.set(x, heightAt(x, z), z);
-      group.add(f);
-      p.people.push({ fig: f, x, z, tx: x, tz: z, wait: rand() * 4, heading: a, speed: 0, small, job: i % 3 === 2 ? 'carry' : 'hammer', phase: rand() * 6.28 });
+      group.add(f); // (from the scene, if they came with the ranger)
+      p.people.push({ fig: f, x, z, tx: x, tz: z, wait: rand() * 4, heading: f.rotation.y, speed: 0, small, role, post: role ? posts[role] : null,
+        pusher: !!c?.pusher, job: i % 3 === 2 ? 'carry' : 'hammer', phase: rand() * 6.28 });
     }
+    for (const r of Object.values(posts)) if (s) addCircle(r.x, r.z, 0.45); // (they stand still there; walk round them)
+    // their cart: pushed here by whoever brought it, else standing at their goods
+    if (came?.cart) { p.cart = came.cart; p.cartAt = goods; }
+    else { p.cart = handcart(); p.cart.position.set(goods.x, heightAt(goods.x, goods.z), goods.z); p.cart.rotation.y = 0.4; }
+    group.add(p.cart);
     this.places.set(id, p);
-    void animate; void state;
+    void state;
     return p;
   }
 
-  /** What a place has about it at its stage: the well, their goods or woodpile, the cross mended, gardens. */
-  dress(p, state, stage) {
-    if (p.extras) { p.group.remove(p.extras); p.extras.geometry.dispose(); }
-    const site = siteById[p.site], b = new GeoBuilder(Math.round(site.x + site.z * 2), 0.06), rand = rng(Math.round(site.z * 5 + stage));
-    if (p.settlement && site.kind === 'hamlet') {
-      wellHouse(b, site.x - 4, site.z + 5);
-      if (stage >= STAGE_MAX) crossMended(b, site.x + 9, site.z + 2);
-    }
-    goods(b, rand, p.goods.x, p.goods.z);
-    if (stage >= STAGE_MAX) gardens(b, rand, site, site.houses.length);
+  /** What a place has about it at its stage that is not built by hand: flowers before the doors, once it is whole. */
+  dress(p, stage) {
+    if (p.extras) { p.group.remove(p.extras); p.extras.geometry.dispose(); p.extras = null; }
+    p.stage = stage;
+    if (stage < STAGE_MAX) return;
+    const site = siteById[p.site], b = new GeoBuilder(Math.round(site.x + site.z * 2), 0.06);
+    gardens(b, rng(Math.round(site.z * 5 + stage)), site, site.houses.length);
     p.extras = b.mesh(materials.stone, this.shadows);
     p.group.add(p.extras);
-    p.stage = stage;
   }
 
-  /** Put up a house: `k` from 0 (just begun) to 1 (finished). Its walls rise as it is built. */
-  raise(p, i, k) {
-    let h = p.houses.get(i);
+  /** Something going up: `k` from 0 (just begun) to 1 (finished). A house's walls rise, then its thatch; a well or a cross rises whole. */
+  raise(p, job, k) {
+    const key = jobKey(job);
+    let h = p.houses.get(key);
+    const holder = (mesh, at) => { const g = new THREE.Group(); g.position.set(0, at, 0); mesh.position.set(0, -at, 0); g.add(mesh); p.group.add(g); return g; };
     if (!h) {
-      const hs = siteById[p.site].houses[i], { y } = houseFloor(hs), E = y + 4.1;
-      const b = new GeoBuilder(Math.round(hs.x + hs.z), 0.06), rb = new GeoBuilder(Math.round(hs.x + hs.z) + 1, 0.06), chimneys = [];
-      mendHouse(b, rng(Math.round(hs.x * 3 + hs.z)), hs, chimneys, rb);
-      // the walls rise from the floor as they are built; the thatch goes on last, from the eaves up
-      const holder = (mesh, at) => { const g = new THREE.Group(); g.position.set(0, at, 0); mesh.position.set(0, -at, 0); g.add(mesh); p.group.add(g); return g; };
-      h = { walls: holder(b.mesh(materials.stone, this.shadows), y), roof: holder(rb.mesh(materials.stone, this.shadows), E), chimneys, y };
-      p.houses.set(i, h);
+      const site = siteById[p.site];
+      if (job.type === 'house') {
+        const hs = site.houses[job.i], { y } = houseFloor(hs), E = y + 4.1;
+        const b = new GeoBuilder(Math.round(hs.x + hs.z), 0.06), rb = new GeoBuilder(Math.round(hs.x + hs.z) + 1, 0.06), chimneys = [];
+        const info = mendHouse(b, rng(Math.round(hs.x * 3 + hs.z)), hs, chimneys, rb, p.settlement && job.i === p.inn);
+        h = { walls: holder(b.mesh(materials.stone, this.shadows), y), roof: holder(rb.mesh(materials.stone, this.shadows), E), chimneys, door: info.door, y };
+        if (job.i === p.inn) p.innDoor = { x: info.door.x + info.door.nx * 1.3, z: info.door.z + info.door.nz * 1.3 };
+      } else {
+        const b = new GeoBuilder(Math.round(site.x) + (job.type === 'well' ? 3 : 5), 0.06);
+        const at = job.type === 'well' ? { x: site.x - 4, z: site.z + 5 } : { x: site.x + 9, z: site.z + 2 };
+        if (job.type === 'well') wellHouse(b, at.x, at.z); else crossMended(b, at.x, at.z);
+        h = { walls: holder(b.mesh(materials.stone, this.shadows), heightAt(at.x, at.z)), roof: null, chimneys: [], at };
+      }
+      p.houses.set(key, h);
     }
     const ease = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 2);
-    h.walls.scale.set(1, k >= 1 ? 1 : 0.04 + 0.96 * ease(k / 0.75), 1);
-    h.roof.visible = k > 0.75;
-    h.roof.scale.set(1, k >= 1 ? 1 : 0.1 + 0.9 * ease((k - 0.75) / 0.25), 1);
-    if (k >= 1 && !p.shown.has(i)) { p.shown.add(i); p.chimneys.push(...h.chimneys); }
+    if (h.roof) {
+      h.walls.scale.set(1, k >= 1 ? 1 : 0.04 + 0.96 * ease(k / 0.75), 1);
+      h.roof.visible = k > 0.75;
+      h.roof.scale.set(1, k >= 1 ? 1 : 0.1 + 0.9 * ease((k - 0.75) / 0.25), 1);
+    } else h.walls.scale.set(1, k >= 1 ? 1 : 0.04 + 0.96 * ease(k), 1);
+    if (k >= 1 && !p.done.has(key)) { p.done.add(key); p.chimneys.push(...h.chimneys); }
   }
 
   /** A broad river boat, afloat off the bank where the settlers land. */
@@ -508,9 +550,8 @@ export class Villages {
       const s = settlementBySite[site], many = s.kind === 'hamlet' ? 12 : 7, people = [];
       const rand = rng(site.length * 97 + Math.round(at.z));
       for (let i = 0; i < many; i++) {
-        const small = i === 3 || i === 8;
-        const look = FOLK[i % FOLK.length];
-        const f = equip(folk(look, small ? 0.66 : 0.95 + rand() * 0.08), { sackColor: SACKS[i % SACKS.length] });
+        const small = isChild(i);
+        const f = equip(folk(settlerLook(s, i), small ? 0.66 : 0.95 + rand() * 0.08), { sackColor: SACKS[i % SACKS.length] });
         const pusher = i === many - 1;
         f.props.sack.visible = !pusher && !small;
         // standing about in a loose crowd, inland of where they wait, a step apart
@@ -520,37 +561,35 @@ export class Villages {
         f.rotation.y = pusher ? Math.PI / 2 : -Math.PI / 2; // (the cart stands inland of whoever will push it)
         f.name = 'villages';
         this.scene.add(f);
-        // they walk in pairs behind the ranger; the cart comes last, with room for it
+        // they walk in pairs behind the ranger (whoever speaks for them first); the cart comes last, with room for it
         const lag = pusher ? 3.2 + Math.ceil((many - 1) / 2) * 1.9 + 1.8 : 2.6 + Math.floor(i / 2) * 1.9;
         people.push({ fig: f, x, z, heading: pusher ? Math.PI / 2 : -Math.PI / 2, speed: 0, small, lag, side: pusher ? 0 : (i % 2 ? 0.85 : -0.85), pusher });
       }
       const cart = handcart();
       this.scene.add(cart);
       this.escort = { site, people, trail: [], following, cart };
-      this.placeCart(0);
+      this.pushCart(people.find((p) => p.pusher), cart);
     }
     this.escort.following = following;
     if (following) this.escort.trail = [];
   }
 
-  /** The cart goes ahead of whoever pushes it. */
-  placeCart(dt) {
-    const e = this.escort, q = e.people.find((p) => p.pusher), c = e.cart;
+  /** The cart goes ahead of whoever pushes it, its wheels turning as it goes. */
+  pushCart(q, c) {
     const fx = Math.sin(q.fig.rotation.y), fz = Math.cos(q.fig.rotation.y);
     const x = q.x + fx * 2.1, z = q.z + fz * 2.1;
     const moved = Math.hypot(x - c.position.x, z - c.position.z);
     c.position.set(x, heightAt(x, z), z);
     c.rotation.y = q.fig.rotation.y;
     for (const w of c.userData.wheels) w.rotation.x += moved / 0.45;
-    void dt;
   }
 
-  /** The settlers have come home: remember where they stood, so they go to work from there. */
+  /** The settlers have come home: they are handed to their place as they are, to go to work from where they stand. */
   arrive() {
     const e = this.escort;
     if (!e) return;
-    this.arrivals.set(e.site, e.people.map((p) => ({ x: p.x, z: p.z })));
-    this.endEscort();
+    this.arrivals.set(e.site, { people: e.people, cart: e.cart });
+    this.escort = null; // (the figures stay in the scene until their place takes them)
   }
 
   endEscort() {
@@ -598,30 +637,22 @@ export class Villages {
       else if (!p.pusher && Math.hypot(px - p.x, pz - p.z) < 12) p.heading = Math.atan2(px - p.x, pz - p.z); // waiting, they watch the ranger
       p.speed += (speed - p.speed) * Math.min(1, dt * 6);
     }
-    // keep a step apart (the cart's pusher keeps a little more room)
-    const ps = e.people;
-    for (let i = 0; i < ps.length; i++) {
-      for (let j = i + 1; j < ps.length; j++) {
-        const a = ps[i], b = ps[j], dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), min = a.pusher || b.pusher ? 1.6 : 1.05;
-        if (d >= min) continue;
-        const push = (min - (d || 0.01)) / 2, ux = d ? dx / d : 1, uz = d ? dz / d : 0;
-        a.x -= ux * push; a.z -= uz * push; b.x += ux * push; b.z += uz * push;
-      }
-    }
-    for (const p of ps) {
+    apart(e.people);
+    for (const p of e.people) {
       p.fig.position.set(p.x, heightAt(p.x, p.z), p.z);
       turnTo(p.fig, p.heading, Math.min(1, dt * 6));
       animateFigure(p.fig, p.speed, dt, time + p.lag);
-      if (p.pusher) { const l = p.fig.limbs; l.armL.rotation.x = l.armR.rotation.x = -1.05; l.elbowL.rotation.x = l.elbowR.rotation.x = -0.35; }
+      if (p.pusher) pushPose(p.fig);
       nearest = Math.min(nearest, Math.hypot(px - p.x, pz - p.z));
     }
-    this.placeCart(dt);
+    this.pushCart(e.people.find((p) => p.pusher), e.cart);
     return nearest;
   }
 
   // ---- every frame ----
 
   update(dt, time, player) {
+    dt *= this.pace ?? 1; // (the tests may hurry village life along: software rendering is slow)
     const px = player.pos.x, pz = player.pos.z;
     for (const p of this.places.values()) {
       const d = Math.hypot(p.x - px, p.z - pz);
@@ -633,8 +664,13 @@ export class Villages {
         pl.mesh.count = pd < NEAR_CROP ? pl.mesh.userData.full : Math.ceil(pl.mesh.userData.full / 3);
       }
       this.work(p, dt); // building goes on whether or not anyone watches
-      if (!show || d > 120) continue; // people far off stand still
+      if (!show || d > 120) { // people far off stand still (but come to where they were going)
+        for (const q of p.people) if (q.post && Math.hypot(q.x - q.post.x, q.z - q.post.z) > 0.3) { q.x = q.post.x; q.z = q.post.z; q.fig.position.set(q.x, heightAt(q.x, q.z), q.z); }
+        if (p.cartAt) this.parkCart(p);
+        continue;
+      }
       for (const q of p.people) this.tend(p, q, dt, time, px, pz);
+      apart(p.people.filter((q) => !q.post || Math.hypot(q.x - q.post.x, q.z - q.post.z) > 0.5));
     }
     // smoke from the nearest chimneys
     this.smokeTick = (this.smokeTick ?? 0) - dt;
@@ -658,40 +694,53 @@ export class Villages {
     this.smoke.geometry.attributes.position.needsUpdate = true;
   }
 
-  /** The house in hand: begin the next one in the queue, and after its time is up, it stands. 5 to 10 s each. */
+  /** The cart set down at the place's goods, where it stays. */
+  parkCart(p) {
+    p.cart.position.set(p.goods.x, heightAt(p.goods.x, p.goods.z), p.goods.z);
+    p.cartAt = null;
+    for (const q of p.people) q.pusher = false;
+  }
+
+  /** The job in hand: begin the next in the queue, and when its time is up, it stands. A house 5 to 10 s, a well or a cross 4. */
   work(p, dt) {
     if (!p.build && p.queue.length) {
-      const i = p.queue.shift(), hs = siteById[p.site].houses[i];
-      const sc = scaffold(hs, houseFloor(hs).y);
-      p.group.add(sc);
-      p.build = { i, hs, t: 0, total: 5.5 + p.rand() * 4, spots: workSpots(hs), scaffold: sc };
-      this.raise(p, i, 0);
+      const job = p.queue.shift(), site = siteById[p.site];
+      if (job.type === 'house') {
+        const hs = site.houses[job.i], sc = scaffold(hs, houseFloor(hs).y);
+        p.group.add(sc);
+        p.build = { job, t: 0, total: 5.5 + p.rand() * 4, spots: workSpots(hs), scaffold: sc };
+      } else {
+        const at = job.type === 'well' ? { x: site.x - 4, z: site.z + 5 } : { x: site.x + 9, z: site.z + 2 };
+        p.build = { job, t: 0, total: 4, spots: ringSpots(at, job.type === 'well' ? 2.3 : 2.4), scaffold: null };
+      }
+      this.raise(p, job, 0);
     }
     const b = p.build;
     if (!b) return;
     b.t += dt;
-    this.raise(p, b.i, Math.min(1, b.t / b.total));
+    this.raise(p, b.job, Math.min(1, b.t / b.total));
     if (b.t >= b.total) {
-      p.group.remove(b.scaffold); b.scaffold.geometry.dispose();
+      if (b.scaffold) { p.group.remove(b.scaffold); b.scaffold.geometry.dispose(); }
       p.build = null;
     }
   }
 
-  /** One of a place's people, about their business: building if a house is going up, else at ease on the green. */
+  /** One of a place's people, about their business: at their post, building, or at ease on the green. */
   tend(p, q, dt, time, px, pz) {
-    if (q.reeve) { // turns to whoever comes to talk
-      turnTo(q.fig, Math.hypot(px - q.x, pz - q.z) < 7 ? Math.atan2(px - q.x, pz - q.z) : q.heading, Math.min(1, dt * 3));
-      animateFigure(q.fig, 0, dt, time + q.x);
-      return;
-    }
-    const b = p.build, workers = p.people.filter((o) => !o.reeve && !o.small);
+    const b = p.build, workers = p.people.filter((o) => !o.post && !o.small);
     let tx = q.tx, tz = q.tz, face = null, act = null;
-    if (b && !q.small) {
+    if (q.post) { // the reeve and the storekeeper go to their places, and stay; they turn to whoever comes to talk
+      tx = q.post.x; tz = q.post.z;
+      face = Math.hypot(px - q.x, pz - q.z) < 7 ? Math.atan2(px - q.x, pz - q.z) : q.heading;
+    } else if (q.pusher && p.cartAt) { // first the cart, to where their goods will be kept
+      tx = p.cartAt.x - 1.6; tz = p.cartAt.z - 1.6;
+      if (Math.hypot(tx - q.x, tz - q.z) < 0.6) this.parkCart(p);
+    } else if (b && !q.small) {
       const k = workers.indexOf(q);
       if (q.job === 'hammer' || k >= b.spots.length) {
         const s = b.spots[k % b.spots.length];
         tx = s.x; tz = s.z; face = s.face; act = 'hammer';
-      } else { // carrying: to the house with a plank, back to the pile for another
+      } else { // carrying: to the work with a plank, back to the cart for another
         q.carrying ??= true;
         const drop = b.spots[k % b.spots.length];
         const there = q.carrying ? drop : p.goods;
@@ -710,7 +759,7 @@ export class Villages {
     }
     const dx = tx - q.x, dz = tz - q.z, dd = Math.hypot(dx, dz);
     if (dd > 0.2) {
-      const v = act === 'carry' ? 1.7 : dd > 8 ? 4.5 : q.small ? 1.8 : 1.3; // to work at a run
+      const v = q.pusher ? 1.8 : act === 'carry' ? 1.7 : dd > 8 && !q.post ? 4.5 : q.small ? 1.8 : 1.4; // to work at a run; the cart and those who speak for them at a walk
       q.x += (dx / dd) * Math.min(dd, v * dt); q.z += (dz / dd) * Math.min(dd, v * dt);
       q.heading = Math.atan2(dx, dz); q.speed = v;
     } else {
@@ -718,8 +767,9 @@ export class Villages {
       if (face !== null) q.heading = face;
     }
     q.fig.position.set(q.x, heightAt(q.x, q.z), q.z);
-    turnTo(q.fig, q.heading, Math.min(1, dt * 5));
+    turnTo(q.fig, q.speed ? q.heading : face ?? q.heading, Math.min(1, dt * 5));
     animateFigure(q.fig, q.speed, dt, time + q.x);
+    if (q.pusher && p.cartAt) { pushPose(q.fig); this.pushCart(q, p.cart); }
     const l = q.fig.limbs, pr = q.fig.props;
     const hammering = act === 'hammer' && q.speed === 0;
     if (pr) { pr.hammer.visible = act === 'hammer'; pr.plank.visible = act === 'carry'; pr.sack.visible = false; }
@@ -731,14 +781,25 @@ export class Villages {
     }
   }
 
-  /** The settlement whose speaker, or the homestead whose people, stand within reach: { site, homestead } or null. */
+  /**
+   * Who stands within reach to talk to: a settlement's reeve or storekeeper, or a
+   * homestead's people. { site, role: 'reeve' | 'trader' | 'farmer' } or null.
+   */
   speakerNear(x, z, r = 3) {
     for (const p of this.places.values()) {
       if (Math.abs(p.x - x) > 60 || Math.abs(p.z - z) > 60) continue;
       for (const q of p.people) {
-        if ((q.reeve || !p.settlement) && Math.hypot(q.x - x, q.z - z) < r) return { site: p.site, homestead: !p.settlement };
+        if (!(q.role || !p.settlement) || Math.hypot(q.x - x, q.z - z) >= r) continue;
+        if (q.post && Math.hypot(q.x - q.post.x, q.z - q.post.z) > 1.5) continue; // (not until they are at their place)
+        return { site: p.site, role: q.role ?? 'farmer' };
       }
     }
+    return null;
+  }
+
+  /** The settlement whose inn door the ranger stands at, once the inn is built: its site, or null. */
+  innNear(x, z, r = 1.8) {
+    for (const p of this.places.values()) if (p.innDoor && p.done.has('h' + p.inn) && Math.hypot(p.innDoor.x - x, p.innDoor.z - z) < r) return p.site;
     return null;
   }
 
@@ -746,5 +807,24 @@ export class Villages {
   arrivalAt(site) {
     const st = siteById[site];
     return st.kind === 'hamlet' ? { x: st.x - 2, z: st.z + 13 } : { x: st.x, z: st.z + st.houses[0].d / 2 + 7 };
+  }
+}
+
+const jobKey = (j) => (j.type === 'house' ? 'h' + j.i : j.type);
+/** Places to stand round something small being built, facing it. */
+function ringSpots(at, r) {
+  return [0, 1, 2, 3, 4, 5].map((k) => { const a = k * 1.047, x = at.x + Math.cos(a) * r, z = at.z + Math.sin(a) * r; return { x, z, face: Math.atan2(at.x - x, at.z - z) }; });
+}
+/** Arms out to the cart's handles. */
+function pushPose(fig) { const l = fig.limbs; l.armL.rotation.x = l.armR.rotation.x = -1.05; l.elbowL.rotation.x = l.elbowR.rotation.x = -0.35; }
+/** Keep people a step apart (whoever pushes the cart a little more). */
+function apart(ps) {
+  for (let i = 0; i < ps.length; i++) {
+    for (let j = i + 1; j < ps.length; j++) {
+      const a = ps[i], b = ps[j], dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), min = a.pusher || b.pusher ? 1.6 : 1.05;
+      if (d >= min) continue;
+      const push = (min - (d || 0.01)) / 2, ux = d ? dx / d : 1, uz = d ? dz / d : 0;
+      a.x -= ux * push; a.z -= uz * push; b.x += ux * push; b.z += uz * push;
+    }
   }
 }

@@ -19,22 +19,24 @@ import { provinceAt } from './provinces.js';
  * Faramir's order; the fells have no one to settle). `crops` are the two seed
  * kinds its people sow, the first field and then the second. `landing`, if
  * given, is a landmark the boat puts in by; otherwise the bank opposite the site.
- * Names: the settlers' own, plain words of Gondor in our tongue.
+ * Names: the settlers' own, plain words of Gondor in our tongue. Each has a
+ * storekeeper (`trader`, since v0.7.6) and somewhere a ranger may sleep (`inn`):
+ * an inn with a sign in a village, a bed at a farm.
  */
 const PLAN = [
   { province: 'henneth', site: 'hamlet4', name: 'Beechwell', landing: 'cairandros', crops: ['thymeSeed', 'baySeed'],
-    reeve: { name: 'Ardan', title: 'Reeve of Beechwell' } },
+    reeve: { name: 'Ardan', title: 'Reeve of Beechwell' }, trader: { name: 'Mirel', title: 'Keeps the stores at Beechwell' }, inn: 'the Well and Bucket' },
   { province: 'forlad', site: 'hamlet2', name: 'Heathwick', crops: ['thymeSeed', 'poppySeed'],
-    reeve: { name: 'Brannoc', title: 'Reeve of Heathwick' } },
+    reeve: { name: 'Brannoc', title: 'Reeve of Heathwick' }, trader: { name: 'Sefa', title: 'Keeps the stores at Heathwick' }, inn: 'the Heath Hen' },
   { province: 'bridgelands', site: 'hamlet0', name: 'Bridgefold', crops: ['baySeed', 'poppySeed'],
-    reeve: { name: 'Hirwen', title: 'Reeve of Bridgefold' } },
+    reeve: { name: 'Hirwen', title: 'Reeve of Bridgefold' }, trader: { name: 'Odo', title: 'Keeps the stores at Bridgefold' }, inn: 'the Broken Span' },
   { province: 'ithil', site: 'hamlet3', name: 'Moonhallow', crops: ['oliveStone', 'poppySeed'],
-    reeve: { name: 'Talven', title: 'Reeve of Moonhallow' } },
+    reeve: { name: 'Talven', title: 'Reeve of Moonhallow' }, trader: { name: 'Lisbet', title: 'Keeps the stores at Moonhallow' }, inn: 'the Lantern' },
   // (south of the Moonwood there are no villages: a farmstead each, and seed the south lacks)
   { province: 'southwood', site: 'farm3', name: 'Olivegarth', crops: ['oliveStone', 'thymeSeed'],
-    reeve: { name: 'Imrith', title: 'Goodwife of Olivegarth' } },
+    reeve: { name: 'Imrith', title: 'Goodwife of Olivegarth' }, trader: { name: 'Garan', title: 'Imrith\u2019s son, who keeps their stores' }, inn: 'a bed in the loft' },
   { province: 'morgul', site: 'farm25', name: 'Marchstead', crops: ['poppySeed', 'baySeed'],
-    reeve: { name: 'Dorvan', title: 'Goodman of Marchstead' } },
+    reeve: { name: 'Dorvan', title: 'Goodman of Marchstead' }, trader: { name: 'Nell', title: 'Dorvan\u2019s daughter, who keeps their stores' }, inn: 'a bed by the hearth' },
 ];
 
 const siteById = Object.fromEntries(SITES.map((s) => [s.id, s]));

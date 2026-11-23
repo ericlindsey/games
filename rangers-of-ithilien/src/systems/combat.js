@@ -58,13 +58,13 @@ export class Combat {
     this.syncWeapon();
   }
 
-  /** Mend the ranger from the pack: in a fight one remedy, the one that serves; out of one (`calm`), the cheapest food first. */
+  /** Mend the ranger from the pack: in a fight one remedy, the one that serves; out of one (`calm`), the cheapest food, one at a time. */
   heal(calm = false) {
     if (calm && this.state.health < BASE_HEALTH) {
       const eaten = calmHeal(this.state);
-      const list = Object.entries(eaten).map(([id, n]) => (n > 1 ? `${n} × ` : '') + ITEMS[id].name.toLowerCase());
-      if (list.length) {
-        this.hud.toast('', `You eat and drink: ${list.join(', ')}. You feel better.`);
+      if (eaten) {
+        const left = this.state.items[eaten] ?? 0;
+        this.hud.toast('', `${ITEMS[eaten].name}: you feel a little better${eaten === 'orcBread' ? ', and wish you did not know the taste' : ''}.${left ? ` (${left} left.)` : ''}`);
         this.hud.setHealth(this.state.health);
         return;
       }

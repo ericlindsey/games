@@ -483,14 +483,24 @@ export class TradePanel {
     $('trade-close').onclick = () => this.close();
     this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
   }
-  show(state) {
+  /**
+   * @param village (since v0.7.6) a settlement's storekeeper instead of Mablung:
+   *   { title, who }: their few plain wares, and no bench
+   */
+  show(state, village = null) {
     this.state = state;
+    this.village = village;
     this.root.hidden = false;
     this.open = true;
+    for (const el of this.root.querySelectorAll('.smith')) el.hidden = !!village;
+    $('trade-title').textContent = village ? village.title : 'Mablung\u2019s stores';
+    $('trade-sells').textContent = village ? `${village.who} will sell` : 'He will sell';
+    $('trade-buys').textContent = village ? `${village.who} will buy` : 'He will buy';
     this.draw();
   }
   draw() {
     const st = this.state;
+    if (this.village) { this.drawVillage(); return; }
     $('trade-purse').textContent = `You have ${st.silver} silver. Renown ${st.renown}: as your name grows he will bring out better things.`;
     // what the ranger has on now, to weigh what he sells against
     const worn = $('trade-worn'); worn.replaceChildren();
@@ -535,6 +545,23 @@ export class TradePanel {
       row(sell, st.items[id] > 1 ? `${it.name} \u00d7${st.items[id]}` : it.name, itemNote(it), [[`Sell \u00b7 ${inv.sellPrice(id)}`, () => { inv.sell(st, id); this.h.onChange(); this.draw(); }]]);
     }
     if (!ids.length) empty(sell, 'You carry nothing he wants.');
+  }
+  /** A settlement's stores: plain things to buy, plain things they will take off your hands. */
+  drawVillage() {
+    const st = this.state, who = this.village.who;
+    $('trade-purse').textContent = `You have ${st.silver} silver.${st.skills?.repair ? '' : ' (Whetstones and bowstrings are kept for those who know their use: Mablung teaches it.)'}`;
+    const buy = $('trade-buy'); buy.replaceChildren();
+    for (const e of inv.villageShop(st)) {
+      const price = inv.buyPrice(e), it = ITEMS[e.item];
+      row(buy, e.name ?? it.name, it ? itemNote(it) : 'For the bow.', [[`Buy \u00b7 ${price}`, () => { inv.buy(st, e); this.h.onChange(); this.draw(); }, st.silver < price]]);
+    }
+    const sell = $('trade-sell'); sell.replaceChildren();
+    const ids = Object.keys(st.items).filter((id) => inv.villageBuys(id));
+    for (const id of ids) {
+      const it = ITEMS[id];
+      row(sell, st.items[id] > 1 ? `${it.name} \u00d7${st.items[id]}` : it.name, itemNote(it), [[`Sell \u00b7 ${inv.sellPrice(id)}`, () => { inv.sell(st, id); this.h.onChange(); this.draw(); }]]);
+    }
+    if (!ids.length) empty(sell, `You carry nothing ${who} wants. (Gear is for Mablung.)`);
   }
   close() {
     if (!this.open) return;

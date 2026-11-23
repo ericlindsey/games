@@ -234,7 +234,11 @@ Rules of thumb:
   what stands, what is sown and what is sold all follow from it. Call `settle()` in
   main.js after anything that may change them: it rebuilds what changed and clears
   the woods and grass off new-sown plots (`ground.refresh`, `grass.refresh`).
-  Settlement content never moves the world placed before it.
+  Settlement content never moves the world placed before it. Settlers led home
+  are handed to their place as they stand (`Villages.arrive`), and whatever is
+  new in a place (the well, a house, the cross) is built by its people over a few
+  seconds (`p.queue`, `work`), never popped in; only loading a save shows it whole.
+  Each has a reeve (tasks, seed), a storekeeper (`villageShop`) and a bed (`innNear`).
 - Notices (`hud.toast(big, small, kind)`) are all one size; `kind` only colours
   them ('great', 'task', 'warn', and the fight's 'seen', 'felled', 'hurt', which
   `hud.callout` uses). Up to ten stack, the newest at the bottom.
@@ -284,7 +288,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.7.5`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.7.6`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

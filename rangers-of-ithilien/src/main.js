@@ -354,7 +354,27 @@ async function boot() {
       : st >= 2 ? `Ranger! See the new thatch? ${s.name} is coming on. There is work yet, if you have time for us.`
       : st >= 1 ? `The field is up, ranger, did you see it? Rows as straight as a spear. ${s.name} has a long way to go yet, but we are on it.`
       : `Ranger. We are home, or we shall be, once there is a roof over every head and something in the ground. ${s.name} has a great deal to do, and I would be glad of your help.`;
-    return { name: s.reeve.name, title: s.reeve.title, start: 'hello', nodes: { hello: { text, options: [{ label: 'Farewell.' }] } } };
+    // (since v0.7.6) and what the place has for a ranger: the storekeeper, the inn, the seed
+    const hamlet = s.kind === 'hamlet';
+    const about = `${s.trader.name} keeps our stores, by the cart: bread, draughts, arrows, and whatever plain things you would sell. ` +
+      (hamlet ? `When the second house is up it is to be our inn, ${s.inn}; there is a sign by the door. Rest there whenever you like, and nobody will ask you for a penny. `
+        : `And there is ${s.inn} for you, any night you want it: knock at the farmhouse door. `) +
+      `Once our fields are sown I will sell you seed of what we grow. And if you have time for us, ask me what wants doing: everything you do for us, you will see in ${s.name}.`;
+    return { name: s.reeve.name, title: s.reeve.title, start: 'hello', nodes: {
+      hello: { text, options: [{ label: 'What is there here for a ranger?', to: 'about' }, { label: 'Farewell.' }] },
+      about: { text: about, options: [{ label: 'Thank you.', to: 'hello' }] },
+    } };
+  };
+  /** A settlement's storekeeper (since v0.7.6): a word, and their stores. */
+  const traderSpeaker = (site) => {
+    const s = settlementBySite[site];
+    return { name: s.trader.name, title: s.trader.title, start: 'hello', nodes: { hello: {
+      text: s.kind === 'hamlet' ? `Ranger! Not much yet, but what there is is honest. Bread we baked ourselves, draughts the Lady sent with us, arrows from the boat. And I will take what you do not want, if it is plain stuff: no swords and mail, Mablung is the one for those.`
+        : `We have a little put by, ranger, and you are welcome to it at a fair price. And if you have plain things to sell, I will take them.`,
+      options: [
+        { label: 'Show me what you have.', do: () => setTimeout(() => { openPanel(); trade.show(state, { title: `${s.trader.name}\u2019s stores, ${s.name}`, who: s.trader.name }); }, 0) },
+        { label: 'Farewell.' },
+      ] } } };
   };
   const speakerFor = (id, base = DIALOGUE[id] ?? villagerBase(id)) => {
     const nodes = { ...base.nodes };
@@ -458,7 +478,18 @@ async function boot() {
   const talkContext = () => ({ cleared: state.cleared, discovered: state.discovered, ruinIds, state });
   const findTarget = () => {
     const p = player.pos;
+    const inn = villages.innNear(p.x, p.z); // (since v0.7.6) a bed in every settlement; its doorstep first, being small
+    if (inn) {
+      const s = settlementBySite[inn];
+      return { label: s.kind === 'hamlet' ? `Rest at ${s.inn}` : 'Rest a while', use: () => rest(s.kind === 'hamlet'
+        ? `A night at ${s.inn}, in ${s.name}: a hot supper, a clean bed, and no reckoning in the morning. You rise whole.`
+        : `A night in ${s.name}, ${s.inn}, with the house asleep about you. You rise whole.`) };
+    }
     const v = villages.speakerNear(p.x, p.z);
+    if (v?.role === 'trader') {
+      const sp = traderSpeaker(v.site);
+      return { label: `Speak with ${sp.name}`, use: () => { openPanel(); dialogue.start(sp, talkContext()); } };
+    }
     if (v) {
       const base = villagerBase(v.site);
       return { label: `Speak with ${base.name === 'The farmer' ? 'the farmer' : base.name}`, use: () => { openPanel(); dialogue.start(speakerFor(v.site, base), talkContext()); } };
@@ -470,11 +501,11 @@ async function boot() {
         return { label: `Speak with ${who.name}`, use: () => { openPanel(); dialogue.start(speakerFor(n.id), talkContext()); } };
       }
     }
-    if (refuge.beds.some((b) => Math.hypot(p.x - b.x, p.z - b.z) < 1.4)) return { label: 'Rest a while', use: rest };
+    if (refuge.beds.some((b) => Math.hypot(p.x - b.x, p.z - b.z) < 1.4)) return { label: 'Rest a while', use: () => rest() };
     return null;
   };
   /** Lie down on the mats in the cave: an hour's sleep, and the ranger rises whole. */
-  const rest = () => {
+  const rest = (words = 'An hour on the mats, with the falls loud outside the window. You rise whole.') => {
     if (state.health >= 100) { hud.toast('', 'You are not weary. There is work to do.'); return; }
     // the screen fades to black, the hour passes, and it fades back in
     const veil = document.getElementById('sleep');
@@ -486,7 +517,7 @@ async function boot() {
       save();
       setTimeout(() => {
         veil.classList.remove('dark');
-        hud.toast('You rest', 'An hour on the mats, with the falls loud outside the window. You rise whole.');
+        hud.toast('You rest', words);
       }, 350);
     }, 550);
   };
@@ -522,7 +553,7 @@ async function boot() {
       state.escort = null;
       villages.arrive(); // (they go to work from where they stand)
       settle();
-      hud.toast(s.name, s.kind === 'hamlet' ? 'The settlers are home. Smoke goes up from the first chimneys, and someone is already drawing water from the well.' : 'The family are home. The door is open, and someone is already looking over the fields.', 'great');
+      hud.toast(s.name, s.kind === 'hamlet' ? 'The settlers are home, and put down their bundles, and set to work: the well first, then the roofs.' : 'The family are home, and set to work at once: a roof first, then the fields.', 'great');
       hud.setTracker(quests.trackers(state));
       save();
       return;
