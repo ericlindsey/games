@@ -305,7 +305,7 @@ export class MapPanel {
 }
 
 export class MenuPanel {
-  /** @param handlers { onClose, onQuality(name), onSave(), onNew(), onTravel(), onFps() -> now on } */
+  /** @param handlers { onClose, onQuality(name), onCap(fps or 0), onSave(), onNew(), onTravel(), onFps() -> now on } */
   constructor(handlers) {
     this.root = $('menu');
     this.open = false;
@@ -318,13 +318,16 @@ export class MenuPanel {
     $('menu-travel').onclick = () => handlers.onTravel();
     $('menu-fps').onclick = () => { const on = handlers.onFps(); $('menu-fps').textContent = on ? 'Hide frame rate' : 'Show frame rate'; };
     for (const b of this.root.querySelectorAll('[data-quality]')) b.onclick = () => handlers.onQuality(b.dataset.quality);
+    for (const b of this.root.querySelectorAll('[data-cap]')) b.onclick = () => { handlers.onCap(Number(b.dataset.cap)); this.showCap(Number(b.dataset.cap)); };
     this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
   }
   /**
    * @param where { atHome, inFight }: at home the game can be begun anew; abroad
    *   the ranger can instead go straight home, unless the enemy has seen them.
    */
-  show(quality, status, where = { atHome: true, inFight: false }, fps = false) {
+  showCap(cap) { for (const b of this.root.querySelectorAll('[data-cap]')) b.classList.toggle('on', Number(b.dataset.cap) === cap); }
+  show(quality, status, where = { atHome: true, inFight: false }, fps = false, cap = 0) {
+    this.showCap(cap);
     $('menu-fps').textContent = fps ? 'Hide frame rate' : 'Show frame rate';
     $('menu-new').hidden = !where.atHome;
     const travel = $('menu-travel');

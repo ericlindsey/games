@@ -17,7 +17,7 @@ export function newState() {
     player: { x: HA.spawn.x, z: HA.spawn.z, heading: HA.spawn.heading },
     discovered: ['henneth'],
     cleared: [],
-    settings: { quality: null, fps: false },
+    settings: { quality: null, fps: false, cap: 0 },
     stats: { playSeconds: 0, kills: 0, deaths: 0, bands: 0 },
     // the ranger
     health: 100,
@@ -72,6 +72,7 @@ export function migrate(raw) {
   if (raw.settings && ['low', 'medium', 'high'].includes(raw.settings.quality)) s.settings.quality = raw.settings.quality;
   // v4 -> v5 only added the frame-rate counter setting (off unless chosen); all else carries over
   if (raw.settings?.fps === true) s.settings.fps = true;
+  if (raw.settings?.cap === 30) s.settings.cap = 30; // (v0.7.4: a frame-rate cap, for phones that slow down when worked flat out)
   if (raw.stats) for (const k of ['playSeconds', 'kills', 'deaths']) if (num(raw.stats[k])) s.stats[k] = raw.stats[k];
   if (num(raw.health)) s.health = Math.max(1, Math.min(100, raw.health));
   if (raw.weapon === 'bow') s.weapon = 'bow';

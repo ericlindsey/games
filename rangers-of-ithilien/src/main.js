@@ -85,6 +85,10 @@ async function boot() {
   const ratioMax = Math.min(devicePixelRatio || 1, quality.pixelRatio);
   const ratioMin = Math.min(ratioMax, quality.minPixelRatio ?? ratioMax);
   const sharpness = { ratio: ratioMax, frames: 0, time: 0, slowFor: 0, quickFor: 0 };
+  // A frame-rate cap (the menu, or ?tune=fpsCap:30): an iPhone worked flat out at high
+  // slows itself down after a few seconds, to a third of the speed, and stays slow
+  // until the browser is put away; given rest between frames it may not.
+  const frameCap = () => quality.fpsCap ?? state.settings.cap ?? 0;
   const pace = (elapsed) => {
     const sp = sharpness;
     if (sp.hold) return; // the frame-rate test holds the picture at its sharpest
@@ -93,8 +97,9 @@ async function boot() {
     if (sp.time < 1) return;
     const rate = sp.frames / sp.time;
     sp.frames = sp.time = 0;
-    sp.slowFor = rate < 40 ? sp.slowFor + 1 : 0;
-    sp.quickFor = rate > 57 ? sp.quickFor + 1 : 0;
+    const aim = frameCap() || 60; // (held to a cap, the frame rate is measured against it)
+    sp.slowFor = rate < aim * 0.67 ? sp.slowFor + 1 : 0;
+    sp.quickFor = rate > aim * 0.95 ? sp.quickFor + 1 : 0;
     let next = sp.ratio;
     if (sp.slowFor >= 2 && sp.ratio > ratioMin) next = Math.max(ratioMin, sp.ratio - 0.25);
     else if (sp.quickFor >= 10 && sp.ratio < ratioMax) next = Math.min(ratioMax, sp.ratio + 0.25);
@@ -221,6 +226,7 @@ async function boot() {
     onQuality: (name) => { state.settings.quality = name; save(); location.search = ''; },
     onNew: () => { store.clear(); saveOnExit = false; location.reload(); },
     onTravel: () => { if (!enemies.inCombat()) { menu.close(); goHome('You slip away by the ways the rangers know, and are home before the light changes.'); } },
+    onCap: (n) => { state.settings.cap = n; save(); },
     onFps: () => { state.settings.fps = !state.settings.fps; $('fps').hidden = !state.settings.fps; save(); return state.settings.fps; },
   });
   $('fps').hidden = !state.settings.fps;
@@ -569,7 +575,7 @@ async function boot() {
     if (action === 'menu') {
       const open = [dialogue, map, pack, trade, menu].find((p) => p.open);
       if (open) open.close();
-      else { openPanel(); menu.show(qualityName, storage ? '' : 'Saving is not available in this browser.', { atHome: refuge.isInside(player.pos), inFight: enemies.inCombat() }, state.settings.fps); }
+      else { openPanel(); menu.show(qualityName, storage ? '' : 'Saving is not available in this browser.', { atHome: refuge.isInside(player.pos), inFight: enemies.inCombat() }, state.settings.fps, frameCap()); }
       return;
     }
     if (action === 'map') {
@@ -648,6 +654,7 @@ async function boot() {
 
   // ---- loop ----
   const buildMs = quality.buildMs ?? 2; // ms a frame for building new ground and plants, and 3/4 of that for grass
+  let due = 0; // when the next frame is due, under a frame-rate cap
   let last = performance.now(), time = 0, slow = 0, autosave = 0, fps = 60, shade = 0, fpsCount = 0, fpsTime = 0;
   const province = { id: null, next: null, since: 0 }; // the province the ranger is in, for the notice on crossing a border
   // what each frame costs this thread (the game's own work and handing the frame to the GPU), against
@@ -655,6 +662,13 @@ async function boot() {
   const cost = { frames: 0, gap: 0, gapMax: 0, work: 0, workMax: 0 };
   const loop = (now) => {
     requestAnimationFrame(loop);
+    const cap = frameCap();
+    if (cap) { // held to the cap: frames are due on a steady beat, and a display frame that comes early is let go by
+      const t = performance.now(); // (the clock itself: a display frame's own time can lag it)
+      if (t < due - 4) return;
+      due += 1000 / cap; // (keeping the beat, so a frame drawn a little late does not put back all the rest)
+      if (t - due > 1000 / cap) due = t + 1000 / cap; // (after a stall, beginning it again)
+    }
     const begun = performance.now();
     const elapsed = (now - last) / 1000;
     const dt = Math.min(0.05, elapsed);
@@ -771,6 +785,7 @@ async function boot() {
     hud, map, pack, trade, refreshHud, goHome, openPanel, store, trunkAt, haradRoadX, travelTo, travelPlaces, streams: STREAMS,
   };
   api.qualityName = qualityName;
+  api.frameCap = frameCap;
   /** Hold the picture at its sharpest (true) or let it follow the frame rate again (false). */
   api.holdResolution = (on) => {
     sharpness.hold = on; sharpness.slowFor = sharpness.quickFor = 0;
