@@ -442,7 +442,7 @@ export class Villages {
     };
     // where the reeve and the storekeeper keep to: by the well (a farm: before the door), and beside the cart
     const posts = {
-      reeve: hamlet ? { x: site.x - 1.5, z: site.z + 7.5 } : { x: home.x + 1.5, z: home.z },
+      reeve: hamlet ? { x: site.x - 1.5, z: site.z + 7.5 } : { x: home.x + 3.5, z: home.z + 1 }, // (a farm's, before the house but clear of its door)
       trader: { x: goods.x - 1.6, z: goods.z + 1.2 },
     };
     const came = this.arrivals.get(id);

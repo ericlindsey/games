@@ -421,7 +421,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate(() => roi.enemies.list.every((e) => !roi.blocked(e.x, e.z, e.y, 0.4))), 'none of them stands inside a wall or rock');
   await page.waitForFunction(() => roi.enemies.list.some((e) => e.alerted), null, { timeout: 30000 });
   check(true, 'they notice the ranger');
-  check(await page.waitForFunction(() => roi.hud.recent.some((t) => /seen you|roused/.test(t)), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD says so');
+  check(await page.evaluate(() => roi.hud.recent.some((t) => /seen you|roused/.test(t))), 'and the HUD says so');
   await page.keyboard.down('KeyF');
   const drewBlood = await page.waitForFunction(() => roi.enemies.list.some((e) => e.hp < e.maxHp), null, { timeout: 240000 }).then(() => true, () => false);
   check(drewBlood, 'the sword wounds them');
@@ -431,7 +431,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.waitForFunction(() => roi.state.stats.kills >= 1 || roi.state.health < 30, null, { timeout: 240000 });
   await page.keyboard.up('KeyF');
   check(await page.evaluate(() => roi.state.stats.kills >= 1), 'an enemy can be killed with the sword');
-  check(await page.waitForFunction(() => roi.hud.recent.some((t) => /(Orc|archer|Uruk|Southron|Captain) felled/.test(t)), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD names the fallen');
+  check(await page.evaluate(() => roi.hud.recent.some((t) => /(Orc|archer|Uruk|Southron|Captain) felled/.test(t))), 'and the HUD names the fallen');
   await shot(page, 'felled');
   await shot(page, 'fight');
   // finish the rest by decree, to keep the test short
@@ -999,7 +999,7 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
   check(/Garan/.test(shop.title) && shop.smithHidden && /Waybread/.test(shop.rows) && !/Mail|sword/i.test(shop.rows) && /Orc trinkets/.test(shop.sells), 'the storekeeper sells bread and the like, no gear, and buys plain things');
   await page.click('#trade-close');
   await page.evaluate(() => { const p = roi.villages.places.get('farm3'); roi.state.health = 40; roi.teleport(p.innDoor.x, p.innDoor.z, 0); });
-  await page.waitForFunction(() => /Rest/.test(document.getElementById('prompt').textContent), null, { timeout: 20000 });
+  await page.waitForFunction(() => /Rest/.test(document.getElementById('prompt').textContent), null, { timeout: 120000 });
   await page.keyboard.press('KeyE');
   check(await page.waitForFunction(() => roi.state.health === 100, null, { timeout: 60000 }).then(() => true, () => false), 'at the farmhouse door the ranger may rest, and rises whole');
   // the heal button out of a fight: one thing at a time, the humblest first

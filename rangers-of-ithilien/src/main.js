@@ -478,6 +478,13 @@ async function boot() {
   const talkContext = () => ({ cleared: state.cleared, discovered: state.discovered, ruinIds, state });
   const findTarget = () => {
     const p = player.pos;
+    const inn = villages.innNear(p.x, p.z); // (since v0.7.6) a bed in every settlement; its doorstep first, being small
+    if (inn) {
+      const s = settlementBySite[inn];
+      return { label: s.kind === 'hamlet' ? `Rest at ${s.inn}` : 'Rest a while', use: () => rest(s.kind === 'hamlet'
+        ? `A night at ${s.inn}, in ${s.name}: a hot supper, a clean bed, and no reckoning in the morning. You rise whole.`
+        : `A night in ${s.name}, ${s.inn}, with the house asleep about you. You rise whole.`) };
+    }
     const v = villages.speakerNear(p.x, p.z);
     if (v?.role === 'trader') {
       const sp = traderSpeaker(v.site);
@@ -486,13 +493,6 @@ async function boot() {
     if (v) {
       const base = villagerBase(v.site);
       return { label: `Speak with ${base.name === 'The farmer' ? 'the farmer' : base.name}`, use: () => { openPanel(); dialogue.start(speakerFor(v.site, base), talkContext()); } };
-    }
-    const inn = villages.innNear(p.x, p.z); // (since v0.7.6) a bed in every settlement
-    if (inn) {
-      const s = settlementBySite[inn];
-      return { label: s.kind === 'hamlet' ? `Rest at ${s.inn}` : 'Rest a while', use: () => rest(s.kind === 'hamlet'
-        ? `A night at ${s.inn}, in ${s.name}: a hot supper, a clean bed, and no reckoning in the morning. You rise whole.`
-        : `A night in ${s.name}, ${s.inn}, with the house asleep about you. You rise whole.`) };
     }
     if (Math.abs(p.y - refuge.floorY) > 2) return null;
     for (const n of npcs) {
