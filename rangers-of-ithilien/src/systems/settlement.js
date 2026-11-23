@@ -14,7 +14,7 @@
 // A homestead (a farmstead Éowyn was shown, `state.homesteads`) is lived in
 // once its province is free: its house roofed and one field sown.
 
-import { SETTLEMENTS, settlementBySite, settlementIn, HOMESTEADS, homesteadBySite } from '../world/settlements.js';
+import { SETTLEMENTS, settlementBySite, settlementIn, HOMESTEADS, homesteadBySite, yardsOf } from '../world/settlements.js';
 import { provinceStatus } from './provinces.js';
 
 export { SETTLEMENTS, settlementBySite, settlementIn, HOMESTEADS, homesteadBySite };
@@ -73,4 +73,12 @@ export function settlingLine(state, s, mapDone) {
   if (free) return 'Free. My map of it is not done: the old places, and where they will live.';
   if (mapDone) return 'Mapped, but not yet free. Faramir’s work comes first.';
   return 'Not yet free, and not yet mapped.';
+}
+
+/** All the ground the settlers keep clear now: their sown fields, and the yards of every place lived in (since v0.7.7). */
+export function clearedGround(state) {
+  const out = sownPlots(state).map((p) => p.rect);
+  for (const s of SETTLEMENTS) if (arrived(state, s.site)) out.push(...yardsOf(s.site));
+  for (const id of homesteadsLived(state)) out.push(...yardsOf(id));
+  return out;
 }

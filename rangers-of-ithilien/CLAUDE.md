@@ -239,6 +239,8 @@ Rules of thumb:
   new in a place (the well, a house, the cross) is built by its people over a few
   seconds (`p.queue`, `work`), never popped in; only loading a save shows it whole.
   Each has a reeve (tasks, seed), a storekeeper (`villageShop`) and a bed (`innNear`).
+  A lived-in place keeps its yards bare (`yardsOf`, part of `clearedGround`); a
+  mended house is solid, and a door above the ground has steps.
 - Notices (`hud.toast(big, small, kind)`) are all one size; `kind` only colours
   them ('great', 'task', 'warn', and the fight's 'seen', 'felled', 'hurt', which
   `hud.callout` uses). Up to ten stack, the newest at the bottom.
@@ -288,7 +290,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.7.6`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.7.7`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

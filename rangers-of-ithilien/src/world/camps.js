@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { CAMPS } from './campSites.js';
 import { HOLDS } from './provinces.js';
 import { heightAt } from './terrain.js';
-import { addCircle } from './collision.js';
+import { addCircle, removeCircles } from './collision.js';
+import { surfaceUniforms, CAMP_TINTS } from './surface.js';
 import { GeoBuilder, SURF, materials } from './build.js';
 import { addRock } from './rocks.js';
 import { rng } from '../util/noise.js';
@@ -128,17 +129,26 @@ export class Camps {
         const bx = ox + (rand() - 0.5) * 7, bz = oz + (rand() - 0.5) * 7;
         occupied.box(0.5, 0.07, 0.08, bx, at(bx, bz) + 0.02, bz, BONE, rand() * 3);
       }
+      const knocked = []; // stakes that lie on the ground once the stockade is broken
       // A stockade of sharpened stakes, round every stockade and war-camp, and
       // (since v0.6) round every province's hold, even where the hold is only a band.
       if ((c.size >= 3 || HOLD_IDS.has(c.id)) && c.kind !== 'mine') {
         const R = c.size === 4 ? 17 : c.size === 3 ? 11.5 : 10.5, gate = rand() * 6.28;
+        const downRand = rng(Math.round(c.x * 3 + c.z)), wasCleared = isCleared(c.id);
         for (let a = 0; a < 6.28; a += 0.98 / R) {
           // three gates, so the company inside can come out at whoever troubles them
           let off = (((a - gate) % 2.094) + 2.094) % 2.094; off = Math.min(off, 2.094 - off);
           if (off < 2.2 / R || rand() < 0.06) continue;
           const sx = c.x + Math.cos(a) * R, sz = c.z + Math.sin(a) * R, sy = at(sx, sz);
-          always.cyl(0, 0.17, 2.5 + rand() * 0.6, sx, sy - 0.2, sz, STAKE, 6, (rand() - 0.5) * 0.2, (rand() - 0.5) * 0.2);
-          addCircle(sx, sz, 0.42, 'stake'); // stops the ranger; the camp's own company slips between
+          const h = 2.5 + rand() * 0.6, lx = (rand() - 0.5) * 0.2, lz = (rand() - 0.5) * 0.2;
+          // (since v0.7.7) about half of them are knocked flat when the stockade falls
+          const down = downRand() < 0.5;
+          (down ? occupied : always).cyl(0, 0.17, h, sx, sy - 0.2, sz, STAKE, 6, lx, lz);
+          if (down) {
+            const fall = downRand() < 0.5 ? 1 : -1, across = downRand() < 0.5;
+            knocked.push({ h, x: sx + (across ? 0 : fall * h * 0.45), z: sz + (across ? fall * h * 0.45 : 0), y: at(sx, sz), rx: across ? fall * Math.PI / 2 : 0, rz: across ? 0 : -fall * Math.PI / 2 });
+            if (!wasCleared) addCircle(sx, sz, 0.42, 'stake', 'down:' + c.id);
+          } else addCircle(sx, sz, 0.42, 'stake'); // stops the ranger; the camp's own company slips between
         }
         if (c.size === 4) { // and a watch-platform over a war-camp
           const tx = c.x + 6, tz = c.z + 6, ty = at(tx, tz);
@@ -153,6 +163,20 @@ export class Camps {
       cleared.box(0.1, 3, 0.1, px, py - 0.2, pz, 0x6e5236);
       cleared.box(0.04, 0.7, 1.2, px, py + 2, pz + 0.65, 0xf2f0e6);
       cleared.box(0.05, 0.35, 0.35, px, py + 2.2, pz + 0.6, 0x3f6b3a);
+      for (const k of knocked) cleared.cyl(0, 0.17, k.h, k.x, k.y - k.h / 2 + 0.12, k.z, STAKE, 6, k.rx, k.rz); // (lying where they fell)
+      { // and in the cold fire ring, beside the dead logs, flowers come up already (since v0.7.7)
+        cleared.kind = SURF.leaf;
+        const ox = fx + 0.48, oz = fz - 0.3;
+        for (const [dx, dz, hh, col] of [[0, 0, 0.55, 0xf4f0e2], [0.18, 0.12, 0.42, 0xf2d24a], [-0.14, 0.16, 0.48, 0xf4f0e2], [0.06, -0.17, 0.36, 0xe8a0c8]]) {
+          cleared.cyl(0.016, 0.022, hh, ox + dx, y - 0.02, oz + dz, 0x5f8a42, 4);
+          cleared.kind = SURF.plain;
+          for (let p = 0; p < 6; p++) { const a = p * 1.047; cleared.blob(0.055, ox + dx + Math.cos(a) * 0.07, y + hh + 0.01, oz + dz + Math.sin(a) * 0.07, col, 1.2, 0.4, 1.2); }
+          cleared.blob(0.045, ox + dx, y + hh + 0.03, oz + dz, 0xe0a020, 1, 0.7, 1);
+          cleared.kind = SURF.leaf;
+        }
+        for (let l = 0; l < 5; l++) { const a = l * 1.256 + 0.4; cleared.tri(ox, y + 0.02, oz, ox + Math.cos(a) * 0.32 - Math.sin(a) * 0.08, y + 0.12, oz + Math.sin(a) * 0.32 + Math.cos(a) * 0.08, ox + Math.cos(a) * 0.32 + Math.sin(a) * 0.08, y + 0.12, oz + Math.sin(a) * 0.32 - Math.cos(a) * 0.08, 0x5f8a42); }
+        cleared.kind = SURF.wood;
+      }
 
       const site = {
         ...c, y, fire: { x: fx, y, z: fz },
@@ -201,6 +225,7 @@ export class Camps {
   clear(id) {
     const s = this.byId[id];
     s.isCleared = true;
+    removeCircles('down:' + id); // the stakes knocked flat stop no one
     this.show(s);
   }
 
@@ -214,6 +239,18 @@ export class Camps {
   update(dt, time = 0, px = 0, pz = 0) {
     for (const s of this.sites) {
       if (s.isCleared && s.strength > 0) s.strength = Math.max(0, s.strength - dt / 6);
+    }
+    // the dry, trodden ground of the nearest camps (since v0.7.7), greening as each heals (strength 1 -> 0 over 6 s)
+    this.tintTick = (this.tintTick ?? 0) - dt;
+    if (!(this.tintTick > 0) || !this.tinted) { // (also on the first call, and after a strange dt)
+      this.tintTick = 0.5;
+      this.tinted = this.sites.filter((s) => s.strength > 0 && Math.abs(s.x - px) < 400 && Math.abs(s.z - pz) < 400)
+        .sort((a, b) => Math.hypot(a.x - px, a.z - pz) - Math.hypot(b.x - px, b.z - pz)).slice(0, CAMP_TINTS);
+    }
+    const tints = surfaceUniforms.uCamps.value;
+    for (let k = 0; k < CAMP_TINTS; k++) {
+      const s = this.tinted[k];
+      if (s) tints[k].set(s.x, s.z, [0, 12, 15, 19, 25][s.size] ?? 14, s.strength); else tints[k].set(0, 0, 0, 0);
     }
     this.smokeTick -= dt;
     if (this.smokeTick <= 0) { // now and then, choose the nearest lit fires, and draw only the camps near enough to see

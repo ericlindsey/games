@@ -8,6 +8,7 @@ import { GeoBuilder, SURF, materials } from './build.js';
 import { wall as ashlar, rubble } from './ruins.js';
 import { addRock } from './rocks.js';
 import { rng } from '../util/noise.js';
+import { settlementBySite, homesteadBySite } from './settlements.js';
 
 export const WALL = [0xa9a394, 0x8f8a7c, 0x9c9686, 0x8e8d7a];   // field stone, some darker with weather
 export const HOUSE = [0xcbc4b0, 0xb5ae9a, 0xc2bba6];
@@ -18,7 +19,7 @@ function solidWall(b, x, z, w, d, y, h, color) {
   addSolid({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, bottom: y - 2, top: y + h });
 }
 
-function house(b, rand, hs) {
+function house(b, rand, hs, kept = false) {
   const t = 0.6;
   // on the lowest ground under it, so no corner hangs over a slope (the walls are buried a little)
   const y = Math.min(...[[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]].map(([sx, sz]) => heightAt(hs.x + sx * hs.w / 2, hs.z + sz * hs.d / 2)));
@@ -50,7 +51,9 @@ function house(b, rand, hs) {
       }
     }
   });
-  rubble(b, rand, hs.x, hs.z, 6, Math.max(hs.w, hs.d) + 4); // fallen stone, inside and out
+  // fallen stone, inside and out; but in a house that people may live in again, only
+  // within its walls (since v0.7.7: it lay on the doorstep of the mended house)
+  rubble(b, rand, hs.x, hs.z, 6, kept ? Math.min(hs.w, hs.d) * 0.6 : Math.max(hs.w, hs.d) + 4);
 }
 
 /**
@@ -137,7 +140,8 @@ export function buildFarms(scene, shadows) {
     const rand = rng(Math.round(site.x * 13 + site.z * 7));
     const b = new GeoBuilder(Math.round(site.x + site.z), 0.09);
     b.kind = SURF.masonry;
-    for (const hs of site.houses) house(b, rand, hs);
+    const kept = new Set(settlementBySite[site.id]?.houses ?? homesteadBySite[site.id]?.houses ?? []);
+    site.houses.forEach((hs, i) => house(b, rand, hs, kept.has(i)));
     for (const f of site.fields) {
       fieldEdge(b, rand, f.minX, f.minZ, f.maxX, f.minZ);
       fieldEdge(b, rand, f.minX, f.maxZ, f.maxX, f.maxZ);

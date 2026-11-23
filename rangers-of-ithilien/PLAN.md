@@ -1287,6 +1287,29 @@ land here, on top of v0.7.1 to v0.7.4.
   call-out after it has faded: the game now runs fast enough in the smoke test that
   the 3 s call-outs were gone before it looked.
 
+### v0.7.7: steps to the doors, trodden yards; dry camps that green
+
+- **Doors above the ground get steps.** A house on a slope stands on a footing
+  (v0.7a), and its door could be two metres up in the air (Beechwell's inn): now
+  a stone landing at the threshold and steps of about 0.2 m down to the ground,
+  each one a floor to walk on (`doorSteps` in villages.js).
+- **A mended house is solid**, door and all, from when its building starts (a box
+  over its footprint; the ruin's own walls had a gap for the door and others broken
+  away, so the ranger could walk in).
+- **Trodden yards**: once a place is lived in, the ground for 5 m round every house
+  it keeps, a village's green and where the cart stands are trodden earth (`yardsOf`
+  in world/settlements.js; `trodden` colours the ground); no bush, shrub or grass
+  grows there, so nothing stands in a doorway. The old planted trees (the oak on the
+  green, the avenues) are left. The fallen stone about a ruin that will be mended now
+  lies inside its walls, under the new house, not on the doorstep.
+- **Dry camps**: the ground and grass of an enemy camp are dry and brown while it is
+  held (the camp's size sets how far: 12 to 25 m), and green again over about six
+  seconds once it is broken, as the blight lifts (`uCamps` in surface.js, set by
+  camps.js from each camp's `strength`, for the nearest ten).
+- **A broken stockade** has about half its stakes knocked flat, lying where they fell;
+  they stop no one (`removeCircles`).
+- **Flowers in the cold fire ring** of every camp broken.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp

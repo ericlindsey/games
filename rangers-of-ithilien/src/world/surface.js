@@ -263,6 +263,8 @@ export function leafAtlas() { return (atlasTex ||= makeLeafAtlas()); }
 
 /** How many torches the cave's light is reckoned from. */
 export const TORCHES = 6;
+/** How many camps' dry ground the ground and grass shaders know of at once (the nearest). */
+export const CAMP_TINTS = 10;
 
 /** Shared uniforms: time for the wind, and how hard it blows. */
 export const surfaceUniforms = {
@@ -285,6 +287,9 @@ export const surfaceUniforms = {
   uLodTree: { value: new THREE.Vector2(1e5, 2e5) },  // great trees: near -> middle, middle -> far
   uLodShrub: { value: new THREE.Vector2(1e5, 2e5) }, // everything else
   uLodBand: { value: 6 },                        // half the width of the band, metres
+  // (since v0.7.7) The ground and grass of the nearest enemy camps are dry and
+  // brown: (x, z, radius, how blighted 0..1), eased back to green as a camp heals (camps.js).
+  uCamps: { value: Array.from({ length: CAMP_TINTS }, () => new THREE.Vector4()) },
 };
 export function updateSurfaces(time) { surfaceUniforms.uTime.value = time; }
 
@@ -374,6 +379,7 @@ if (lod.x > 0.5) {
 `;
 
 const FRAG_HEAD = /* glsl */`
+uniform vec4 uCamps[${CAMP_TINTS}];
 uniform sampler2D uDetail;
 uniform sampler2D uStones;
 uniform vec3 uMossColor;
@@ -495,6 +501,20 @@ const FRAG_COLOR = /* glsl */`
   }
 }
 `;
+/** The dry, trodden grass of an enemy camp (ground and grass only: `camps` in surfaceMaterial). */
+const FRAG_CAMPS = /* glsl */`
+{
+  float dead = 0.0;
+  for (int i = 0; i < ${CAMP_TINTS}; i++) {
+    vec4 c = uCamps[i];
+    if (c.w <= 0.0) continue;
+    float dd = distance(vSurfPos.xz, c.xy);
+    dead = max(dead, c.w * (1.0 - smoothstep(c.z * 0.55, c.z, dd)));
+  }
+  float lum = dot(diffuseColor.rgb, vec3(0.3, 0.55, 0.15));
+  diffuseColor.rgb = mix(diffuseColor.rgb, lum * vec3(1.32, 1.04, 0.56), dead * 0.88);
+}
+`;
 const FRAG_GLOW = /* glsl */`
 if (surfLeaf > 0.0) {
   #ifdef SURF_OBJECT
@@ -581,11 +601,11 @@ export function surfaceMaterial(o = {}) {
       .replace('#include <shadowmap_pars_fragment>', SHADOW_PARS)
       .replace('#include <common>', '#include <common>\n' + FRAG_HEAD)
       .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n' + FRAG_DITHER)
-      .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\n' + FRAG_COLOR)
+      .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\n' + FRAG_COLOR + (o.camps ? FRAG_CAMPS : ''))
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + FRAG_NORMAL)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + FRAG_GLOW)
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n' + FRAG_TORCH);
   };
-  mat.customProgramCacheKey = () => `surf|${o.wind ? 1 : 0}|${o.object ? 1 : 0}|${o.fade ? 1 : 0}|${surfaceSettings.lite ? 1 : 0}|${o.lod === false ? 0 : 1}`;
+  mat.customProgramCacheKey = () => `surf|${o.wind ? 1 : 0}|${o.object ? 1 : 0}|${o.fade ? 1 : 0}|${surfaceSettings.lite ? 1 : 0}|${o.lod === false ? 0 : 1}|${o.camps ? 1 : 0}`;
   return mat;
 }
