@@ -59,6 +59,13 @@ export class Hud {
   toast(big, small = '', kind = '', life = 0) {
     if (!big && !small) return;
     this.queue.push({ big, small, kind, life });
+    this.remember(big, small);
+  }
+
+  /** The last few notices, whether still shown or not (for the tests, which may look after one has faded). */
+  remember(big, small) {
+    (this.recent ??= []).push(`${big} ${small}`.trim());
+    if (this.recent.length > 40) this.recent.shift();
   }
 
   setPrompt(text, touch) {
@@ -118,6 +125,7 @@ export class Hud {
     // (since v0.7 these go up the same stack as every other notice, in their own colours;
     // they are news of the moment, so they go to the front of the queue and show at once)
     this.queue.unshift({ big: '', small: text, kind: kind || 'fight', life: 3 });
+    this.remember('', text);
     this.toastTimer = 0;
   }
 

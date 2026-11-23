@@ -162,19 +162,15 @@ export function quickHeal(state) {
 /**
  * Out of a fight there is time to eat: the cheapest food first (by its price for
  * each point of health it gives: orc bread, then waybread, before any draught or
- * salve), as much as the wound needs. Returns what was eaten, { id: count }.
+ * salve), one thing at a time (since v0.7.6: it ate as many as the wound needed
+ * at a touch; now orc bread takes a good deal of chewing, which is the point).
+ * Returns the id of what was eaten, or null.
  */
 export function calmHeal(state) {
-  const eaten = {};
-  const order = Object.keys(state.items).filter((id) => ITEMS[id]?.kind === 'heal')
-    .sort((a, b) => ITEMS[a].value / ITEMS[a].heal - ITEMS[b].value / ITEMS[b].heal);
-  for (const id of order) {
-    while (state.health < BASE_HEALTH && count(state, id) > 0) {
-      if (!useItem(state, id)) break;
-      eaten[id] = (eaten[id] ?? 0) + 1;
-    }
-  }
-  return eaten;
+  if (state.health >= BASE_HEALTH) return null;
+  const id = Object.keys(state.items).filter((k) => ITEMS[k]?.kind === 'heal' && count(state, k) > 0)
+    .sort((a, b) => ITEMS[a].value / ITEMS[a].heal - ITEMS[b].value / ITEMS[b].heal)[0];
+  return id && useItem(state, id) ? id : null;
 }
 
 // ---- trade ----
@@ -211,6 +207,19 @@ export function buy(state, entry) {
   addItem(state, entry.item, entry.count ?? 1);
   return true;
 }
+
+/**
+ * What a settlement's storekeeper keeps (since v0.7.6): food, draughts, arrows,
+ * and the kits for mending once Mablung has taught the ranger to use them. No
+ * gear: that is Mablung's. At Mablung's prices.
+ */
+export function villageShop(state) {
+  const list = SHOP.filter((e) => ['waybread', 'draught', 'arrows'].includes(e.item) && e.renown === 0);
+  if (state.skills?.repair) list.push({ item: 'whetstone', renown: 0 }, { item: 'bowstring', renown: 0 });
+  return list;
+}
+/** What a storekeeper will buy: plain things, no gear (and, as with Mablung, no trophies, plants or seed). */
+export function villageBuys(id) { return sellable(id) && !ITEMS[id].slot; }
 
 export function sell(state, id) {
   if (!sellable(id) || !removeItem(state, id)) return false;

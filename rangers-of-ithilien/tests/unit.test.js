@@ -823,13 +823,17 @@ test('orcs carry orc bread, which mends less than waybread', async () => {
   const st = newState();
   st.health = 95; st.items = { orcBread: 1, draught: 1 };
   assert.equal(inv.quickHeal(st), 'orcBread', 'a scratch is mended with the lesser food');
-  // Out of a fight the cheapest food goes first, as much as is needed, and the remedies are kept.
+  // Out of a fight the cheapest food goes first, one thing a touch, and the remedies are kept.
   st.health = 60; st.items = { orcBread: 3, waybread: 2, draught: 1, salve: 1 };
-  const eaten = inv.calmHeal(st);
-  assert.deepEqual(eaten, { orcBread: 3, waybread: 1 }, 'out of a fight: the orc bread, then waybread');
-  assert.ok(st.health === 100 && st.items.draught === 1 && st.items.salve === 1, 'and the draught and salve are kept');
+  assert.equal(inv.calmHeal(st), 'orcBread', 'out of a fight: the orc bread first');
+  assert.ok(st.health === 70 && st.items.orcBread === 2 && st.items.waybread === 2, 'one at a time, not as many as the wound needs');
+  inv.calmHeal(st); inv.calmHeal(st);
+  assert.equal(inv.calmHeal(st), 'waybread', 'then waybread');
+  assert.ok(st.items.draught === 1 && st.items.salve === 1, 'and the draught and salve are kept');
   st.health = 20; st.items = { draught: 1, salve: 1 };
-  assert.deepEqual(inv.calmHeal(st), { draught: 1, salve: 1 }, 'with no food, the remedies serve, the cheaper first');
+  assert.equal(inv.calmHeal(st), 'draught', 'with no food, the remedies serve, the cheaper first');
+  st.health = 100;
+  assert.equal(inv.calmHeal(st), null, 'whole, nothing is eaten');
 });
 
 test('Éowyn\'s first map is of the Window Woods, and its village', async () => {

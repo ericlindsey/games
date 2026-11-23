@@ -1257,6 +1257,36 @@ land here, on top of v0.7.1 to v0.7.4.
   the shore and a mooring stake; the settlers wait on the dry ground beside it.
 - **Travel** to a settlement arrives before a farmstead's door as well as on a village's green (`arrivalAt`).
 
+### v0.7.6: settling in, and a bed and a shop in every settlement
+
+- **Settling in is one smooth thing.** The settlers who walked home are the
+  people who live there: their figures are handed over as they stand (the
+  village made its own before, in other clothes and places, so everyone seemed to
+  jump), sacks put down. Whoever speaks for them and the storekeeper walk with
+  them from the boat (first in line) and then go to their places; they talk once
+  they are there. Whoever pushed the cart pushes it on to where their goods are
+  kept, and it stays there for good: it is their goods, and the carriers fetch
+  from it. The well goes up by hand like the houses (it used to appear at once),
+  4 s with them round it, and at the last the market cross too. The heap of
+  goods that used to pop in and out is gone.
+- **A storekeeper in every settlement** (`trader` in world/settlements.js: Mirel,
+  Sefa, Odo, Lisbet; at the farms Imrith's son Garan and Dorvan's daughter Nell),
+  by the cart. Bread, draughts, arrows, and whetstones and bowstrings once Mablung
+  has taught their use; they buy plain things (trinkets, coin, food), never gear
+  (`villageShop`, `villageBuys`; the trade panel's village mode hides the bench).
+- **A bed**: a village's second house is its inn, with a sign and a lantern by the
+  door (the Well and Bucket, the Heath Hen, the Broken Span, the Lantern); at a farm,
+  a bed in the farmhouse. "Rest" at the door, once it is built, mends the ranger as
+  the mats in the cave do, free.
+- **The reeve explains**: "What is there here for a ranger?" tells of the
+  storekeeper, the inn, their seed, and their tasks.
+- **The heal button out of a fight eats one thing a touch** (still the cheapest
+  first): orc bread takes a good deal of chewing, which is the point. It used to eat
+  as many as the wound needed at once (v0.7.3).
+- The HUD keeps the last forty notices (`hud.recent`) so the tests can find a fight's
+  call-out after it has faded: the game now runs fast enough in the smoke test that
+  the 3 s call-outs were gone before it looked.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp

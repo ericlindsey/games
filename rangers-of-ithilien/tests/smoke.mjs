@@ -421,7 +421,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   check(await page.evaluate(() => roi.enemies.list.every((e) => !roi.blocked(e.x, e.z, e.y, 0.4))), 'none of them stands inside a wall or rock');
   await page.waitForFunction(() => roi.enemies.list.some((e) => e.alerted), null, { timeout: 30000 });
   check(true, 'they notice the ranger');
-  check(await page.waitForFunction(() => /seen you|roused/.test(document.getElementById('toast').textContent), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD says so');
+  check(await page.waitForFunction(() => roi.hud.recent.some((t) => /seen you|roused/.test(t)), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD says so');
   await page.keyboard.down('KeyF');
   const drewBlood = await page.waitForFunction(() => roi.enemies.list.some((e) => e.hp < e.maxHp), null, { timeout: 240000 }).then(() => true, () => false);
   check(drewBlood, 'the sword wounds them');
@@ -431,7 +431,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.waitForFunction(() => roi.state.stats.kills >= 1 || roi.state.health < 30, null, { timeout: 240000 });
   await page.keyboard.up('KeyF');
   check(await page.evaluate(() => roi.state.stats.kills >= 1), 'an enemy can be killed with the sword');
-  check(await page.waitForFunction(() => /(Orc|archer|Uruk|Southron|Captain) felled/.test(document.getElementById('toast').textContent), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD names the fallen');
+  check(await page.waitForFunction(() => roi.hud.recent.some((t) => /(Orc|archer|Uruk|Southron|Captain) felled/.test(t)), null, { timeout: 5000 }).then(() => true, () => false), 'and the HUD names the fallen');
   await shot(page, 'felled');
   await shot(page, 'fight');
   // finish the rest by decree, to keep the test short
@@ -928,7 +928,7 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
   const home = await page.evaluate(async () => {
     const s = roi.state, st = roi.settlements.find((x) => x.province === 'southwood');
     const step = () => new Promise((r) => requestAnimationFrame(r));
-    const who = roi.villages.escort.people;
+    const who = roi.villages.escort.people, cart0 = roi.villages.escort.cart;
     let gap = Infinity;
     for (let n = 0; n < 4000 && !s.settled.includes(st.site); n++) {
       const p = roi.player.pos, dx = st.x - p.x, dz = st.z - p.z, d = Math.hypot(dx, dz);
@@ -938,19 +938,29 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
     }
     const pl = roi.villages.places.get(st.site);
     return { settled: s.settled.includes(st.site), built: !!pl, done: roi.quests.isComplete(roi.quests.byId['s-southwood'], s), many: who.length, bags: who.filter((q) => q.fig.props.sack.visible).length, gap,
-      building: !!pl && (!!pl.build || pl.queue.length > 0) && pl.shown.size === 0, travel: roi.travelPlaces().some((t) => t.id === 'v:' + st.site) };
+      building: !!pl && (!!pl.build || pl.queue.length > 0) && pl.done.size === 0, travel: roi.travelPlaces().some((t) => t.id === 'site:' + st.site),
+      handed: !!pl && pl.people.filter((q) => who.some((w) => w.fig === q.fig)).length === who.length && pl.cart === cart0 };
   });
   check(home.many === 7 && home.bags >= 4, `the family (${home.many}) carry their bags (${home.bags}), and one pushes a cart`);
   check(home.gap > 0.9, `on the way they keep a step apart (closest ${home.gap.toFixed(2)} m)`);
   check(home.settled && home.built && home.done, 'led home, they settle in, and the farm is lived in');
   check(home.building, 'on arriving they set to work, and the house goes up while they build it, not all at once');
+  check(home.handed, 'the same people who walked home are the ones who live there, with their cart (nobody jumps or changes)');
   check(home.travel, 'a settlement whose people are home can be travelled to');
-  await page.waitForFunction(() => roi.villages.places.get('farm3').shown.size === 1, null, { timeout: 240000 });
+  await page.waitForFunction(() => roi.villages.places.get('farm3').done.size >= 1, null, { timeout: 240000 });
   check(true, 'after a while the house stands');
   check(/family are home|settlers are home/.test(await page.textContent('#toast')), 'and the ranger is told so');
   // their own task: seed for the first field
-  await page.evaluate(() => { const p = roi.villages.places.get('farm3').people.find((q) => q.reeve); roi.teleport(p.x + 2, p.z + 0.5, Math.atan2(-2, -0.5)); });
+  // (she walks to her place by the door first; then she will talk)
+  await page.waitForFunction(() => { const q = roi.villages.places.get('farm3').people.find((o) => o.role === 'reeve'); return Math.hypot(q.x - q.post.x, q.z - q.post.z) < 0.5; }, null, { timeout: 240000 });
+  await page.evaluate(() => { const p = roi.villages.places.get('farm3').people.find((q) => q.role === 'reeve'); roi.teleport(p.x + 2, p.z + 0.5, Math.atan2(-2, -0.5)); });
   await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('Imrith'), null, { timeout: 20000 });
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('#dialogue:not([hidden])');
+  await page.click('#dialogue-options button:has-text("What is there here for a ranger?")');
+  check(/Garan/.test(await page.textContent('#dialogue-text')) && /bed/.test(await page.textContent('#dialogue-text')), 'she tells of their storekeeper and the bed they keep for a ranger');
+  await page.click('#dialogue-options button:has-text("Thank you.")');
+  await page.click('#dialogue-options button:has-text("Farewell.")');
   await page.keyboard.press('KeyE');
   await page.waitForSelector('#dialogue:not([hidden])');
   await page.click('#dialogue-options button:has-text("Can I help?")');
@@ -975,6 +985,25 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
   await page.waitForTimeout(1500);
   await shot(page, 'settlers-field');
   await page.evaluate(() => roi.lookFrom(null));
+
+  // the storekeeper sells and buys plain things; the bed at the farm mends the ranger
+  await page.waitForFunction(() => { const q = roi.villages.places.get('farm3').people.find((o) => o.role === 'trader'); return Math.hypot(q.x - q.post.x, q.z - q.post.z) < 0.5; }, null, { timeout: 240000 });
+  await page.evaluate(() => { const q = roi.villages.places.get('farm3').people.find((o) => o.role === 'trader'); roi.teleport(q.x + 1.5, q.z + 1.5, 0); roi.state.silver = 50; roi.state.items.orcTrinket = 2; });
+  await page.waitForFunction(() => document.getElementById('prompt').textContent.includes('Garan'), null, { timeout: 20000 });
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('#dialogue:not([hidden])');
+  await page.click('#dialogue-options button:has-text("Show me what you have.")');
+  await page.waitForSelector('#trade:not([hidden])');
+  const shop = await page.evaluate(() => ({ title: document.getElementById('trade-title').textContent, smithHidden: [...document.querySelectorAll('#trade .smith')].every((e) => e.hidden), rows: document.getElementById('trade-buy').textContent, sells: document.getElementById('trade-sell').textContent }));
+  check(/Garan/.test(shop.title) && shop.smithHidden && /Waybread/.test(shop.rows) && !/Mail|sword/i.test(shop.rows) && /Orc trinkets/.test(shop.sells), 'the storekeeper sells bread and the like, no gear, and buys plain things');
+  await page.click('#trade-close');
+  await page.evaluate(() => { const p = roi.villages.places.get('farm3'); roi.state.health = 40; roi.teleport(p.innDoor.x, p.innDoor.z, 0); });
+  await page.waitForFunction(() => /Rest/.test(document.getElementById('prompt').textContent), null, { timeout: 20000 });
+  await page.keyboard.press('KeyE');
+  check(await page.waitForFunction(() => roi.state.health === 100, null, { timeout: 60000 }).then(() => true, () => false), 'at the farmhouse door the ranger may rest, and rises whole');
+  // the heal button out of a fight: one thing at a time, the humblest first
+  const ate = await page.evaluate(() => { const s = roi.state; s.health = 50; s.items.orcBread = 3; roi.combat.heal(true); return { bread: s.items.orcBread, health: s.health }; });
+  check(ate.bread === 2 && ate.health === 60, 'out of a fight, the heal button eats one orc bread a touch, not as many as the wound needs');
 
   // the barrow: its mound is a floor, and the cut before its door is clear
   const barrow = await page.evaluate(async () => {
