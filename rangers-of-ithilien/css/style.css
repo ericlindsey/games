@@ -21,7 +21,9 @@ button {
   font: inherit; color: var(--ink); background: var(--parchment); border: 1px solid var(--ink-soft);
   border-radius: 4px; padding: 0.55em 1em; cursor: pointer; touch-action: manipulation;
 }
-button:hover { background: #fff6dc; }
+a.button { font: inherit; color: var(--ink); background: var(--parchment); border: 1px solid var(--ink-soft); border-radius: 4px;
+  padding: 0.55em 1em; text-align: center; text-decoration: none; touch-action: manipulation; } /* (a link that looks like the buttons beside it) */
+button:hover, a.button:hover { background: #fff6dc; }
 button.quiet { background: transparent; color: var(--parchment); border-color: rgba(239, 228, 200, 0.4); }
 
 /* ---- HUD ---- */

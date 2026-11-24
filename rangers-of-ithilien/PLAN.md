@@ -1421,6 +1421,9 @@ From a playtest of v0.8.1 on a phone.
   are home, and `homesteadsLived` reads that (it read the province's freedom).
 - Save version 10: a family already living on their farm in a v9 save (promised, and
   the province free) stays there, as if led home.
+- **All games**: the menu ends with a link back to the page of all the games
+  (`../index.html`, the repository's landing page). Leaving saves, as any leaving of
+  the page does (`pagehide`).
 - Smoke tests run for it: phone, settlers, testing page and desktop all pass (desktop
   took 96 minutes, settlers 27, this time). The phone-upright suite fails one check,
   "aiming upright, the bow shows at the left edge" (the bow at -0.53 across, wanted
