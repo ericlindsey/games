@@ -101,7 +101,12 @@ on every module there when releasing, so a cached old file never mixes in.
 
 - Static and build-free; Three.js is the only dependency. Ask before adding one.
 - Parameters live in `PARAMS` only; the panel, the URL hash and the defaults all
-  come from it. A parameter that changes geometry has `rebuild: true`.
+  come from it. A parameter that changes geometry has `rebuild: true`; one that
+  changes only layout uniforms (the glass sliders: window sizes) has
+  `relayout: true`, which recomputes the layout without rebuilding meshes.
+  Any other parameter is read every frame.
+- Defaults are a 1 rpm, 1 g station (1,790 m across, 100 m wide, 20 m deck):
+  the comfortable end of the spin range, with room for two rows of trees a side. Keep the unit test that checks this if you change them.
 - Mobile is first class: every control must work by touch (left thumb walks,
   right thumb looks, panel slides in from the right). Keep geometry budgets:
   at most ~600 trees and ~1200 shrubs however big the ring (`layout.js`,

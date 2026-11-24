@@ -50,6 +50,12 @@ const outside = { yaw: 35 * DEG, pitch: 30 * DEG, zoom: 1 };
 let spin = 0;
 let earthSpin = 0;
 
+/** Window sizes live only in the layout's uniforms: recompute them, keep the meshes. */
+function relayout() {
+  layout = computeLayout(params);
+  applyLayout(uniforms, layout);
+}
+
 function rebuild() {
   layout = computeLayout(params);
   applyLayout(uniforms, layout);
@@ -72,6 +78,7 @@ let hashTimer = 0;
 const panel = buildPanel(panelBody, params, (key, v) => {
   params[key] = v;
   if (BY_KEY[key].rebuild) { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(rebuild, 60); }
+  else if (BY_KEY[key].relayout) relayout();
   saveHash();
 });
 function saveHash() {
@@ -319,7 +326,7 @@ function elevationAtHighest(target) {
 window.station = {
   params, player, outside, PARAMS,
   get layout() { return layout; },
-  set(key, v) { params[key] = v; panel.set(key, v); if (BY_KEY[key]?.rebuild) rebuild(); },
+  set(key, v) { params[key] = v; panel.set(key, v); if (BY_KEY[key]?.rebuild) rebuild(); else if (BY_KEY[key]?.relayout) relayout(); },
   setMode,
   aim,
   /** Spin angle (of 360 tries) at which `target` stands highest over the player. */

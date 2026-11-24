@@ -7,7 +7,14 @@ curvature, the spin, the windows and the light feel like at a given size and
 gravity, in orbit low over the Moon (default: the Moon 90° across, half lit,
 with the Earth half lit too).
 
-## v0.2 (this version)
+## v0.2.1 (this version)
+
+- Default station spins at 1 rpm for 1 g: 1,790 m across, a 5.6 km ring,
+  100 m wide with a 20 m deck (56 ha of floor, two rows of trees a side).
+- The glass sliders take effect as you drag them (they used to wait for the
+  next rebuild).
+
+## v0.2
 
 - Walking fixed (strafe was mirrored) and much faster: a walking-speed slider
   (1–200 m/s, default 10), Shift for 4×.
