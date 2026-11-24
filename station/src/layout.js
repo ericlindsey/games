@@ -22,9 +22,9 @@ export const SPECIES = [
   { name: 'oak', weight: 0.24, rx: 1.0, ry: 0.85, leaf: [0.085, 0.17, 0.04], bark: [1, 1, 1] },
   { name: 'poplar', weight: 0.14, rx: 0.5, ry: 1.6, leaf: [0.065, 0.15, 0.05], bark: [1.1, 1.1, 1.0] },
   { name: 'pine', weight: 0.16, rx: 0.72, ry: 1.45, leaf: [0.03, 0.085, 0.05], bark: [0.9, 0.75, 0.7], cone: true },
-  { name: 'blossom', weight: 0.12, rx: 0.95, ry: 0.7, leaf: [0.5, 0.22, 0.3], bark: [0.8, 0.65, 0.6] },
+  { name: 'willow', weight: 0.12, rx: 0.95, ry: 0.75, leaf: [0.10, 0.15, 0.085], bark: [0.8, 0.65, 0.6] },
   { name: 'lime', weight: 0.18, rx: 0.8, ry: 1.0, leaf: [0.15, 0.24, 0.05], bark: [2.2, 2.1, 2.0] },
-  { name: 'maple', weight: 0.16, rx: 1.05, ry: 0.9, leaf: [0.34, 0.12, 0.03], bark: [1, 0.9, 0.85] },
+  { name: 'maple', weight: 0.16, rx: 1.05, ry: 0.9, leaf: [0.045, 0.15, 0.085], bark: [1, 0.9, 0.85] },
 ];
 
 function pickSpecies(u) {

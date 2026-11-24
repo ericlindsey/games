@@ -17,7 +17,7 @@ with the Earth half lit too).
   deck plate, wall and ceiling panels, hull plating, bark, wood, leaves, soil.
 - Station detail: steel ribs at every ceiling frame (they cast shadows), lamp
   posts with pools of light, benches, flower beds, a hedge of mixed shrubs.
-- Trees in six species (oak, poplar, pine, blossom, lime, maple), varied in size
+- Trees in six species, each its own green (oak, poplar, pine, willow, lime, maple), varied in size
   and placed off-grid, crowns built from leafy clumps; up to three rows a side
   on wide decks. Their crowns cast ray-traced shadows.
 - The Moon: rolling terrain, wrinkle ridges in the seas, up to seven crater
