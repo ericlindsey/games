@@ -893,6 +893,14 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   await page.tap('#map-close');
   check(await page.isHidden('#map'), 'and it closes');
 
+  // (since v0.8.2) the menu links back to the page of all the games (not followed: this server serves the game's folder alone)
+  await page.tap('#btn-menu');
+  await page.waitForSelector('#menu:not([hidden])');
+  const games = await page.evaluate(() => { const a = document.getElementById('menu-games'), r = a.getBoundingClientRect(); return { href: a.href, text: a.textContent, shown: r.height > 0 && r.bottom <= innerHeight + 1 || a.closest('.menu-panel').scrollHeight > a.closest('.menu-panel').clientHeight }; });
+  check(games.href === new URL('../index.html', page.url()).href && /games/i.test(games.text) && games.shown, `the menu has a link back to all the games (${games.href})`);
+  await shot(page, 'phone-menu');
+  await page.tap('#menu-resume');
+
   // One attack button: it picks the mark and the weapon.
   check(await page.isVisible('#btn-attack') && await page.isVisible('#btn-heal'), 'attack and heal buttons are shown');
   await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 16, c.z, -Math.PI / 2); });
