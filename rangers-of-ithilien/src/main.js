@@ -45,7 +45,7 @@ import { ITEMS } from './data/items.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-// (an update, since v0.8.2, comes in under a fresh address so nothing cached answers for the page; the address is tidied after)
+// (an update, since v0.8.3, comes in under a fresh address so nothing cached answers for the page; the address is tidied after)
 if (params.has('fresh')) { const u = new URL(location.href); u.searchParams.delete('fresh'); history.replaceState(null, '', u); }
 const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
 
@@ -76,7 +76,7 @@ async function boot() {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 12000);
   const resize = () => {
-    // (the canvas's own size: in a home-screen app it may reach below what the window reports, since v0.8.2)
+    // (the canvas's own size: in a home-screen app it may reach below what the window reports, since v0.8.3)
     const w = renderer.domElement.clientWidth || innerWidth, h = renderer.domElement.clientHeight || innerHeight;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
@@ -189,7 +189,7 @@ async function boot() {
     return store.save(state);
   };
   /**
-   * (since v0.8.2) The menu's "Update the game": a game added to a phone's home screen
+   * (since v0.8.3) The menu's "Update the game": a game added to a phone's home screen
    * has no reload, and may keep showing the release it was first opened on. Saves,
    * asks the server for the page itself past every cache, and if it names another
    * release than this one, opens it under a fresh address (every module's address

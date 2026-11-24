@@ -1148,3 +1148,15 @@ test('v0.8.1: the Marshal holds the war-camp by the Cross-roads; old saves credi
   const now = migrate({ version: 9, cleared: ['c63'] });
   assert.deepEqual(now.cleared, ['c63'], 'a save from 0.8.1 is left as it is');
 });
+
+test('v0.8.3: where two streams’ valleys meet the ground blends, not steps', async () => {
+  await import('../src/world/settlements.js'); // (the blending begins once the world is placed)
+  const { heightAt } = await import('../src/world/terrain.js');
+  // three places where the ground used to step up 0.8 to 0.9 m in a hand's breadth, unseen
+  for (const [x0, z0, yaw] of [[654.5, 1757.8, 1.05], [1257.8, 1594.6, 1.99], [1195.4, 1677.8, 2.17]]) {
+    const dx = Math.sin(yaw), dz = Math.cos(yaw);
+    let worst = 0;
+    for (let t = -2; t < 2; t += 0.1) worst = Math.max(worst, Math.abs(heightAt(x0 + dx * (t + 0.1), z0 + dz * (t + 0.1)) - heightAt(x0 + dx * t, z0 + dz * t)));
+    assert.ok(worst < 0.15, `at ${x0}, ${z0} the ground rises at most ${worst.toFixed(2)} m in 10 cm`);
+  }
+});

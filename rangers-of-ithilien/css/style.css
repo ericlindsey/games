@@ -1,5 +1,5 @@
 :root {
-  /* the room at the top the status bar takes (set from index.html in a home-screen app, since v0.8.2), and the full height */
+  /* the room at the top the status bar takes (set from index.html in a home-screen app, since v0.8.3), and the full height */
   --safe-top: env(safe-area-inset-top, 0px);
   --app-h: 100%;
   --parchment: #efe4c8;
@@ -16,7 +16,7 @@ html, body {
   -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
 }
 #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-/* (since v0.8.2) a home-screen app fills the screen to its foot, even where iOS reports a shorter window */
+/* (since v0.8.3) a home-screen app fills the screen to its foot, even where iOS reports a shorter window */
 html.app, html.app body { height: var(--app-h); }
 html.app #view, html.app #hud, html.app .overlay, html.app #sleep, html.app #fallen { bottom: auto; height: var(--app-h); }
 [hidden] { display: none !important; }

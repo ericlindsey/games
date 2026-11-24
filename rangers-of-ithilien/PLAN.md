@@ -1421,6 +1421,47 @@ From a playtest of v0.8.1 on a phone.
   are home, and `homesteadsLived` reads that (it read the province's freedom).
 - Save version 10: a family already living on their farm in a v9 save (promised, and
   the province free) stays there, as if led home.
+- Smoke tests run for it: phone, settlers, testing page and desktop all pass (desktop
+  took 96 minutes, settlers 27, this time). The phone-upright suite's check "aiming
+  upright, the bow shows at the left edge" failed twice (the bow at -0.53 across, wanted
+  past -0.6), the same on 0.8.1 (main), and then passed (in 0.8.3's run): it is older than
+  this release, and flaky; still to look into.
+
+### v0.8.3: footing; Update the game; the home-screen app upright; All games
+
+v0.8.2 was merged before these were in it; they come with the footing fix.
+- **No more sticking on unseen rough ground.** The ranger now and then stood stuck before
+  nothing, until he jumped. Running him over the land in the browser (2,875 runs, 195 km,
+  through `Player.update` itself) found two causes:
+  - **Kinks a few centimetres across**, where two shapings of the land meet: steep over one
+    frame's step (about 12 cm running), gentle over a metre. The slope was judged over that
+    step alone. Now a rise steep over the step stops him only if it is also too high to step
+    at once (`stepHeight`, 0.6 m) or steep over a stride (`PLAYER.slopeRun`, 1 m, against
+    `maxSlope`). Enemies judge it the same way (`Enemies.step`).
+  - **Ledges where two streams' valleys met** (or two bends of one): the ground took its shape
+    from the nearest stream alone, so where the nearest changed from one to another whose
+    bed lay at another level, `heightAt` stepped by the difference, up to a metre, in a
+    hand's breadth. The ground mesh, a vertex every 4 m, drew a gentle slope over it. Now
+    (`carveStreams` in terrain.js) the level of every stretch within `STREAM_BLEND` (4 m) of
+    the nearest's distance is blended in, weighted by nearness, each carried on along its own
+    fall a little past its ends (else every straight stream's bed would lean toward its
+    joints). Not at Henneth Annûn (hand-shaped; faded out over 20 m inside its ground) nor at
+    the foot of the mountains (x 1300 to 1340, faded; their streams fall too steeply).
+  - **Nothing placed moves**: the blending is switched on (`smoothStreamMeetings`) at the end
+    of world/settlements.js, once camps, ruins, farms, paths, settlements and landings are
+    placed; the plants (`herbSites`, now laid out once) are laid out just before. Each was
+    checked identical to v0.8.2; Henneth Annûn's ground is unchanged to the centimetre.
+  - What changed: 2.7% of the land by more than 5 cm, 0.24% by more than 25 cm, 0.009% by
+    more than a metre (the ramps that replace the ledges, up to 2.2 m); along the streams'
+    centre lines 31 points of 7,224 rose by 10 to 25 cm and 4, at one confluence, sank by up
+    to 0.48 m. Seen side by side there and at a former ledge, nothing shows.
+  - Unseen ledges (over 0.3 m in 10 cm where a 4 m mesh would draw a slope that looks
+    walkable): 223 before, 74 now: the walls of the sunken courts (dug on purpose, drawn in
+    stone), the cut at Henneth Annûn, the foot of the mountains. Run again, the stalls on
+    rough ground that is gentle over a metre went from 40 to none.
+  - The smoke suite `footing` (seconds) runs him at the eight places he stuck, up the bed of
+    the cut at Henneth Annûn (a 0.42 m step he stopped at, going home), and over 300 runs
+    about the land; it fails on v0.8.2.
 - **Update the game** (menu): a game added to a phone's home screen has no reload, and
   kept showing the release it was first opened on. The button saves, fetches
   `index.html` past every cache, and if the release it names (the title screen's
@@ -1441,11 +1482,6 @@ From a playtest of v0.8.1 on a phone.
 - **All games**: the menu ends with a link back to the page of all the games
   (`../index.html`, the repository's landing page). Leaving saves, as any leaving of
   the page does (`pagehide`).
-- Smoke tests run for it: phone, settlers, testing page and desktop all pass (desktop
-  took 96 minutes, settlers 27, this time). The phone-upright suite's check "aiming
-  upright, the bow shows at the left edge" failed twice (the bow at -0.53 across, wanted
-  past -0.6), the same on 0.8.1 (main), and then passed: it is older than this release,
-  and flaky; still to look into.
 
 ### Known gaps to pick up
 

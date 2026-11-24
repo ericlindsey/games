@@ -342,22 +342,72 @@ for (const s of STREAMS) {
   }
 }
 const _near = { d: 0, cut: 0 };
-/** Nearest stream to a point: sets _near.d (distance) and _near.cut (level there). False if none in reach. */
+/**
+ * Where two streams (or two bends of one) are nearly as near as each other, the ground
+ * each would carve is blended over this much difference in distance (since v0.8.3).
+ * Taking the nearest alone, where the nearest changed from one to the other the ground
+ * jumped by the difference in their levels: an unseen ledge, up to a metre, that the
+ * ranger stood stuck against until he jumped. Not about the fall and the cut at Henneth
+ * Annûn, whose shape is made by hand and must hold, nor at the foot of the mountains, whose
+ * streams fall too steeply for their levels to be blended (faded out toward both, so the
+ * change from the one way to the other makes no step itself). And only once everything has been
+ * placed on the land (smoothStreamMeetings, from world/settlements.js): the camps and
+ * ruins were scattered over the old shape, and must not move.
+ */
+const STREAM_BLEND = 4;
+// Each stretch's level is carried on along its own fall past its ends (up to STREAM_BLEND
+// metres): a point beyond the end of the stretch next to the nearest would otherwise take the
+// level at their joint, and pull the bed of every straight stream a little toward its joints.
+let streamsMeetSmoothly = false;
+/** Called once the world is placed (world/settlements.js): from now on the ground blends where two streams' valleys meet. */
+export function smoothStreamMeetings() { streamsMeetSmoothly = true; }
+const _segD = new Float64Array(256), _segCut = new Float64Array(256);
+let _segN = 0;
+/**
+ * Nearest stream to a point: sets _near.d (distance) and _near.cut (its level there),
+ * and keeps every stretch in reach (_segD, _segCut, _segN) for carveStreams. False if none in reach.
+ */
 function nearestStream(x, z) {
   const list = segGrid.get(Math.floor(x / SCELL) * 4096 + Math.floor(z / SCELL));
+  _segN = 0;
   if (!list) return false;
-  let best = VALLEY_REACH * VALLEY_REACH, cut = 0;
+  const R2 = VALLEY_REACH * VALLEY_REACH;
+  let best = R2, cut = 0, n = 0;
   for (let i = 0; i < list.length; i++) {
     const s = list[i];
     const dx = s[2] - s[0], dz = s[3] - s[1];
-    let t = ((x - s[0]) * dx + (z - s[1]) * dz) / (dx * dx + dz * dz);
-    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const t0 = ((x - s[0]) * dx + (z - s[1]) * dz) / (dx * dx + dz * dz);
+    const t = t0 < 0 ? 0 : t0 > 1 ? 1 : t0;
     const px = s[0] + dx * t - x, pz = s[1] + dz * t - z, d2 = px * px + pz * pz;
-    if (d2 < best) { best = d2; cut = s[4] + (s[5] - s[4]) * t; }
+    if (d2 >= R2 || n >= 256) continue;
+    const c = s[4] + (s[5] - s[4]) * t;
+    const len = Math.sqrt(dx * dx + dz * dz), te = Math.max(-STREAM_BLEND / len, Math.min(1 + STREAM_BLEND / len, t0));
+    _segD[n] = Math.sqrt(d2); _segCut[n] = s[4] + (s[5] - s[4]) * te; // (carried on past its ends, a little, for blending)
+    if (d2 < best) { best = d2; cut = c; }
+    n++;
   }
-  if (best >= VALLEY_REACH * VALLEY_REACH) return false;
+  _segN = n;
+  if (best >= R2) return false;
   _near.d = Math.sqrt(best); _near.cut = cut;
   return true;
+}
+
+/** Ground `h` as the streams carve it: the nearest stretch's valley, blended with any other nearly as near. */
+function carveStreams(x, z, h) {
+  if (!nearestStream(x, z)) return h;
+  const carve = (d, cut) => { const target = cut + valleyProfile(d); return target < h ? lerp(target, h, smoothstep(VALLEY_REACH * 0.62, VALLEY_REACH, d)) : h; };
+  const d = _near.d;
+  const alone = carve(d, _near.cut);
+  if (!streamsMeetSmoothly) return alone;
+  const inHome = Math.min(x - (HA.x - 400), HA.x + 90 - x, 70 - Math.abs(z - HA.z)); // (how far inside Henneth Annûn's ground: nearHenneth)
+  const k = (1 - smoothstep(0, 20, inHome)) * (1 - smoothstep(1300, 1340, x));
+  if (k <= 0) return alone;
+  let sw = 0, sh = 0;
+  for (let i = 0; i < _segN; i++) {
+    const w = 1 - (_segD[i] - d) / STREAM_BLEND; // 1 for the nearest, 0 for one STREAM_BLEND further
+    if (w > 0) { sw += w; sh += w * carve(d, _segCut[i]); } // (each at the nearest's distance: the valley's shape is one, only its level blends)
+  }
+  return lerp(alone, sh / sw, k);
 }
 
 /** Distance to the nearest stream's centre line (Infinity beyond about 46 m). */
@@ -444,10 +494,7 @@ export function heightAt(x, z) {
 /** The ground with the streams and the cut at Henneth Annûn carved into it. */
 function carvedHeight(x, z) {
   let h = baseHeight(x, z);
-  if (nearestStream(x, z)) {
-    const target = _near.cut + valleyProfile(_near.d);
-    if (target < h) h = lerp(target, h, smoothstep(VALLEY_REACH * 0.62, VALLEY_REACH, _near.d));
-  }
+  h = carveStreams(x, z, h);
   const pool = nearestPool(x, z);
   if (pool) {
     const target = poolProfile(pool, _pool.d);

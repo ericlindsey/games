@@ -258,8 +258,11 @@ export class Enemies {
       if (blockedBySolid(x, z, e.y, 0.4)) return false;
       const h = heightAt(x, z);
       if (h < -0.7) return false;
-      const run = Math.hypot(x - e.x, z - e.z);
-      return !(h > e.y + 0.02 && run > 1e-5 && (h - heightAt(e.x, e.z)) / run > PLAYER.maxSlope);
+      const run = Math.hypot(x - e.x, z - e.z), here = heightAt(e.x, e.z);
+      if (!(h > e.y + 0.02 && run > 1e-5 && (h - here) / run > PLAYER.maxSlope)) return true;
+      // (since v0.8.3, as for the ranger) steep over a step only is a kink in the ground, not a bank: judged over a stride
+      const L = PLAYER.slopeRun, far = heightAt(e.x + ((x - e.x) / run) * L, e.z + ((z - e.z) / run) * L);
+      return h - here <= PLAYER.stepHeight && (far - here) / L <= PLAYER.maxSlope;
     };
     const x0 = e.x, z0 = e.z;
     if (ok(nx, e.z)) e.x = nx;
