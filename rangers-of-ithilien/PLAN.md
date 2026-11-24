@@ -1421,14 +1421,31 @@ From a playtest of v0.8.1 on a phone.
   are home, and `homesteadsLived` reads that (it read the province's freedom).
 - Save version 10: a family already living on their farm in a v9 save (promised, and
   the province free) stays there, as if led home.
+- **Update the game** (menu): a game added to a phone's home screen has no reload, and
+  kept showing the release it was first opened on. The button saves, fetches
+  `index.html` past every cache, and if the release it names (the title screen's
+  `v…`) is not this one, opens the game again under a fresh address (`?fresh=`, tidied
+  away once loaded); every module's address carries its release, so the rest follows.
+  On the same release it says so; offline, that it could not reach the game's home.
+- **The home-screen app held upright** (iOS): `<html class="app">` when the game runs
+  as an app (`navigator.standalone`, or display-mode standalone or fullscreen). There,
+  upright, iOS can report a window shorter than the screen by the status bar's height,
+  with no top inset: the picture stopped short of the foot of the screen (the dark green
+  of the page showed below it) and the health bar and buttons sat under the status bar.
+  A small script in index.html's head measures the screen against the window and sets
+  `--app-h` (the full height, which the canvas, HUD and panels take) and `--safe-top`
+  (the status bar and 6 px, which every top-anchored thing now uses in place of
+  `env(safe-area-inset-top)`). Only on iOS: on Android a window shorter than the screen
+  is the system's bars, and right. The renderer now takes the canvas's own size, not the
+  window's. `?standalone=47` pretends, for the tests. Not yet seen on a real iPhone.
 - **All games**: the menu ends with a link back to the page of all the games
   (`../index.html`, the repository's landing page). Leaving saves, as any leaving of
   the page does (`pagehide`).
 - Smoke tests run for it: phone, settlers, testing page and desktop all pass (desktop
-  took 96 minutes, settlers 27, this time). The phone-upright suite fails one check,
-  "aiming upright, the bow shows at the left edge" (the bow at -0.53 across, wanted
-  past -0.6); it fails the same way on 0.8.1 (main), so it is older than this
-  release, and still to look into.
+  took 96 minutes, settlers 27, this time). The phone-upright suite's check "aiming
+  upright, the bow shows at the left edge" failed twice (the bow at -0.53 across, wanted
+  past -0.6), the same on 0.8.1 (main), and then passed: it is older than this release,
+  and flaky; still to look into.
 
 ### Known gaps to pick up
 

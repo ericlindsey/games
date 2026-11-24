@@ -12,6 +12,41 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <title>Rangers of Ithilien</title>
+  <script>
+    // (since v0.8.2) Opened from a phone's home screen the game runs as an app, with no
+    // browser bars: <html> gets the class "app". There, held upright, iOS can report a
+    // window shorter than the screen by the height of the status bar (and the top inset
+    // as nothing), so the picture stopped short of the bottom and the top of the HUD sat
+    // under the status bar. Then the full height (--app-h) and the room the status bar
+    // takes (--safe-top) are measured here. ?standalone=<px> pretends, for the tests:
+    // an app whose window is that much short.
+    (function () {
+      var fake = new URLSearchParams(location.search).get('standalone');
+      var app = fake !== null || navigator.standalone === true ||
+        (window.matchMedia && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches);
+      if (!app) return;
+      var root = document.documentElement;
+      root.classList.add('app');
+      var probe;
+      function fit() {
+        if (!probe) {
+          probe = document.createElement('div');
+          probe.style.cssText = 'position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top,0px)';
+          root.appendChild(probe);
+        }
+        var inset = probe.offsetHeight, upright = innerHeight > innerWidth;
+        // (iOS alone: elsewhere, Android say, a window shorter than the screen is the system's bars, and right)
+        var gap = !upright ? 0 : fake !== null ? Number(fake) : navigator.standalone === true ? Math.max(screen.width, screen.height) - innerHeight : 0;
+        if (!(gap > 0 && gap <= 80)) gap = 0; // (only ever a status bar's height; anything else is not this)
+        root.style.setProperty('--app-h', (innerHeight + gap) + 'px');
+        var top = Math.max(inset, gap);
+        root.style.setProperty('--safe-top', top ? (top + 6) + 'px' : '0px'); // (a little clear of the status bar)
+      }
+      fit();
+      addEventListener('resize', fit);
+      addEventListener('orientationchange', function () { setTimeout(fit, 300); });
+    })();
+  </script>
   <link rel="stylesheet" href="css/style.css?v=0.8.2">
   <!-- Every module carries the release in its URL, so a browser that cached the
        last release never mixes its files with this one's (a mix can stall loading
@@ -183,6 +218,7 @@
       <button id="menu-fps">Show frame rate</button>
       <button id="menu-save">Save now</button>
       <button id="menu-travel">Return to Henneth Ann&ucirc;n</button>
+      <button id="menu-update">Update the game</button>
       <button id="menu-new">Begin anew</button>
       <a id="menu-games" class="button" href="../index.html">All games</a>
       <div class="help mouse-only">
