@@ -30,7 +30,11 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}/`;
 
 let failures = 0;
-const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failures++; };
+// (since v0.8.1) every check says how far into its suite it came, and each suite how long it took, for finding the slow parts
+const t0 = performance.now(), times = [];
+let suiteStart = t0;
+const clock = (ms) => { const sec = Math.round(ms / 1000); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
+const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} [${clock(performance.now() - suiteStart).padStart(5)}] ${what}`); if (!ok) failures++; };
 const pos = (page) => page.evaluate(() => ({ x: roi.player.pos.x, y: roi.player.pos.y, z: roi.player.pos.z }));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const ready = (page) => page.waitForFunction(() => window.roi?.ready, null, { timeout: 180000 });
@@ -41,6 +45,8 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 async function run(label, contextOptions, body) {
   if (process.env.SMOKE_ONLY && !label.includes(process.env.SMOKE_ONLY)) return; // SMOKE_ONLY=phone runs only the phone suites
   console.log(`\n== ${label} ==`);
+  suiteStart = performance.now();
+  const failedBefore = failures;
   const ctx = await browser.newContext(contextOptions);
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000); // a slow machine can be busy building the world for more than Playwright's 30 s
@@ -62,6 +68,9 @@ async function run(label, contextOptions, body) {
   }
   check(errors.length === 0, `no console errors or failed requests${errors.length ? ': ' + [...new Set(errors)].join(' | ') : ''}`);
   await ctx.close();
+  const took = performance.now() - suiteStart;
+  times.push({ label, took, failed: failures - failedBefore });
+  console.log(`-- ${label}: ${clock(took)}`);
 }
 
 await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) => {
@@ -1208,5 +1217,8 @@ for (const q of ['medium', 'high']) {
 
 await browser.close();
 server.close();
+console.log('\nTimes:');
+for (const t of times) console.log(`  ${clock(t.took).padStart(6)}  ${t.label}${t.failed ? ` (${t.failed} failed)` : ''}`);
+console.log(`  ${clock(performance.now() - t0).padStart(6)}  in all`);
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
