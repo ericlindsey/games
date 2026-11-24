@@ -1483,6 +1483,22 @@ v0.8.2 was merged before these were in it; they come with the footing fix.
   (`../index.html`, the repository's landing page). Leaving saves, as any leaving of
   the page does (`pagehide`).
 
+### v0.8.4: the home-screen app, turned and held upright
+
+From playing the home-screen app on an iPhone.
+- **Turned from its side to upright, the picture was left stretched** (not so in the browser).
+  In the app the page sizes the canvas from its own measure of the screen (`--app-h`, v0.8.3),
+  taken again 300 ms after the turn, since iOS gives the new size late; but the renderer
+  only resized on the window's `resize`, which had already passed, so the picture kept the
+  old shape in the new frame. Now it follows the canvas's own size (a `ResizeObserver` in
+  main.js), whatever changes it, and the page measures again at 0.1, 0.3, 0.6 and 1 s after
+  a turn, and on the visual viewport's resize. The smoke test (phone upright) sets the
+  measure as a turn leaves it, with no resize, and fails without the observer.
+- **Held upright, the health bar and buttons sat in a band iOS blurs** below the status bar.
+  In the upright app `--safe-top` is now the status bar (at least 20 px) and 46 px, about a
+  button's height more than before; on its side it is as it was. The compass, place line and
+  tasks follow it down. Still seen only in a simulation (`?standalone=47`), not on a phone.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp

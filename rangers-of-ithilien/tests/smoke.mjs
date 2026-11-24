@@ -984,8 +984,20 @@ await run('phone upright (touch)', { ...devices['iPhone 13'] }, async (page) => 
     view: document.getElementById('view').getBoundingClientRect().height, buf: roi.renderer.domElement.height / roi.renderer.getPixelRatio(),
     vitals: document.getElementById('vitals').getBoundingClientRect().top, buttons: document.getElementById('top-buttons').getBoundingClientRect().top }));
   check(app.app && Math.abs(app.view - (app.ih + 47)) < 1 && Math.abs(app.buf - app.view) < 2, `as a home-screen app the picture reaches the foot of the screen (${app.view.toFixed(0)} px, the window says ${app.ih})`);
-  check(app.vitals >= 47 && app.buttons >= 47, `and the health bar and buttons keep below the status bar (at ${app.vitals.toFixed(0)} and ${app.buttons.toFixed(0)} px)`);
+  check(app.vitals >= 47 + 36 && app.buttons >= 47 + 36, `and the health bar and buttons keep below the status bar and the band iOS blurs under it (at ${app.vitals.toFixed(0)} and ${app.buttons.toFixed(0)} px)`);
   await shot(page, 'phone-upright-app');
+  // (since v0.8.4) turned from its side to upright, the picture is not left stretched: iOS gives the new size
+  // late, and the page's measure of the screen (--app-h) settles after the window's resize; the game follows
+  // the canvas's own size. Here the measure is changed with no resize at all, as iOS does.
+  const sharp = () => page.evaluate(() => { const c = roi.renderer.domElement, r = c.getBoundingClientRect(); return { css: r.width / r.height, buf: c.width / c.height }; });
+  // (an emulated phone's window cannot be turned here, so the measure is set as a turn leaves it: the landscape height first, then upright)
+  await page.evaluate(() => { roi.holdResolution(true); document.documentElement.style.setProperty('--app-h', '390px'); }); // (held, or the frame rate's own resizing would hide it)
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.documentElement.style.setProperty('--app-h', (innerHeight + 20) + 'px')); // (not the height it began at)
+  await page.waitForTimeout(800);
+  const late = await sharp();
+  await page.evaluate(() => roi.holdResolution(false));
+  check(Math.abs(late.css / late.buf - 1) < 0.02, `with the page's measure of the screen settling after a turn, the picture keeps its shape (drawn ${late.buf.toFixed(3)} wide to high, shown ${late.css.toFixed(3)})`);
   // the menu's "Update the game": the same release says so; a newer one is opened under a fresh address
   await page.tap('#btn-menu');
   await page.waitForSelector('#menu:not([hidden])');
