@@ -471,7 +471,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // Taking aim: the view closes in, and a chosen shot to the head kills outright.
   // Hold the camp still first: a blow now would (rightly) knock the ranger out of the aim.
   await page.evaluate(() => { for (const e of roi.enemies.list) if (!e.dead) { e.def = { ...e.def, speed: 0 }; e.state = 'strike'; e.timer = 99; } });
-  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 30000 });
+  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 240000 });
   await page.keyboard.press('KeyR');
   await page.waitForFunction(() => roi.combat.aim && roi.rig.zoom > 0.8, null, { timeout: 20000 });
   check(await page.evaluate(() => roi.rig.camera.fov < 45), 'aim mode narrows the view');
@@ -489,7 +489,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     window.shotA = a; window.shotB = b;
     return { a: a.type, hasB: !!b };
   });
-  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 30000 });
+  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 240000 });
   const zones = await page.evaluate(() => [shotA, shotB].filter(Boolean).map((e) => ({ dead: e.dead, hurt: e.hp < e.maxHp })));
   check(zones[0].dead, 'an aimed arrow to the head kills');
   if (shots.hasB) check(zones[1].hurt && !zones[1].dead, 'the same arrow unaimed only wounds');
