@@ -1267,8 +1267,10 @@ await run('testing page', { viewport: { width: 1280, height: 720 } }, async (pag
   check(await page.evaluate(() => roi.state.renown === 1), 'and set renown');
   await page.click('#dev [data-a="mapgo"]', { timeout: 180000 });
   await page.waitForSelector('#map:not([hidden])', { timeout: 180000 });
-  const box = await page.locator('#map-canvas').boundingBox();
-  await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.6);
+  // (since v0.8.2 the map shows part of the land: pick the spot 0.4 across and 0.6 down the land, brought into view)
+  const spot = await page.evaluate(() => { const x = 0.4 * roi.WORLD.width, z = 0.6 * roi.WORLD.length; roi.map.centre(x, z); return roi.map.screenAt(x, z); });
+  await page.waitForTimeout(300);
+  await page.mouse.click(spot.x, spot.y);
   await page.waitForFunction(() => Math.abs(roi.player.pos.x - 0.4 * roi.WORLD.width) < 30 && Math.abs(roi.player.pos.z - 0.6 * roi.WORLD.length) < 40, null, { timeout: 30000 });
   check(await page.isHidden('#map'), 'clicking the map travels there');
   await shot(page, 'dev');

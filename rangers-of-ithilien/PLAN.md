@@ -1421,6 +1421,11 @@ From a playtest of v0.8.1 on a phone.
   are home, and `homesteadsLived` reads that (it read the province's freedom).
 - Save version 10: a family already living on their farm in a v9 save (promised, and
   the province free) stays there, as if led home.
+- Smoke tests run for it: phone, settlers, testing page and desktop all pass (desktop
+  took 96 minutes, settlers 27, this time). The phone-upright suite fails one check,
+  "aiming upright, the bow shows at the left edge" (the bow at -0.53 across, wanted
+  past -0.6); it fails the same way on 0.8.1 (main), so it is older than this
+  release, and still to look into.
 
 ### Known gaps to pick up
 
