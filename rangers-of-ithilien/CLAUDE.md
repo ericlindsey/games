@@ -282,6 +282,10 @@ Rules of thumb:
   clear, else the nearest open spot); enemies are set down clear of walls,
   rocks and trunks (`Enemies.clearSpot`), and a trunk's push never shoves anyone
   into a wall.
+- Anything placed against the top of the screen uses `var(--safe-top)`, not
+  `env(safe-area-inset-top)`, and anything filling the screen `var(--app-h)` under
+  `html.app`: a home-screen app on an upright iPhone reports neither rightly (since v0.8.2;
+  index.html's head sets them).
 - Everything a person can do must work by touch: on a phone there is no aiming,
   so anything aimed needs an automatic form (see `Combat.update`).
 - All in-game text is ours (dialogue, tasks, item notes, notices). Keep the

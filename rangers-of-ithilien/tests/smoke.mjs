@@ -973,6 +973,31 @@ await run('phone upright (touch)', { ...devices['iPhone 13'] }, async (page) => 
   const zoom = await page.locator('#map-in').boundingBox();
   check(zoom && zoom.y + zoom.height <= await page.evaluate(() => innerHeight), 'and its zoom buttons');
   await shot(page, 'phone-upright-map');
+  await page.tap('#map-close');
+
+  // (since v0.8.2) opened from the home screen of an iPhone held upright, iOS may report a window
+  // short of the screen by the status bar: the picture still reaches the foot of the screen, and the
+  // HUD keeps below the status bar. (?standalone=47 pretends to be that app; the real iPhone is not tried here.)
+  await page.goto(base + '?quality=low&autostart&standalone=47');
+  await ready(page);
+  const app = await page.evaluate(() => ({ app: document.documentElement.classList.contains('app'), ih: innerHeight,
+    view: document.getElementById('view').getBoundingClientRect().height, buf: roi.renderer.domElement.height / roi.renderer.getPixelRatio(),
+    vitals: document.getElementById('vitals').getBoundingClientRect().top, buttons: document.getElementById('top-buttons').getBoundingClientRect().top }));
+  check(app.app && Math.abs(app.view - (app.ih + 47)) < 1 && Math.abs(app.buf - app.view) < 2, `as a home-screen app the picture reaches the foot of the screen (${app.view.toFixed(0)} px, the window says ${app.ih})`);
+  check(app.vitals >= 47 && app.buttons >= 47, `and the health bar and buttons keep below the status bar (at ${app.vitals.toFixed(0)} and ${app.buttons.toFixed(0)} px)`);
+  await shot(page, 'phone-upright-app');
+  // the menu's "Update the game": the same release says so; a newer one is opened under a fresh address
+  await page.tap('#btn-menu');
+  await page.waitForSelector('#menu:not([hidden])');
+  await page.evaluate(() => document.getElementById('menu-update').click()); // (it may be scrolled out of the menu's view)
+  await page.waitForFunction(() => /newest|reached/.test(document.getElementById('menu-status').textContent), null, { timeout: 60000 });
+  check(/newest version, v0\.8/.test(await page.textContent('#menu-status')), `on the newest release, Update the game says so ("${await page.textContent('#menu-status')}")`);
+  await page.route(/index\.html\?check=/, async (route) => { const r = await route.fetch(); await route.fulfill({ response: r, body: (await r.text()).replace(/class="version">v[0-9.]+</, 'class="version">v9.9.9<') }); });
+  const went = page.waitForURL(/fresh=/, { timeout: 60000 }).then(() => true, () => false);
+  await page.evaluate(() => document.getElementById('menu-update').click());
+  check(await went, 'with a newer release on the server, it saves and opens the game again under a fresh address');
+  await ready(page);
+  check(!page.url().includes('fresh='), 'and tidies the address once loaded');
 });
 
 // The settlers (since v0.7): a freed, mapped province's people are led home from
