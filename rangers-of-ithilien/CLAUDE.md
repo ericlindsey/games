@@ -275,6 +275,13 @@ Rules of thumb:
 - The world placed before v0.6 must not move (saves name camps by number): a new
   site is added after the scatter with its own generator (see the Window Woods
   village in oldworks.js), and checked to leave the camps and ruins as they were.
+- Since v0.8.3 the ground where two streams' valleys meet is blended, not stepped, but
+  only from the end of world/settlements.js on (`smoothStreamMeetings`): everything
+  placed by reading the ground (camps, ruins, farms, paths, settlements, the plants'
+  sites) is placed before that, on the shape it always had. Anything new placed that way
+  must be too, or it will not stand where it did. The ranger and enemies judge a slope
+  over a stride (`PLAYER.slopeRun`), not one frame's step; tests/smoke.mjs `footing`
+  runs him over the land and fails if he sticks on unseen rough ground.
 - What you see must match what stops you. Rock skins and bulges stand proud of
   a wall only above head height near where people walk; colliders of rocks and
   trunks are as wide as what is drawn at body height. If anyone ever ends up
@@ -282,6 +289,10 @@ Rules of thumb:
   clear, else the nearest open spot); enemies are set down clear of walls,
   rocks and trunks (`Enemies.clearSpot`), and a trunk's push never shoves anyone
   into a wall.
+- Anything placed against the top of the screen uses `var(--safe-top)`, not
+  `env(safe-area-inset-top)`, and anything filling the screen `var(--app-h)` under
+  `html.app`: a home-screen app on an upright iPhone reports neither rightly (since v0.8.3;
+  index.html's head sets them).
 - Everything a person can do must work by touch: on a phone there is no aiming,
   so anything aimed needs an automatic form (see `Combat.update`).
 - All in-game text is ours (dialogue, tasks, item notes, notices). Keep the
@@ -297,7 +308,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.8.2`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.8.3`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add
@@ -320,7 +331,7 @@ python3 -m http.server 8000     # open http://localhost:8000
    It plays through at `?quality=low` (software rendering cannot click through
    medium or high in time) and then only loads medium and high to see they draw.
    `SMOKE_ONLY=settlers` (any part of a suite's name: desktop, phone, phone upright,
-   settlers, camps, testing, quality) runs only the matching suites. **Run the whole suite
+   settlers, footing, camps, testing, quality) runs only the matching suites. **Run the whole suite
    only for a major release (0.8, 0.9, ...)**: in software rendering it takes about an
    hour and a half (times below), and a run cut short by a time limit or sharing the
    machine with another fails on timing, not on the game. Start a long run detached

@@ -437,7 +437,7 @@ export class MapPanel {
 }
 
 export class MenuPanel {
-  /** @param handlers { onClose, onQuality(name), onCap(fps or 0), onSave(), onNew(), onTravel(), onFps() -> now on } */
+  /** @param handlers { onClose, onQuality(name), onCap(fps or 0), onSave(), onNew(), onTravel(), onFps() -> now on, onUpdate(say) } */
   constructor(handlers) {
     this.root = $('menu');
     this.open = false;
@@ -448,6 +448,7 @@ export class MenuPanel {
       if (confirm('Begin anew? Your discoveries and cleared camps will be forgotten.')) handlers.onNew();
     };
     $('menu-travel').onclick = () => handlers.onTravel();
+    $('menu-update').onclick = () => handlers.onUpdate((words) => { $('menu-status').textContent = words; });
     $('menu-fps').onclick = () => { const on = handlers.onFps(); $('menu-fps').textContent = on ? 'Hide frame rate' : 'Show frame rate'; };
     for (const b of this.root.querySelectorAll('[data-quality]')) b.onclick = () => handlers.onQuality(b.dataset.quality);
     for (const b of this.root.querySelectorAll('[data-cap]')) b.onclick = () => { handlers.onCap(Number(b.dataset.cap)); this.showCap(Number(b.dataset.cap)); };

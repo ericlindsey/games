@@ -893,6 +893,14 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   await page.tap('#map-close');
   check(await page.isHidden('#map'), 'and it closes');
 
+  // (since v0.8.3) the menu links back to the page of all the games (not followed: this server serves the game's folder alone)
+  await page.tap('#btn-menu');
+  await page.waitForSelector('#menu:not([hidden])');
+  const games = await page.evaluate(() => { const a = document.getElementById('menu-games'), r = a.getBoundingClientRect(); return { href: a.href, text: a.textContent, shown: r.height > 0 && r.bottom <= innerHeight + 1 || a.closest('.menu-panel').scrollHeight > a.closest('.menu-panel').clientHeight }; });
+  check(games.href === new URL('../index.html', page.url()).href && /games/i.test(games.text) && games.shown, `the menu has a link back to all the games (${games.href})`);
+  await shot(page, 'phone-menu');
+  await page.tap('#menu-resume');
+
   // One attack button: it picks the mark and the weapon.
   check(await page.isVisible('#btn-attack') && await page.isVisible('#btn-heal'), 'attack and heal buttons are shown');
   await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 16, c.z, -Math.PI / 2); });
@@ -965,6 +973,31 @@ await run('phone upright (touch)', { ...devices['iPhone 13'] }, async (page) => 
   const zoom = await page.locator('#map-in').boundingBox();
   check(zoom && zoom.y + zoom.height <= await page.evaluate(() => innerHeight), 'and its zoom buttons');
   await shot(page, 'phone-upright-map');
+  await page.tap('#map-close');
+
+  // (since v0.8.3) opened from the home screen of an iPhone held upright, iOS may report a window
+  // short of the screen by the status bar: the picture still reaches the foot of the screen, and the
+  // HUD keeps below the status bar. (?standalone=47 pretends to be that app; the real iPhone is not tried here.)
+  await page.goto(base + '?quality=low&autostart&standalone=47');
+  await ready(page);
+  const app = await page.evaluate(() => ({ app: document.documentElement.classList.contains('app'), ih: innerHeight,
+    view: document.getElementById('view').getBoundingClientRect().height, buf: roi.renderer.domElement.height / roi.renderer.getPixelRatio(),
+    vitals: document.getElementById('vitals').getBoundingClientRect().top, buttons: document.getElementById('top-buttons').getBoundingClientRect().top }));
+  check(app.app && Math.abs(app.view - (app.ih + 47)) < 1 && Math.abs(app.buf - app.view) < 2, `as a home-screen app the picture reaches the foot of the screen (${app.view.toFixed(0)} px, the window says ${app.ih})`);
+  check(app.vitals >= 47 && app.buttons >= 47, `and the health bar and buttons keep below the status bar (at ${app.vitals.toFixed(0)} and ${app.buttons.toFixed(0)} px)`);
+  await shot(page, 'phone-upright-app');
+  // the menu's "Update the game": the same release says so; a newer one is opened under a fresh address
+  await page.tap('#btn-menu');
+  await page.waitForSelector('#menu:not([hidden])');
+  await page.evaluate(() => document.getElementById('menu-update').click()); // (it may be scrolled out of the menu's view)
+  await page.waitForFunction(() => /newest|reached/.test(document.getElementById('menu-status').textContent), null, { timeout: 60000 });
+  check(/newest version, v0\.8/.test(await page.textContent('#menu-status')), `on the newest release, Update the game says so ("${await page.textContent('#menu-status')}")`);
+  await page.route(/index\.html\?check=/, async (route) => { const r = await route.fetch(); await route.fulfill({ response: r, body: (await r.text()).replace(/class="version">v[0-9.]+</, 'class="version">v9.9.9<') }); });
+  const went = page.waitForURL(/fresh=/, { timeout: 60000 }).then(() => true, () => false);
+  await page.evaluate(() => document.getElementById('menu-update').click());
+  check(await went, 'with a newer release on the server, it saves and opens the game again under a fresh address');
+  await ready(page);
+  check(!page.url().includes('fresh='), 'and tidies the address once loaded');
 });
 
 // The settlers (since v0.7): a freed, mapped province's people are led home from
@@ -1142,6 +1175,52 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
 // (v0.8) Camps broken up after their company falls; tents that stop people and fold
 // away; the Marshal; bands met ahead on the road; scouts between camps, and a
 // courier's map; every farmstead told of.
+// Footing (since v0.8.3): the ranger used now and then to stand stuck before an unseen
+// rough spot until he jumped: kinks a few centimetres across where the ground's shapings
+// meet, and ledges where two streams' valleys met. Driven straight through the ranger's
+// own movement (no frames drawn, so it is quick even in software rendering).
+await run('footing', { viewport: { width: 400, height: 300 } }, async (page) => {
+  await page.goto(base + '?quality=low&autostart');
+  await ready(page);
+  const r = await page.evaluate(() => {
+    const P = roi.player, input = { move: { x: 0, y: 1 }, walk: false, haste: false, jumpHeld: false };
+    const run = (x, z, yaw, seconds) => { // run forward without jumping; how far did he get?
+      P.place(x, z, yaw); P.speed = 7.5;
+      for (let f = 0; f < seconds * 60; f++) P.update(1 / 60, f / 60, input, yaw);
+      return Math.hypot(P.pos.x - x, P.pos.z - z);
+    };
+    // where he stuck before (found by running him over the land), each run at from 3 m back
+    const spots = [[1231.3, 1300.3, 1.6], [511.3, 2602.2, 2.74], [963.5, 2691.4, 1.11], [926.6, 2478.7, 2.16], [717.9, 1715.8, 2.21],
+      [654.5, 1757.8, 1.05], [1257.8, 1594.6, 1.99], [1195.4, 1677.8, 2.17]];
+    const stuck = spots.filter(([x, z, yaw]) => run(x - Math.sin(yaw) * 3, z - Math.cos(yaw) * 3, yaw, 2) < 8).map((s) => s.slice(0, 2).join(','));
+    // home up the cut at Henneth Annûn, over the old step in its bed
+    const cut = run(505, 894, Math.PI / 2, 3);
+    // a few hundred runs about the land, in the woods west of the mountains: none stops on ground gentle over a metre
+    let seed = 5; const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const kinks = [];
+    for (let w = 0; w < 300; w++) {
+      const x = 200 + rand() * 1100, z = 80 + rand() * 2840, yaw = rand() * 6.283;
+      P.place(x, z, yaw); P.speed = 7.5;
+      let lx = x, lz = z;
+      for (let f = 1; f <= 300; f++) {
+        P.update(1 / 60, f / 60, input, yaw);
+        if (f % 30) continue;
+        if (Math.hypot(P.pos.x - lx, P.pos.z - lz) < 0.5) {
+          const h = roi.heightAt, p = P.pos, ahead = (h(p.x + Math.sin(yaw), p.z + Math.cos(yaw)) - h(p.x, p.z));
+          if (ahead < 0.6 && !roi.blocked(p.x + Math.sin(yaw) * 0.3, p.z + Math.cos(yaw) * 0.3, p.y, 0.4)) kinks.push([p.x.toFixed(1), p.z.toFixed(1), yaw.toFixed(2), ahead.toFixed(2)].join(','));
+          break;
+        }
+        lx = P.pos.x; lz = P.pos.z;
+      }
+    }
+    return { stuck, cut, kinks };
+  });
+  check(!r.stuck.length, `he runs on over every spot where he used to stick (${r.stuck.length ? 'stuck at ' + r.stuck.join('; ') : 'all 8 passed'})`);
+  check(r.cut > 20, `he runs home up the bed of the cut at Henneth Ann\u00fbn without a jump (${r.cut.toFixed(1)} m in 3 s)`);
+  // (a stop with gentle ground ahead and nothing solid may still be a tree or a rock in the way; say where, if any)
+  check(r.kinks.length <= 3, `running about the land he stops on no unseen rough ground (${r.kinks.length} stops on gentle ground${r.kinks.length ? ': ' + r.kinks.join('; ') : ''})`);
+});
+
 await run('camps and scouts', { viewport: { width: 800, height: 500 } }, async (page) => {
   await page.goto(base + '?quality=low&autostart');
   await ready(page);

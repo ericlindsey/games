@@ -1,7 +1,7 @@
 // Boot, wiring and the game loop.
 
 import * as THREE from 'three';
-import { QUALITY, SAVE, WORLD } from './config.js';
+import { QUALITY, SAVE, WORLD, VERSION } from './config.js';
 import { HA, LANDMARKS, haradRoadX } from './world/layout.js';
 import { trunkAt, blockedBySolid } from './world/collision.js';
 import { CAMPS, blightAt } from './world/campSites.js';
@@ -45,6 +45,8 @@ import { ITEMS } from './data/items.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
+// (an update, since v0.8.3, comes in under a fresh address so nothing cached answers for the page; the address is tidied after)
+if (params.has('fresh')) { const u = new URL(location.href); u.searchParams.delete('fresh'); history.replaceState(null, '', u); }
 const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
 
 async function boot() {
@@ -74,8 +76,10 @@ async function boot() {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 12000);
   const resize = () => {
-    renderer.setSize(innerWidth, innerHeight, false);
-    camera.aspect = innerWidth / innerHeight;
+    // (the canvas's own size: in a home-screen app it may reach below what the window reports, since v0.8.3)
+    const w = renderer.domElement.clientWidth || innerWidth, h = renderer.domElement.clientHeight || innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };
   addEventListener('resize', resize);
@@ -184,6 +188,29 @@ async function boot() {
     state.player.x = player.pos.x; state.player.y = player.pos.y; state.player.z = player.pos.z; state.player.heading = player.yaw;
     return store.save(state);
   };
+  /**
+   * (since v0.8.3) The menu's "Update the game": a game added to a phone's home screen
+   * has no reload, and may keep showing the release it was first opened on. Saves,
+   * asks the server for the page itself past every cache, and if it names another
+   * release than this one, opens it under a fresh address (every module's address
+   * carries its release, so the rest follows).
+   */
+  const updateGame = async (say) => {
+    save();
+    say('Asking for the newest version\u2026');
+    let page = '';
+    try {
+      const r = await fetch(`index.html?check=${Date.now()}`, { cache: 'no-store' });
+      if (r.ok) page = await r.text();
+    } catch { /* offline */ }
+    const newest = /class="version">v([0-9][0-9.]*)</.exec(page)?.[1];
+    if (!newest) { say('The game\u2019s home could not be reached. Try again when you have a connection.'); return; }
+    if (newest === VERSION) { say(`You have the newest version, v${VERSION}.`); return; }
+    say(`Updating to v${newest}\u2026 Your game is saved.`);
+    const u = new URL(location.href);
+    u.searchParams.set('fresh', String(Date.now()));
+    setTimeout(() => location.replace(u.href), 400);
+  };
   let dressedAs = JSON.stringify(state.equipped);
   const refreshHud = () => {
     const gear = JSON.stringify(state.equipped);
@@ -229,6 +256,7 @@ async function boot() {
     onTravel: () => { if (!enemies.inCombat()) { menu.close(); goHome('You slip away by the ways the rangers know, and are home before the light changes.'); } },
     onCap: (n) => { state.settings.cap = n; save(); },
     onFps: () => { state.settings.fps = !state.settings.fps; $('fps').hidden = !state.settings.fps; save(); return state.settings.fps; },
+    onUpdate: (say) => updateGame(say),
   });
   $('fps').hidden = !state.settings.fps;
 

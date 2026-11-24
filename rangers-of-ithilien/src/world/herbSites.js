@@ -25,8 +25,17 @@ export const PLANTS = {
   oliveStone: { cell: 70, rate: 0.72, salt: 700, grows: (x, z, d) => d < 0.9 && z > 1725 },
 };
 
-/** Where they grow: [{ id, kind, x, z }]. Fixed by the world seed. Pure. */
+let laid = null;
+/**
+ * Where they grow: [{ id, kind, x, z }]. Fixed by the world seed. Pure. Laid out once
+ * (since v0.8.3 world/settlements.js asks first, before the ground where streams meet is
+ * smoothed, so the plants stand where they always did: saves name those picked).
+ */
 export function herbSites() {
+  return (laid ??= layOut());
+}
+
+function layOut() {
   const out = [];
   for (const [kind, p] of Object.entries(PLANTS)) {
     const tag = kind === 'athelas' ? 'h' : kind[0] + kind[1]; // kingsfoil keeps the ids it always had

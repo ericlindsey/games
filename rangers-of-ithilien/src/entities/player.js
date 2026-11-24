@@ -73,7 +73,15 @@ export class Player {
       const here = terrainAt(p.x, p.z, p.y);
       if (Math.abs(here - p.y) > 0.1) return h <= p.y + PLAYER.stepHeight; // on a built floor: the ground ahead is a wall
       const run = Math.hypot(nx - p.x, nz - p.z);
-      if (run > 1e-5 && (h - here) / run > PLAYER.maxSlope) return false;
+      if (run > 1e-5 && (h - here) / run > PLAYER.maxSlope) {
+        // (since v0.8.3) Steep over one frame's step (a few centimetres) is not yet a wall:
+        // where two shapings of the land meet (a levelled yard, a stream's bank) the ground
+        // can kink, too small to see, and the ranger stood stuck before it until he jumped.
+        // It stops him only if it is steep over a stride as well, or rises too high to step.
+        const L = PLAYER.slopeRun, ux = (nx - p.x) / run, uz = (nz - p.z) / run;
+        const far = terrainAt(p.x + ux * L, p.z + uz * L, p.y);
+        if (h - here > PLAYER.stepHeight || (far - here) / L > PLAYER.maxSlope) return false;
+      }
     }
     return true;
   }

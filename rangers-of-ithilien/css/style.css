@@ -1,4 +1,7 @@
 :root {
+  /* the room at the top the status bar takes (set from index.html in a home-screen app, since v0.8.3), and the full height */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --app-h: 100%;
   --parchment: #efe4c8;
   --parchment-dark: #dccfa9;
   --ink: #3a2f1f;
@@ -13,6 +16,9 @@ html, body {
   -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
 }
 #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+/* (since v0.8.3) a home-screen app fills the screen to its foot, even where iOS reports a shorter window */
+html.app, html.app body { height: var(--app-h); }
+html.app #view, html.app #hud, html.app .overlay, html.app #sleep, html.app #fallen { bottom: auto; height: var(--app-h); }
 [hidden] { display: none !important; }
 body:not(.touch) .touch-only { display: none !important; }
 body.touch .mouse-only { display: none !important; }
@@ -21,14 +27,16 @@ button {
   font: inherit; color: var(--ink); background: var(--parchment); border: 1px solid var(--ink-soft);
   border-radius: 4px; padding: 0.55em 1em; cursor: pointer; touch-action: manipulation;
 }
-button:hover { background: #fff6dc; }
+a.button { font: inherit; color: var(--ink); background: var(--parchment); border: 1px solid var(--ink-soft); border-radius: 4px;
+  padding: 0.55em 1em; text-align: center; text-decoration: none; touch-action: manipulation; } /* (a link that looks like the buttons beside it) */
+button:hover, a.button:hover { background: #fff6dc; }
 button.quiet { background: transparent; color: var(--parchment); border-color: rgba(239, 228, 200, 0.4); }
 
 /* ---- HUD ---- */
 #hud { position: fixed; inset: 0; pointer-events: none; }
 #hud button { pointer-events: auto; }
 #compass {
-  position: absolute; top: max(10px, env(safe-area-inset-top)); left: 50%; width: min(320px, 56vw); height: 30px;
+  position: absolute; top: max(10px, var(--safe-top)); left: 50%; width: min(320px, 56vw); height: 30px;
   transform: translateX(-50%); overflow: hidden; color: #fff8e4; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
   border-bottom: 1px solid rgba(255, 248, 228, 0.5);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
@@ -39,7 +47,7 @@ button.quiet { background: transparent; color: var(--parchment); border-color: r
 #compass span.home { color: #ffd77a; font-size: 13px; top: 5px; }
 #compass-needle { position: absolute; left: 50%; bottom: 0; width: 1px; height: 7px; background: #fff8e4; }
 #place {
-  position: absolute; top: calc(max(10px, env(safe-area-inset-top)) + 36px); left: 0; right: 0; text-align: center;
+  position: absolute; top: calc(max(10px, var(--safe-top)) + 36px); left: 0; right: 0; text-align: center;
   color: #fff8e4; font-size: 13px; letter-spacing: 0.08em; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85); opacity: 0.9;
 }
 /* Notices: up to ten at once, the newest at the bottom, the older ones moving up and fading.
@@ -71,7 +79,7 @@ button.quiet { background: transparent; color: var(--parchment); border-color: r
 #prompt kbd { font-family: inherit; border: 1px solid var(--ink-soft); border-radius: 3px; padding: 0 0.4em; margin-right: 0.5em; background: #fff6dc; }
 body.touch #prompt { bottom: 150px; left: auto; right: max(18px, env(safe-area-inset-right)); transform: none; padding: 0.9em 1.2em; }
 body.touch #prompt kbd { display: none; }
-#top-buttons { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); display: flex; gap: 6px; }
+#top-buttons { position: absolute; top: max(10px, var(--safe-top)); right: max(10px, env(safe-area-inset-right)); display: flex; gap: 6px; }
 #top-buttons button { background: rgba(239, 228, 200, 0.82); padding: 0.4em 0.8em; font-size: 14px; }
 #btn-jump {
   position: absolute; right: max(22px, env(safe-area-inset-right)); bottom: max(34px, env(safe-area-inset-bottom));
@@ -98,7 +106,7 @@ body.touch #prompt kbd { display: none; }
   border-radius: 6px; box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5), inset 0 0 40px rgba(120, 90, 40, 0.15);
 }
 .overlay { position: fixed; inset: 0; height: 100dvh; display: flex; align-items: center; justify-content: center; background: rgba(20, 26, 16, 0.55);
-  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  padding: max(12px, var(--safe-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
 #dialogue {
   position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%);
   width: min(680px, calc(100vw - 24px)); padding: 16px 20px 14px; max-height: 70vh; max-height: 70dvh; overflow-y: auto;
@@ -145,7 +153,7 @@ body.touch #prompt kbd { display: none; }
 body.panel-open #btn-jump, body.panel-open #stick, body.panel-open #toast, body.panel-open #hint { display: none !important; }
 
 /* ---- Vitals, combat ---- */
-#vitals { position: absolute; left: max(10px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); width: min(230px, 42vw);
+#vitals { position: absolute; left: max(10px, env(safe-area-inset-left)); top: max(10px, var(--safe-top)); width: min(230px, 42vw);
   color: #fff8e4; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85); font-size: 13px; }
 #health { height: 9px; border: 1px solid rgba(255, 248, 228, 0.7); border-radius: 5px; background: rgba(0, 0, 0, 0.35); overflow: hidden; }
 #health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #a8322a, #cf5a3c); transition: width 0.25s; }
@@ -210,10 +218,10 @@ body.panel-open #btn-aim, body.panel-open #hitmark { display: none !important; }
   #top-buttons { gap: 4px; }
   #top-buttons button { padding: 0.35em 0.6em; font-size: 13px; }
   #vitals { width: calc(100vw - 210px); max-width: 230px; }
-  #compass { top: calc(max(10px, env(safe-area-inset-top)) + 54px); width: min(340px, 82vw); }
-  #place { top: calc(max(10px, env(safe-area-inset-top)) + 90px); }
+  #compass { top: calc(max(10px, var(--safe-top)) + 54px); width: min(340px, 82vw); }
+  #place { top: calc(max(10px, var(--safe-top)) + 90px); }
   #tracker {
-    position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 114px); left: max(10px, env(safe-area-inset-left));
+    position: fixed; top: calc(max(10px, var(--safe-top)) + 114px); left: max(10px, env(safe-area-inset-left));
     width: min(320px, 70vw); margin: 0;
   }
   #toast { bottom: 50%; }

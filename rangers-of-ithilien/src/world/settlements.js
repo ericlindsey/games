@@ -11,8 +11,9 @@
 
 import { SITES } from './oldworks.js';
 import { bankX, roadDistance, LANDMARKS, inClearing } from './layout.js';
-import { heightAt, slopeAt, streamDistance, levelGround } from './terrain.js';
+import { heightAt, slopeAt, streamDistance, levelGround, smoothStreamMeetings } from './terrain.js';
 import { provinceAt } from './provinces.js';
+import { herbSites } from './herbSites.js';
 
 /**
  * The settlements, in the order Éowyn means to settle them (the woods in
@@ -197,6 +198,13 @@ export const HOMESTEADS = SITES.filter((s) => s.kind === 'farm' && !settlementBy
     family, name: `${family}\u2019s farm`, kind: 'farm', homestead: true, ...mooring(z) };
 });
 export const homesteadBySite = Object.fromEntries(HOMESTEADS.map((h) => [h.site, h]));
+
+// Everything is placed now (camps, ruins, settlements, their plots and landings): from
+// here on, where two streams' valleys meet the ground blends instead of stepping (since
+// v0.8.3; terrain.js). Placed before, nothing moves; only the ground under it smooths.
+// (The plants are laid out lazily, so they are laid out now, first.)
+herbSites();
+smoothStreamMeetings();
 /** A settlement or a homestead, by its site: whichever people live (or will live) there. */
 export const placeBySite = (site) => settlementBySite[site] ?? homesteadBySite[site] ?? null;
 

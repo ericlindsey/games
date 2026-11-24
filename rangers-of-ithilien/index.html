@@ -12,65 +12,100 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <title>Rangers of Ithilien</title>
-  <link rel="stylesheet" href="css/style.css?v=0.8.2">
+  <script>
+    // (since v0.8.3) Opened from a phone's home screen the game runs as an app, with no
+    // browser bars: <html> gets the class "app". There, held upright, iOS can report a
+    // window shorter than the screen by the height of the status bar (and the top inset
+    // as nothing), so the picture stopped short of the bottom and the top of the HUD sat
+    // under the status bar. Then the full height (--app-h) and the room the status bar
+    // takes (--safe-top) are measured here. ?standalone=<px> pretends, for the tests:
+    // an app whose window is that much short.
+    (function () {
+      var fake = new URLSearchParams(location.search).get('standalone');
+      var app = fake !== null || navigator.standalone === true ||
+        (window.matchMedia && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches);
+      if (!app) return;
+      var root = document.documentElement;
+      root.classList.add('app');
+      var probe;
+      function fit() {
+        if (!probe) {
+          probe = document.createElement('div');
+          probe.style.cssText = 'position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top,0px)';
+          root.appendChild(probe);
+        }
+        var inset = probe.offsetHeight, upright = innerHeight > innerWidth;
+        // (iOS alone: elsewhere, Android say, a window shorter than the screen is the system's bars, and right)
+        var gap = !upright ? 0 : fake !== null ? Number(fake) : navigator.standalone === true ? Math.max(screen.width, screen.height) - innerHeight : 0;
+        if (!(gap > 0 && gap <= 80)) gap = 0; // (only ever a status bar's height; anything else is not this)
+        root.style.setProperty('--app-h', (innerHeight + gap) + 'px');
+        var top = Math.max(inset, gap);
+        root.style.setProperty('--safe-top', top ? (top + 6) + 'px' : '0px'); // (a little clear of the status bar)
+      }
+      fit();
+      addEventListener('resize', fit);
+      addEventListener('orientationchange', function () { setTimeout(fit, 300); });
+    })();
+  </script>
+  <link rel="stylesheet" href="css/style.css?v=0.8.3">
   <!-- Every module carries the release in its URL, so a browser that cached the
        last release never mixes its files with this one's (a mix can stall loading
        silently). Bump `v` on each release; tests/unit.test.js checks every module is here. -->
   <script type="importmap">{
   "imports": {
     "three": "./vendor/three.module.min.js",
-    "./src/bench.js": "./src/bench.js?v=0.8.2",
-    "./src/config.js": "./src/config.js?v=0.8.2",
-    "./src/data/dialogue.js": "./src/data/dialogue.js?v=0.8.2",
-    "./src/data/enemies.js": "./src/data/enemies.js?v=0.8.2",
-    "./src/data/items.js": "./src/data/items.js?v=0.8.2",
-    "./src/data/quests.js": "./src/data/quests.js?v=0.8.2",
-    "./src/dev.js": "./src/dev.js?v=0.8.2",
-    "./src/entities/enemies.js": "./src/entities/enemies.js?v=0.8.2",
-    "./src/entities/figure.js": "./src/entities/figure.js?v=0.8.2",
-    "./src/entities/player.js": "./src/entities/player.js?v=0.8.2",
-    "./src/input/input.js": "./src/input/input.js?v=0.8.2",
-    "./src/main.js": "./src/main.js?v=0.8.2",
-    "./src/systems/combat.js": "./src/systems/combat.js?v=0.8.2",
-    "./src/systems/inventory.js": "./src/systems/inventory.js?v=0.8.2",
-    "./src/systems/provinces.js": "./src/systems/provinces.js?v=0.8.2",
-    "./src/systems/settlement.js": "./src/systems/settlement.js?v=0.8.2",
-    "./src/systems/quests.js": "./src/systems/quests.js?v=0.8.2",
-    "./src/systems/renown.js": "./src/systems/renown.js?v=0.8.2",
-    "./src/systems/save.js": "./src/systems/save.js?v=0.8.2",
-    "./src/ui/hud.js": "./src/ui/hud.js?v=0.8.2",
-    "./src/ui/panels.js": "./src/ui/panels.js?v=0.8.2",
-    "./src/util/noise.js": "./src/util/noise.js?v=0.8.2",
-    "./src/util/slice.js": "./src/util/slice.js?v=0.8.2",
-    "./src/world/atmosphere.js": "./src/world/atmosphere.js?v=0.8.2",
-    "./src/world/build.js": "./src/world/build.js?v=0.8.2",
-    "./src/world/campSites.js": "./src/world/campSites.js?v=0.8.2",
-    "./src/world/camps.js": "./src/world/camps.js?v=0.8.2",
-    "./src/world/settlements.js": "./src/world/settlements.js?v=0.8.2",
-    "./src/world/villages.js": "./src/world/villages.js?v=0.8.2",
-    "./src/world/collision.js": "./src/world/collision.js?v=0.8.2",
-    "./src/world/farms.js": "./src/world/farms.js?v=0.8.2",
-    "./src/world/forest.js": "./src/world/forest.js?v=0.8.2",
-    "./src/world/groundColor.js": "./src/world/groundColor.js?v=0.8.2",
-    "./src/world/hennethAnnun.js": "./src/world/hennethAnnun.js?v=0.8.2",
-    "./src/world/grass.js": "./src/world/grass.js?v=0.8.2",
-    "./src/world/herbSites.js": "./src/world/herbSites.js?v=0.8.2",
-    "./src/world/herbs.js": "./src/world/herbs.js?v=0.8.2",
-    "./src/world/layout.js": "./src/world/layout.js?v=0.8.2",
-    "./src/world/motes.js": "./src/world/motes.js?v=0.8.2",
-    "./src/world/oldworks.js": "./src/world/oldworks.js?v=0.8.2",
-    "./src/world/paths.js": "./src/world/paths.js?v=0.8.2",
-    "./src/world/provinces.js": "./src/world/provinces.js?v=0.8.2",
-    "./src/world/regions.js": "./src/world/regions.js?v=0.8.2",
-    "./src/world/relicSites.js": "./src/world/relicSites.js?v=0.8.2",
-    "./src/world/relics.js": "./src/world/relics.js?v=0.8.2",
-    "./src/world/rocks.js": "./src/world/rocks.js?v=0.8.2",
-    "./src/world/ruins.js": "./src/world/ruins.js?v=0.8.2",
-    "./src/world/surface.js": "./src/world/surface.js?v=0.8.2",
-    "./src/world/terrain.js": "./src/world/terrain.js?v=0.8.2",
-    "./src/world/terrainMesh.js": "./src/world/terrainMesh.js?v=0.8.2",
-    "./src/world/vegetation.js": "./src/world/vegetation.js?v=0.8.2",
-    "./src/world/water.js": "./src/world/water.js?v=0.8.2"
+    "./src/bench.js": "./src/bench.js?v=0.8.3",
+    "./src/config.js": "./src/config.js?v=0.8.3",
+    "./src/data/dialogue.js": "./src/data/dialogue.js?v=0.8.3",
+    "./src/data/enemies.js": "./src/data/enemies.js?v=0.8.3",
+    "./src/data/items.js": "./src/data/items.js?v=0.8.3",
+    "./src/data/quests.js": "./src/data/quests.js?v=0.8.3",
+    "./src/dev.js": "./src/dev.js?v=0.8.3",
+    "./src/entities/enemies.js": "./src/entities/enemies.js?v=0.8.3",
+    "./src/entities/figure.js": "./src/entities/figure.js?v=0.8.3",
+    "./src/entities/player.js": "./src/entities/player.js?v=0.8.3",
+    "./src/input/input.js": "./src/input/input.js?v=0.8.3",
+    "./src/main.js": "./src/main.js?v=0.8.3",
+    "./src/systems/combat.js": "./src/systems/combat.js?v=0.8.3",
+    "./src/systems/inventory.js": "./src/systems/inventory.js?v=0.8.3",
+    "./src/systems/provinces.js": "./src/systems/provinces.js?v=0.8.3",
+    "./src/systems/settlement.js": "./src/systems/settlement.js?v=0.8.3",
+    "./src/systems/quests.js": "./src/systems/quests.js?v=0.8.3",
+    "./src/systems/renown.js": "./src/systems/renown.js?v=0.8.3",
+    "./src/systems/save.js": "./src/systems/save.js?v=0.8.3",
+    "./src/ui/hud.js": "./src/ui/hud.js?v=0.8.3",
+    "./src/ui/panels.js": "./src/ui/panels.js?v=0.8.3",
+    "./src/util/noise.js": "./src/util/noise.js?v=0.8.3",
+    "./src/util/slice.js": "./src/util/slice.js?v=0.8.3",
+    "./src/world/atmosphere.js": "./src/world/atmosphere.js?v=0.8.3",
+    "./src/world/build.js": "./src/world/build.js?v=0.8.3",
+    "./src/world/campSites.js": "./src/world/campSites.js?v=0.8.3",
+    "./src/world/camps.js": "./src/world/camps.js?v=0.8.3",
+    "./src/world/settlements.js": "./src/world/settlements.js?v=0.8.3",
+    "./src/world/villages.js": "./src/world/villages.js?v=0.8.3",
+    "./src/world/collision.js": "./src/world/collision.js?v=0.8.3",
+    "./src/world/farms.js": "./src/world/farms.js?v=0.8.3",
+    "./src/world/forest.js": "./src/world/forest.js?v=0.8.3",
+    "./src/world/groundColor.js": "./src/world/groundColor.js?v=0.8.3",
+    "./src/world/hennethAnnun.js": "./src/world/hennethAnnun.js?v=0.8.3",
+    "./src/world/grass.js": "./src/world/grass.js?v=0.8.3",
+    "./src/world/herbSites.js": "./src/world/herbSites.js?v=0.8.3",
+    "./src/world/herbs.js": "./src/world/herbs.js?v=0.8.3",
+    "./src/world/layout.js": "./src/world/layout.js?v=0.8.3",
+    "./src/world/motes.js": "./src/world/motes.js?v=0.8.3",
+    "./src/world/oldworks.js": "./src/world/oldworks.js?v=0.8.3",
+    "./src/world/paths.js": "./src/world/paths.js?v=0.8.3",
+    "./src/world/provinces.js": "./src/world/provinces.js?v=0.8.3",
+    "./src/world/regions.js": "./src/world/regions.js?v=0.8.3",
+    "./src/world/relicSites.js": "./src/world/relicSites.js?v=0.8.3",
+    "./src/world/relics.js": "./src/world/relics.js?v=0.8.3",
+    "./src/world/rocks.js": "./src/world/rocks.js?v=0.8.3",
+    "./src/world/ruins.js": "./src/world/ruins.js?v=0.8.3",
+    "./src/world/surface.js": "./src/world/surface.js?v=0.8.3",
+    "./src/world/terrain.js": "./src/world/terrain.js?v=0.8.3",
+    "./src/world/terrainMesh.js": "./src/world/terrainMesh.js?v=0.8.3",
+    "./src/world/vegetation.js": "./src/world/vegetation.js?v=0.8.3",
+    "./src/world/water.js": "./src/world/water.js?v=0.8.3"
   }
 }</script>
 </head>
@@ -183,7 +218,9 @@
       <button id="menu-fps">Show frame rate</button>
       <button id="menu-save">Save now</button>
       <button id="menu-travel">Return to Henneth Ann&ucirc;n</button>
+      <button id="menu-update">Update the game</button>
       <button id="menu-new">Begin anew</button>
+      <a id="menu-games" class="button" href="../index.html">All games</a>
       <div class="help mouse-only">
         <b>WASD</b> move &middot; <b>Mouse</b> look &middot; <b>Wheel</b> zoom &middot; <b>Shift</b> walk/run<br>
         <b>Space</b> jump &middot; <b>E</b> speak &middot; <b>M</b> map &middot; <b>I</b> pack &middot; <b>Esc</b> free the mouse, menu<br>
@@ -213,7 +250,7 @@
       <div id="loading">Gathering the land&hellip;</div>
       <button id="begin" hidden>Begin</button>
       <button id="begin-new" hidden class="quiet">Begin anew</button>
-      <p class="version">v0.8.2</p>
+      <p class="version">v0.8.3</p>
     </div>
   </div>
 
