@@ -1386,6 +1386,9 @@ From a playtest of v0.7.7.
 - **The smoke test** waits out an arrow that misses (its five seconds of flight are a
   minute or more of the clock in software rendering: the full v0.8 run failed there),
   and a wait that times out now says what it was waiting for and who was about.
+  Every check and suite is timed; the times of each suite, and where each spends
+  them, are in CLAUDE.md ("Verifying a change"): about an hour and a half in all,
+  the desktop suite alone 65 minutes and the settlers 15.
 
 ### Known gaps to pick up
 

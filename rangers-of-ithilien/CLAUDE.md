@@ -317,13 +317,34 @@ python3 -m http.server 8000     # open http://localhost:8000
    It plays through at `?quality=low` (software rendering cannot click through
    medium or high in time) and then only loads medium and high to see they draw.
    `SMOKE_ONLY=settlers` (any part of a suite's name: desktop, phone, phone upright,
-   settlers, testing, quality) runs only the matching suites. **Run the whole suite
-   only for a major release (0.8, 0.9, ...)**: in software rendering it now takes three
-   hours or more, and a run cut short by a time limit or sharing the machine with
-   another fails on timing, not on the game. For a point release (0.7.x) run the unit
-   tests and the suites the change touches, say which, and run each suite alone
-   (one at a time: two at once slow each other into timeouts). On a machine with a
-   GPU it is much quicker.
+   settlers, camps, testing, quality) runs only the matching suites. **Run the whole suite
+   only for a major release (0.8, 0.9, ...)**: in software rendering it takes about an
+   hour and a half (times below), and a run cut short by a time limit or sharing the
+   machine with another fails on timing, not on the game. Start a long run detached
+   (`setsid nohup ...`) so a tool's time limit does not stop it. For a point release
+   (0.8.x) run the unit tests and the suites the change touches, say which, and run each
+   suite alone (one at a time: two at once slow each other into timeouts). On a machine
+   with a GPU it is much quicker. Each check line shows how far into its suite it came
+   (`[m:ss]`), each suite its time, and the run ends with a table of them.
+
+   Times measured for v0.8.1 in a cloud container, headless Chromium in software
+   rendering, each suite run alone (unit tests: 52 in 0.8 s; the slowest 40 ms):
+
+   | suite | time | where it goes |
+   |---|---|---|
+   | desktop | 64:44 | after aiming: tree arrow, road band, house escape, chase, travel, falling, handing in (11:30); Faramir's map, errands, asking thrice, Éowyn, a farm (10:00); provinces (6:30); the walks out by the cut and the hidden stair (4:00 each); the first fight (5:40); trade and pack (3:30, 3:00) |
+   | phone (touch) | 2:39 | |
+   | phone upright (touch) | 1:46 | |
+   | settlers | 14:43 | the family carrying their bags home (5:53); their first field sown (2:11); the storekeeper (1:44), the reeve (1:39) |
+   | camps and scouts | 3:33 | waiting for a scouting party (1:46); the shelters folding (0:46) |
+   | testing page on a phone | 0:28 | |
+   | testing page | 2:53 | |
+   | quality medium, high | 1:17, 2:01 | |
+   | all | about 1:35 | |
+
+   Most of it is game time crawling: the frame step is capped at 0.05 s and software
+   rendering draws 1 to 3 frames a second, so a wait of a few seconds of game time (an
+   arrow's flight, a walk, a timer) takes a minute or more of the clock.
 3. For hands-on checking, open `debug.html`: it has its own save and shortcuts
    for travel, gear, tasks and enemies.
 4. Look at screenshots of what you changed. Useful URL flags: `?autostart` skips
