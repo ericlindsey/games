@@ -10,9 +10,9 @@ export const WARP_STEPS = [0, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 100, 300, 1000];
  */
 export const PARAMS = [
   { group: 'Station', key: 'diameter', label: 'Diameter', unit: 'm', kind: 'log', min: 20, max: 4000, def: 1790, rebuild: true, digits: 0 },
-  { group: 'Station', key: 'width', label: 'Width along axis', unit: 'm', kind: 'log', min: 4, max: 300, def: 32, rebuild: true, digits: 1 },
+  { group: 'Station', key: 'width', label: 'Width along axis', unit: 'm', kind: 'log', min: 4, max: 300, def: 100, rebuild: true, digits: 1 },
   { group: 'Station', key: 'gravity', label: 'Gravity at floor', unit: 'g', kind: 'lin', min: 0.05, max: 1.5, step: 0.01, def: 1, digits: 2 },
-  { group: 'Station', key: 'deck', label: 'Deck height', unit: 'm', kind: 'log', min: 2.5, max: 60, def: 8, rebuild: true, digits: 1 },
+  { group: 'Station', key: 'deck', label: 'Deck height', unit: 'm', kind: 'log', min: 2.5, max: 60, def: 20, rebuild: true, digits: 1 },
 
   { group: 'Windows', key: 'ceilGlass', label: 'Ceiling glass', unit: '%', kind: 'lin', min: 0, max: 85, step: 1, def: 40, digits: 0, relayout: true },
   { group: 'Windows', key: 'sideGlass', label: 'Side-wall glass', unit: '%', kind: 'lin', min: 0, max: 85, step: 1, def: 50, digits: 0, relayout: true },
