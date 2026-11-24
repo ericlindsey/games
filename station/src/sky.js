@@ -53,55 +53,172 @@ void main() {
 
 // The Moon's surface is procedural: no map of the real Moon is used. Dark
 // lowland "seas" are biased toward the hemisphere facing Earth (as on the real
-// Moon); craters come from four octaves of cellular noise with bowls and rims.
+// Moon), with wrinkle ridges; highlands are rough. Craters come from up to seven
+// octaves of cellular noise: bowls when small, flat floors, terraced walls and
+// central peaks when large, each casting its own shadow near the terminator.
+// Eight big young craters throw bright rays. Octaves too small to see at the
+// current zoom fade out, so detail follows the field of view.
 const MOON_FRAG = /* glsl */ `
 precision highp float;
-uniform vec3 uSunDir; uniform float uSunI; uniform mat3 uObjRot;
+#ifndef QUALITY
+#define QUALITY 2
+#endif
+uniform vec3 uSunDir; uniform vec3 uSunObj; uniform float uSunI; uniform mat3 uObjRot;
+uniform vec4 uRays[8];
 varying vec3 vObj; varying vec3 vNw; varying vec3 vPw;
 ${NOISE}
-// Craters add albedo and a surface slope (gradient of height, in units of the
-// Moon's radius), computed analytically so shading stays smooth at any zoom.
-void craters(vec3 p, float scale, float density, float strength, inout vec3 grad, inout float alb) {
+const float TAU = 6.28318531;
+
+// value noise with its analytic gradient (xyz) in .yzw
+vec4 noised(vec3 x) {
+  vec3 i = floor(x), f = fract(x);
+  vec3 u = f * f * (3.0 - 2.0 * f), du = 6.0 * f * (1.0 - f);
+  float a = hash13(i), b = hash13(i + vec3(1,0,0)), c = hash13(i + vec3(0,1,0)), d = hash13(i + vec3(1,1,0));
+  float e = hash13(i + vec3(0,0,1)), f1 = hash13(i + vec3(1,0,1)), g = hash13(i + vec3(0,1,1)), h = hash13(i + vec3(1,1,1));
+  float k1 = b - a, k2 = c - a, k3 = e - a, k4 = a - b - c + d, k5 = a - c - e + g, k6 = a - b - e + f1, k7 = -a + b + c - d + e - f1 - g + h;
+  float v = a + k1 * u.x + k2 * u.y + k3 * u.z + k4 * u.x * u.y + k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z;
+  vec3 dv = du * vec3(k1 + k4 * u.y + k6 * u.z + k7 * u.y * u.z,
+                      k2 + k5 * u.z + k4 * u.x + k7 * u.z * u.x,
+                      k3 + k6 * u.x + k5 * u.y + k7 * u.x * u.y);
+  return vec4(v, dv);
+}
+
+// Crater height profile over d = distance / radius, in units of depth.
+// cx: 0 simple bowl … 1 complex (flat floor, terraces, central peak).
+float prof(float d, float cx) {
+  float h = 0.0;
+  if (d < 1.0) {
+    float bowl = d * d - 1.0;
+    float flr = max(bowl, -0.6);
+    h = mix(bowl, flr, cx);
+    if (cx > 0.4) { float x = (h + 1.0) * 5.0; h = mix(h, (floor(x) + smoothstep(0.25, 0.75, fract(x))) / 5.0 - 1.0, cx * 0.7); }
+    h += cx * 0.45 * exp(-d * d / 0.012);
+  }
+  h += 0.22 * exp(-pow((d - 1.0) / 0.28, 2.0));
+  if (d > 1.0) h += 0.06 * exp(-(d - 1.0) * 2.5);
+  return h;
+}
+float dprof(float d, float cx) { return (prof(d + 0.01, cx) - prof(d - 0.01, cx)) / 0.02; }
+
+// Shadow inside a crater: walk from the point toward the sun, horizontally,
+// as far as the ray needs to climb to rim height; if that lands outside the rim
+// circle, the wall blocks the sun. o: offset from the centre (same units as rad).
+float craterShadow(vec3 o, float rad, float depth, float d, float cx, vec3 Lhd, float tanE) {
+  if (d >= 1.0 || tanE <= 0.0) return 1.0;
+  float below = depth * (0.22 - prof(d, cx));
+  if (below <= 0.0) return 1.0;
+  // the ray reaches rim height after this far; if it has left the rim circle
+  // by then, it passed the rim while still below it: shadow
+  vec3 q = o + Lhd * (below / tanE);
+  return smoothstep(1.04, 0.94, length(q) / rad);
+}
+
+void craters(vec3 p, float scale, float density, float px, vec3 Lhd, float tanE,
+             inout vec3 grad, inout float alb, inout float shadow) {
+  float w = smoothstep(1.2 * px, 4.0 * px, 0.2 / scale);
+  if (w <= 0.0) return;
   vec3 x = p * scale, ip = floor(x), fp = fract(x);
+  float big = smoothstep(30.0, 3.0, scale);      // large craters are complex
   for (int k = -1; k <= 1; k++) for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
     vec3 cid = ip + vec3(i, j, k);
     if (hash13(cid * 1.37 + 11.0) > density) continue;
     vec3 c = vec3(i, j, k) + 0.2 + 0.6 * hash33(cid) - fp;
-    float rad = 0.12 + 0.3 * pow(hash13(cid + 7.1), 2.5);
+    float rad = 0.1 + 0.32 * pow(hash13(cid + 7.1), 2.5);
     float len = length(c);
     float d = len / rad;
-    if (d > 2.0 || len < 1e-5) continue;
-    // height profile: bowl (d^2 - 1) inside, gaussian rim at d = 1; dh/dd below
-    float dbowl = d < 1.0 ? 2.0 * d * 0.5 : 0.0;
-    float rim = exp(-pow((d - 1.0) / 0.22, 2.0)) * 0.35;
-    float drim = rim * (-2.0 * (d - 1.0) / (0.22 * 0.22));
-    // dd/dp = -(scale / rad) * c/len; height is scaled by rad/scale, so slope is size-free
-    grad += -strength * (dbowl + drim) * (c / len);
+    if (d > 2.2 || len < 1e-5) continue;
+    float cx = big * smoothstep(0.15, 0.35, rad);
+    float S = mix(0.3, 0.16, cx);                 // depth / radius
+    vec3 away = -c / len;
+    grad += w * S * dprof(d, cx) * away;
     float fresh = hash13(cid + 3.3);
-    alb *= 1.0 + (fresh > 0.85 ? 0.35 : 0.08) * exp(-max(d - 0.8, 0.0) * 4.0);
+    alb *= 1.0 + w * (fresh > 0.88 ? 0.3 : 0.03) * smoothstep(1.15, 0.6, d);
+    vec3 o = -c; o -= dot(o, p) * p;
+    shadow *= mix(1.0, craterShadow(o, rad, S * rad, d, cx, Lhd, tanE), w);
   }
 }
+
 void main() {
   vec3 p = normalize(vObj);
+  float px = length(fwidth(vObj));
+  vec3 Ls = normalize(uSunObj);
+  float sinE = dot(Ls, p);
+  vec3 Lh = Ls - sinE * p;
+  float lh = max(length(Lh), 1e-4);
+  vec3 Lhd = Lh / lh;
+  float tanE = sinE / lh;
+
+  // seas and highlands
   float m = fbm3(p * 1.6 + 4.0) + 0.22 * p.x - 0.05;    // local +x faces Earth
-  float mare = smoothstep(0.55, 0.66, m);
-  float alb = mix(0.15, 0.07, mare) * (0.8 + 0.4 * fbm3(p * 24.0)) * (0.9 + 0.2 * fbm3(p * 90.0));
+  float mare = smoothstep(0.55, 0.64, m);
+  float alb = mix(0.16, 0.068, mare) * (0.8 + 0.4 * fbm3(p * 24.0)) * (0.9 + 0.2 * fbm3(p * 90.0));
+  vec3 tint = mix(vec3(1.0, 0.99, 0.97), mix(vec3(0.95, 0.97, 1.03), vec3(1.04, 1.0, 0.94), fbm3(p * 5.0 + 9.0)), mare);
+
   vec3 grad = vec3(0.0);
-  float dens = mix(0.7, 0.2, mare);
-  craters(p, 3.0, dens * 0.45, 0.10, grad, alb);
-  craters(p, 8.0, dens * 0.6, 0.12, grad, alb);
-  craters(p, 22.0, dens * 0.8, 0.14, grad, alb);
-  craters(p, 60.0, dens, 0.14, grad, alb);
-  craters(p, 160.0, dens, 0.12, grad, alb);
+  float shadow = 1.0;
+  // rolling terrain: rough highlands, smoother seas with wrinkle ridges
+  float rough = mix(1.0, 0.3, mare);
+  float f = 4.0;
+  for (int o = 0; o < 8; o++) {
+    float w = smoothstep(1.5 * px, 5.0 * px, 0.5 / f);
+    if (w <= 0.0) break;
+    vec4 n = noised(p * f + float(o) * 13.7);
+    grad += w * rough * 0.075 * n.yzw;               // height ~ 1/f, so slope ~ constant
+    f *= 2.17;
+  }
+  {
+    vec4 n = noised(p * 7.0 + 31.0);
+    float s = sign(n.x - 0.5);
+    grad += mare * 0.06 * (-2.0 * s) * n.yzw;       // ridged: 1 - |2n - 1|
+  }
+
+  float dens = mix(0.8, 0.25, mare);
+  craters(p, 2.5, dens * 0.4, px, Lhd, tanE, grad, alb, shadow);
+  craters(p, 6.0, dens * 0.55, px, Lhd, tanE, grad, alb, shadow);
+  craters(p, 14.0, dens * 0.7, px, Lhd, tanE, grad, alb, shadow);
+  craters(p, 34.0, dens * 0.9, px, Lhd, tanE, grad, alb, shadow);
+#if QUALITY > 0
+  craters(p, 80.0, dens * 1.1, px, Lhd, tanE, grad, alb, shadow);
+  craters(p, 190.0, dens * 1.2, px, Lhd, tanE, grad, alb, shadow);
+#endif
+#if QUALITY > 1
+  craters(p, 450.0, dens * 1.2, px, Lhd, tanE, grad, alb, shadow);
+#endif
+
+  // big young craters and their rays
+  for (int i = 0; i < 8; i++) {
+    vec3 c = uRays[i].xyz;
+    float rr = uRays[i].w;
+    float cd = dot(p, c);
+    if (cd < 0.0) continue;
+    vec3 dv = p - c * cd;
+    float g = length(dv);
+    float d = g / rr;
+    if (d > 16.0) continue;
+    vec3 t1 = normalize(cross(c, abs(c.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+    vec3 t2 = cross(c, t1);
+    float az = atan(dot(dv, t2), dot(dv, t1)) / TAU * 64.0;
+    float i0 = floor(az);
+    float h0 = hash13(vec3(mod(i0, 64.0), float(i), 3.0)), h1 = hash13(vec3(mod(i0 + 1.0, 64.0), float(i), 3.0));
+    float streak = smoothstep(0.55, 0.95, mix(h0, h1, smoothstep(0.0, 1.0, fract(az))));
+    streak *= 0.6 + 0.4 * noise3(p * 300.0);
+    if (d > 1.0) alb += (0.09 * streak * exp(-(d - 1.0) / 5.0) + 0.06 * exp(-(d - 1.0) / 0.7)) * (1.0 - 0.3 * mare);
+    if (d < 2.2 && g > 1e-6) {
+      vec3 away = dv / g;
+      grad += 0.16 * dprof(d, 1.0) * away;
+      shadow *= craterShadow(dv, rr, 0.16 * rr, d, 1.0, Lhd, tanE);
+      if (d < 1.0) alb *= 1.15;
+    }
+  }
+
   vec3 Ng = normalize(vNw);
-  // object-space gradient to world, tangent part only
-  vec3 gw = uObjRot * grad;
+  vec3 gw = uObjRot * grad;                         // object-space slope to world, tangent part
   vec3 N = normalize(Ng - (gw - dot(gw, Ng) * Ng));
   vec3 V = normalize(cameraPosition - vPw);
-  float mu0 = max(dot(N, uSunDir), 0.0) * smoothstep(-0.03, 0.03, dot(Ng, uSunDir));
+  float mu0 = max(dot(N, uSunDir), 0.0) * smoothstep(-0.03, 0.03, dot(Ng, uSunDir)) * shadow;
   float mu = max(dot(Ng, V), 0.02);
   float ls = mu0 / (mu0 + mu);
-  vec3 col = vec3(1.0, 0.97, 0.93) * alb * uSunI * mix(mu0, 2.0 * ls, 0.7);
+  vec3 col = vec3(1.0, 0.97, 0.93) * tint * alb * uSunI * mix(mu0, 2.0 * ls, 0.7);
   col += vec3(0.6, 0.7, 1.0) * alb * 0.0015 * uSunI;    // earthshine, faint
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
@@ -133,6 +250,10 @@ void main() {
   float ndl = dot(N, uSunDir);
   float day = max(ndl, 0.0);
   vec3 col = alb * uSunI * day;
+  if (land <= 0.53) {                                   // sun glint on open ocean
+    vec3 H = normalize(uSunDir + V);
+    col += vec3(1.0, 0.95, 0.85) * uSunI * 0.5 * pow(max(dot(N, H), 0.0), 80.0) * (1.0 - smoothstep(0.5, 0.68, cl)) * step(0.0, ndl);
+  }
   float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0);
   col += vec3(0.25, 0.45, 1.0) * rim * uSunI * 0.35 * smoothstep(-0.15, 0.25, ndl);
   gl_FragColor = vec4(col, 1.0);
@@ -149,13 +270,13 @@ void main() { vUv = uv * 2.0 - 1.0; gl_Position = projectionMatrix * modelViewMa
 const SUN_QUAD = 80;
 const SUN_FRAG = /* glsl */ `
 precision highp float;
-uniform float uSunI;
+uniform float uSunI; uniform float uGlow;
 varying vec2 vUv;
 void main() {
   float r = length(vUv) * ${SUN_QUAD.toFixed(1)};
   float core = 0.0;
   if (r < 1.0) core = 30.0 * (1.0 - 0.6 * (1.0 - sqrt(1.0 - r * r)));
-  float glow = (2.5 / (r * r + 1.0) + 0.06 * exp(-r / 12.0)) * smoothstep(${SUN_QUAD.toFixed(1)}, ${(SUN_QUAD * 0.6).toFixed(1)}, r);
+  float glow = uGlow * (2.5 / (r * r + 1.0) + 0.06 * exp(-r / 12.0)) * smoothstep(${SUN_QUAD.toFixed(1)}, ${(SUN_QUAD * 0.6).toFixed(1)}, r);
   vec3 col = vec3(1.0, 0.97, 0.92) * (core + glow) * uSunI;
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
@@ -218,9 +339,15 @@ export class Sky {
     };
     this.common = common;
 
+    // eight big young craters with ray systems, scattered at random
+    const rr = mulberry32(4242);
+    const rays = Array.from({ length: 8 }, () => {
+      const z = rr() * 2 - 1, t = rr() * Math.PI * 2, s = Math.sqrt(1 - z * z);
+      return new THREE.Vector4(s * Math.cos(t), s * Math.sin(t), z, 0.012 + 0.03 * rr());
+    });
     this.moon = new THREE.Mesh(
       new THREE.SphereGeometry(1, 256, 128),
-      new THREE.ShaderMaterial({ uniforms: { ...common, uObjRot: { value: new THREE.Matrix3() } }, vertexShader: SPHERE_VERT, fragmentShader: MOON_FRAG, ...skyStencil }),
+      new THREE.ShaderMaterial({ uniforms: { ...common, uObjRot: { value: new THREE.Matrix3() }, uSunObj: { value: new THREE.Vector3() }, uRays: { value: rays } }, vertexShader: SPHERE_VERT, fragmentShader: MOON_FRAG, ...skyStencil }),
     );
     this.moon.scale.setScalar(MOON_R);
     this.moon.rotation.y = Math.PI / 2;    // local +X (the near side) toward the Earth (-Z)
@@ -241,7 +368,7 @@ export class Sky {
     this.sun = new THREE.Mesh(
       new THREE.PlaneGeometry(2 * sunDisc * SUN_QUAD, 2 * sunDisc * SUN_QUAD),
       new THREE.ShaderMaterial({
-        uniforms: { uSunI: common.uSunI }, vertexShader: SUN_VERT, fragmentShader: SUN_FRAG,
+        uniforms: { uSunI: common.uSunI, uGlow: { value: 1 } }, vertexShader: SUN_VERT, fragmentShader: SUN_FRAG,
         blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, ...skyStencil,
       }),
     );
@@ -290,7 +417,17 @@ export class Sky {
     this.root.updateMatrixWorld(true);
     this.sun.lookAt(0, 0, 0);
     // rotation part of the Moon's world matrix, for its crater slopes
-    this.moon.material.uniforms.uObjRot.value.setFromMatrix4(this.moon.matrixWorld).multiplyScalar(1 / MOON_R);
+    const rot = this.moon.material.uniforms.uObjRot.value.setFromMatrix4(this.moon.matrixWorld).multiplyScalar(1 / MOON_R);
+    this.moon.material.uniforms.uSunObj.value.copy(this.sunDir).applyMatrix3(new THREE.Matrix3().copy(rot).transpose());
+  }
+
+  /** 0 low … 2 high: crater octaves on the Moon, and less painted glare once bloom is on. */
+  setQuality(q) {
+    if (this.quality === q) return;
+    this.quality = q;
+    this.moon.material.defines = { QUALITY: q };
+    this.moon.material.needsUpdate = true;
+    this.sun.material.uniforms.uGlow.value = q > 0 ? 0.35 : 1;
   }
 
   /** Point the sky camera the same way as the station camera. */

@@ -8,23 +8,27 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Ring Station</title>
-  <link rel="stylesheet" href="css/style.css?v=0.1.0">
+  <link rel="stylesheet" href="css/style.css?v=0.2.1">
   <script type="importmap">{
   "imports": {
     "three": "./vendor/three.module.min.js",
-    "./src/main.js": "./src/main.js?v=0.1.0",
-    "./src/params.js": "./src/params.js?v=0.1.0",
-    "./src/physics.js": "./src/physics.js?v=0.1.0",
-    "./src/station.js": "./src/station.js?v=0.1.0",
-    "./src/stationShader.js": "./src/stationShader.js?v=0.1.0",
-    "./src/sky.js": "./src/sky.js?v=0.1.0",
-    "./src/controls.js": "./src/controls.js?v=0.1.0",
-    "./src/ui.js": "./src/ui.js?v=0.1.0"
+    "./src/main.js": "./src/main.js?v=0.2.1",
+    "./src/params.js": "./src/params.js?v=0.2.1",
+    "./src/physics.js": "./src/physics.js?v=0.2.1",
+    "./src/station.js": "./src/station.js?v=0.2.1",
+    "./src/stationShader.js": "./src/stationShader.js?v=0.2.1",
+    "./src/sky.js": "./src/sky.js?v=0.2.1",
+    "./src/controls.js": "./src/controls.js?v=0.2.1",
+    "./src/ui.js": "./src/ui.js?v=0.2.1",
+    "./src/textures.js": "./src/textures.js?v=0.2.1",
+    "./src/post.js": "./src/post.js?v=0.2.1",
+    "./src/layout.js": "./src/layout.js?v=0.2.1"
   }
   }</script>
 </head>
 <body>
   <canvas id="c"></canvas>
+  <div id="loading">Building the station…</div>
 
   <div id="readout">
     <button id="readout-toggle" title="Show or hide the numbers">Ring Station</button>
@@ -48,10 +52,11 @@
     <footer>
       <button id="copy">Copy link to this design</button>
       <button id="reset">Reset to defaults</button>
+      <a id="home" href="../index.html">← All games</a>
     </footer>
   </aside>
 
-  <div id="help">Left thumb or WASD to walk (Shift runs) · right thumb or drag to look</div>
+  <div id="help">Left thumb or WASD to walk (Shift: 4× faster) · right thumb or drag to look</div>
   <div id="joy"><div id="knob"></div></div>
 
   <script type="module" src="./src/main.js"></script>

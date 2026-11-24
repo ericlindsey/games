@@ -7,6 +7,8 @@ import { computeLayout, makeUniforms, applyLayout, buildStation, disposeGroup } 
 import { Sky } from './sky.js';
 import { Controls } from './controls.js';
 import { buildPanel, readoutHTML } from './ui.js';
+import { makeTextures } from './textures.js';
+import { Post } from './post.js';
 
 const TAU = Math.PI * 2;
 const DEG = Math.PI / 180;
@@ -17,10 +19,16 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, stencil: tru
 renderer.autoClear = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.setClearColor(0x000000, 1);
-let pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-
 const start = fromHash(location.hash);
 const params = start.params;
+// phones start at medium quality unless the link says otherwise
+if (!/quality=/.test(location.hash) && matchMedia('(pointer: coarse)').matches) params.quality = 1;
+const maxRatio = () => Math.min(window.devicePixelRatio || 1, [1, 1.5, 2][params.quality]);
+let pixelRatio = maxRatio();
+
+const textures = makeTextures(Math.min(8, renderer.capabilities.getMaxAnisotropy()));
+const post = new Post(renderer);
+const bufferSize = new THREE.Vector2();
 let mode = start.view.mode === 'outside' ? 'outside' : 'inside';
 
 const uniforms = makeUniforms();
@@ -46,7 +54,10 @@ function rebuild() {
   layout = computeLayout(params);
   applyLayout(uniforms, layout);
   if (stationGroup) { scene.remove(stationGroup); disposeGroup(stationGroup); }
-  stationGroup = buildStation(layout, uniforms);
+  stationGroup = buildStation(layout, uniforms, textures, params.quality);
+  sky.setQuality(params.quality);
+  const r = maxRatio();
+  if (pixelRatio > r) { pixelRatio = r; resize(); }
   scene.add(stationGroup);
   player.z = Math.max(-layout.HW + 0.4, Math.min(layout.HW - 0.4, player.z));
 }
@@ -169,6 +180,7 @@ let last = performance.now();
 let readoutT = 0, sliderT = 0;
 let slowFrames = 0, fastFrames = 0;
 let frameMs = 16;
+let booted = false;
 
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
@@ -199,10 +211,11 @@ function frame(now) {
   if (mode === 'inside') {
     player.yaw -= look.dx * 0.0042;
     player.pitch = Math.max(-89 * DEG, Math.min(89 * DEG, player.pitch - look.dy * 0.0042));
-    const speed = it.run ? 4.5 : 1.6;
+    const speed = params.walk * (it.run ? 4 : 1);
     // horizontal forward and right in (tangent, axial) components
     const fT = Math.cos(player.yaw), fZ = Math.sin(player.yaw);
-    const rT = fZ, rZ = -fT;
+    // right = forward × up; with up = -r̂ that is fT·ẑ - fZ·t̂
+    const rT = -fZ, rZ = fT;
     const mT = (it.f * fT + it.r * rT) * speed * dt;
     const mZ = (it.f * fZ + it.r * rZ) * speed * dt;
     player.theta = (player.theta + mT / L.R) % TAU;
@@ -265,10 +278,19 @@ function frame(now) {
   sky.update({ stationPos, invAttitude: qInv, sunI: SUN_I, pixelRatio, earthSpin });
   sky.syncCamera(camera);
 
+  // High and medium: HDR with bloom (high also multisampled). Low: straight to screen.
+  const hdr = params.quality > 0;
+  if (hdr) {
+    renderer.getDrawingBufferSize(bufferSize);
+    post.setSize(bufferSize.x, bufferSize.y, params.quality > 1 ? 4 : 0);
+    post.begin();
+  } else renderer.setRenderTarget(null);
   renderer.clear(true, true, true);
   renderer.render(scene, camera);
   renderer.clearDepth();
   renderer.render(sky.scene, sky.camera);
+  if (hdr) post.end(0.045);
+  if (!booted) { booted = true; document.getElementById('loading').classList.add('done'); }
 
   if (now - readoutT > 250) {
     document.getElementById('readout-body').innerHTML = readoutHTML(d, params, live);
@@ -279,7 +301,7 @@ function frame(now) {
   // Keep a phone smooth: step the pixel ratio down while frames are slow
   if (frameMs > 26) { slowFrames++; fastFrames = 0; } else if (frameMs < 14) { fastFrames++; slowFrames = 0; }
   if (slowFrames > 90 && pixelRatio > 0.75) { pixelRatio = Math.max(0.75, pixelRatio - 0.25); resize(); slowFrames = 0; }
-  if (fastFrames > 300 && pixelRatio < Math.min(window.devicePixelRatio || 1, 2)) { pixelRatio += 0.25; resize(); fastFrames = 0; }
+  if (fastFrames > 300 && pixelRatio < maxRatio()) { pixelRatio = Math.min(maxRatio(), pixelRatio + 0.25); resize(); fastFrames = 0; }
 
   requestAnimationFrame(frame);
 }
@@ -303,6 +325,7 @@ window.station = {
   /** Spin angle (of 360 tries) at which `target` stands highest over the player. */
   spinForHighest: elevationAtHighest,
   get spin() { return spin; },
+  get frameMs() { return frameMs; },
   set spin(v) { spin = v; },
   renderer,
 };
