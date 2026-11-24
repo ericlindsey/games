@@ -83,6 +83,10 @@ async function boot() {
     camera.updateProjectionMatrix();
   };
   addEventListener('resize', resize);
+  // (since v0.8.4) and whenever the canvas itself changes size: in a home-screen app the page
+  // sizes it from its own measure, which settles after the window's resize when the phone is
+  // turned, and the picture was left stretched to the old shape
+  if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(renderer.domElement);
   resize();
   // The resolution follows the frame rate: when the frame rate sags (the deep
   // woods on a phone, say) the picture is drawn a little coarser, down to
