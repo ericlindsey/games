@@ -3,6 +3,8 @@ A space to experiment with game design and programming.
 
 - **[Rangers of Ithilien](rangers-of-ithilien/)** ([testing page](rangers-of-ithilien/debug.html)): an open-world Three.js game. Explore Ithilien after the War of the Ring as one of Faramir's rangers: take tasks at Henneth Annûn, clear the enemy's camps with sword and bow, and watch the land mend.
 
+- **[Ring Station](station/)**: a first-person simulator of a spinning ring station orbiting low over the Moon. Sliders set the diameter, width, gravity, windows and orientation; sunlight through the windows sweeps round as the ring turns.
+
 Each game is a static folder with no build step. To play locally:
 
 ```
