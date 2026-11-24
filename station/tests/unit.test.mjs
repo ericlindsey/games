@@ -23,9 +23,15 @@ test('a 90 degree Moon means orbiting about 720 km up, every ~3 h', () => {
   near((2 * Math.asin(MOON_R / o.radius) * 180) / Math.PI, 90, 1e-9);
 });
 
+test('defaults spin at 1 rpm, a comfortable rate', () => {
+  const d = derive(defaults());
+  near(d.rpm, 1.0, 0.005);
+  assert.equal(comfortFor(d.rpm).level, 0);
+});
+
 test('derive: eye-level gravity and the Earth\'s size', () => {
   const d = derive(defaults());
-  near(d.gHead, (100 - 1.7) / 100, 1e-9);
+  near(d.gHead, (d.R - 1.7) / d.R, 1e-9);
   near(d.earthAngDeg, 1.9, 0.01);
 });
 
