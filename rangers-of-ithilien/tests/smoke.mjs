@@ -30,7 +30,11 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}/`;
 
 let failures = 0;
-const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failures++; };
+// (since v0.8.1) every check says how far into its suite it came, and each suite how long it took, for finding the slow parts
+const t0 = performance.now(), times = [];
+let suiteStart = t0;
+const clock = (ms) => { const sec = Math.round(ms / 1000); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
+const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} [${clock(performance.now() - suiteStart).padStart(5)}] ${what}`); if (!ok) failures++; };
 const pos = (page) => page.evaluate(() => ({ x: roi.player.pos.x, y: roi.player.pos.y, z: roi.player.pos.z }));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const ready = (page) => page.waitForFunction(() => window.roi?.ready, null, { timeout: 180000 });
@@ -41,9 +45,17 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 async function run(label, contextOptions, body) {
   if (process.env.SMOKE_ONLY && !label.includes(process.env.SMOKE_ONLY)) return; // SMOKE_ONLY=phone runs only the phone suites
   console.log(`\n== ${label} ==`);
+  suiteStart = performance.now();
+  const failedBefore = failures;
   const ctx = await browser.newContext(contextOptions);
   const page = await ctx.newPage();
   page.setDefaultTimeout(120000); // a slow machine can be busy building the world for more than Playwright's 30 s
+  // (since v0.8.1) a wait that times out says what it was waiting for, and who was about
+  const wait = page.waitForFunction.bind(page);
+  page.waitForFunction = (fn, arg, opts) => wait(fn, arg, opts).catch(async (e) => {
+    const about = await page.evaluate(() => window.roi && JSON.stringify({ companies: [...roi.enemies.camps.keys()], alerted: roi.enemies.list.filter((e) => e.alerted && !e.dead).map((e) => e.camp.id), aim: roi.combat.aim, shaken: roi.combat.shaken, arrows: roi.combat.arrows.length })).catch(() => '');
+    throw new Error(`${e.message.split('\n')[0]} waiting for ${String(fn).replace(/\s+/g, ' ').slice(0, 160)} ${about ?? ''}`);
+  });
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(e.message));
@@ -56,6 +68,9 @@ async function run(label, contextOptions, body) {
   }
   check(errors.length === 0, `no console errors or failed requests${errors.length ? ': ' + [...new Set(errors)].join(' | ') : ''}`);
   await ctx.close();
+  const took = performance.now() - suiteStart;
+  times.push({ label, took, failed: failures - failedBefore });
+  console.log(`-- ${label}: ${clock(took)}`);
 }
 
 await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) => {
@@ -465,7 +480,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   // Taking aim: the view closes in, and a chosen shot to the head kills outright.
   // Hold the camp still first: a blow now would (rightly) knock the ranger out of the aim.
   await page.evaluate(() => { for (const e of roi.enemies.list) if (!e.dead) { e.def = { ...e.def, speed: 0 }; e.state = 'strike'; e.timer = 99; } });
-  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 30000 });
+  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 240000 });
   await page.keyboard.press('KeyR');
   await page.waitForFunction(() => roi.combat.aim && roi.rig.zoom > 0.8, null, { timeout: 20000 });
   check(await page.evaluate(() => roi.rig.camera.fov < 45), 'aim mode narrows the view');
@@ -483,7 +498,7 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
     window.shotA = a; window.shotB = b;
     return { a: a.type, hasB: !!b };
   });
-  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 30000 });
+  await page.waitForFunction(() => roi.combat.arrows.length === 0, null, { timeout: 240000 });
   const zones = await page.evaluate(() => [shotA, shotB].filter(Boolean).map((e) => ({ dead: e.dead, hurt: e.hp < e.maxHp })));
   check(zones[0].dead, 'an aimed arrow to the head kills');
   if (shots.hasB) check(zones[1].hurt && !zones[1].dead, 'the same arrow unaimed only wounds');
@@ -1202,5 +1217,8 @@ for (const q of ['medium', 'high']) {
 
 await browser.close();
 server.close();
+console.log('\nTimes:');
+for (const t of times) console.log(`  ${clock(t.took).padStart(6)}  ${t.label}${t.failed ? ` (${t.failed} failed)` : ''}`);
+console.log(`  ${clock(performance.now() - t0).padStart(6)}  in all`);
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

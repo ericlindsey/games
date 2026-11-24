@@ -119,6 +119,14 @@ export function migrate(raw) {
   s.told = strings(raw.told);
   s.picked = strings(raw.picked);
   s.savedAt = num(raw.savedAt) ? raw.savedAt : 0;
+  // v8 -> v9 (release 0.8.1): the Marshal's hold moved from c63 to c9, which changed
+  // ranks (campSites.js). What was done at the one is credited to the other, so the
+  // hold is not won without a fight, and a Marshal already dead stays dead.
+  // (An errand in hand keeps its camp: its words point at that place.)
+  if (raw.version < 9) {
+    const swap = (id) => (id === 'c9' ? 'c63' : id === 'c63' ? 'c9' : id === 'camp:c9' ? 'camp:c63' : id === 'camp:c63' ? 'camp:c9' : id);
+    for (const k of ['cleared', 'broken', 'told', 'discovered']) s[k] = s[k].map(swap);
+  }
   return s;
 }
 

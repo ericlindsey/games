@@ -227,7 +227,7 @@ test('a save round-trips', () => {
   assert.equal(store.load(), null);
   const s = newState();
   s.player = { x: 1234.5, y: 30, z: 2345.5, heading: 1.2 };
-  assert.equal(s.version, 8);
+  assert.equal(s.version, 9);
   assert.equal(s.settings.fps, false, 'the frame-rate counter starts off');
   s.items = { draught: 2, orcTrinket: 3 }; s.equipped.body = 'mailShirt'; s.equipped.helm = 'leatherCap'; s.silver = 77; s.quests.done = ['f1']; s.health = 61.5; s.picked = ['h3_4'];
   s.honour = 140; s.renown = 4; s.wear = { rangerSword: 0.5 }; s.honed = { rangerBow: 1 }; s.skills = { repair: true }; s.told = ['c9']; s.stats.bands = 2;
@@ -1051,10 +1051,10 @@ test('stakes knocked down stop no one', async () => {
 
 test('v0.8: breaking up a camp is saved apart from clearing it; a camp cleared before is broken up already', () => {
   assert.deepEqual(newState().broken, []);
-  const v7 = migrate({ version: 7, cleared: ['c5', 'c9'] });
-  assert.deepEqual(v7.broken, ['c5', 'c9'], 'before v0.8, clearing a camp broke it up at once');
-  const v8 = migrate({ version: 8, cleared: ['c5', 'c9'], broken: ['c9', 'c40', 7] });
-  assert.deepEqual(v8.broken, ['c9'], 'only a cleared camp can be broken up');
+  const v7 = migrate({ version: 7, cleared: ['c5', 'c12'] });
+  assert.deepEqual(v7.broken, ['c5', 'c12'], 'before v0.8, clearing a camp broke it up at once');
+  const v8 = migrate({ version: 8, cleared: ['c5', 'c12'], broken: ['c12', 'c40', 7] });
+  assert.deepEqual(v8.broken, ['c12'], 'only a cleared camp can be broken up');
 });
 
 test('v0.8: scouts go round Henneth Annûn, and are set down out of sight on a way that passes near the ranger', async () => {
@@ -1091,4 +1091,21 @@ test('v0.8: the Marshal stands head and shoulders over his captains; bands carry
   assert.ok(host / 100 > 40 && host / 100 < 70, `a host more (${host / 100})`);
   const { herbSites } = await import('../src/world/herbSites.js');
   assert.ok(herbSites().filter((h) => h.kind === 'athelas').length > 350, 'kingsfoil grows thickly');
+});
+
+test('v0.8.1: the Marshal holds the war-camp by the Cross-roads; old saves credit the deeds to the hold', async () => {
+  const { HOLDS } = await import('../src/world/provinces.js');
+  const { MARSHAL_CAMP } = await import('../src/data/enemies.js');
+  const { CROSSROADS } = await import('../src/world/layout.js');
+  assert.equal(MARSHAL_CAMP, 'c9');
+  assert.equal(HOLDS.morgul.size, 4);
+  assert.ok(Math.hypot(HOLDS.morgul.x - CROSSROADS.x, HOLDS.morgul.z - CROSSROADS.z) < 200, 'within sight of the Cross-roads');
+  assert.equal(CAMPS.find((c) => c.id === 'c63').size, 1, 'the old hold is a small camp');
+  const old = migrate({ version: 8, cleared: ['c63', 'c5'], broken: ['c63'], discovered: ['camp:c63', 'camp:c9'], told: ['c9'] });
+  assert.deepEqual(old.cleared, ['c9', 'c5'], 'a hold broken before is broken still');
+  assert.deepEqual(old.broken, ['c9']);
+  assert.deepEqual(old.discovered, ['henneth', 'camp:c9', 'camp:c63']);
+  assert.deepEqual(old.told, ['c63']);
+  const now = migrate({ version: 9, cleared: ['c63'] });
+  assert.deepEqual(now.cleared, ['c63'], 'a save from 0.8.1 is left as it is');
 });

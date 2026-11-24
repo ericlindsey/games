@@ -1374,6 +1374,22 @@ From a playtest of v0.7.7.
   were found without a word).
 - **The testing page folds on a phone** (a CSS rule for touch kept it open).
 
+### v0.8.1: the Marshal by the Cross-roads
+
+- **The Marshal's hold moved** to the camp just west of the Cross-roads (c9, about
+  160 m from it): it was c63, nearly 400 m back to the north-west. The two changed
+  ranks, not ground (`RESIZED` in campSites.js): c9 is the Morgul war-camp and the
+  hold now, set 5 m east to keep its company clear of the stockade c8's at rest;
+  c63 is a small camp. Save version 9 swaps the two in an older save (cleared, broken
+  up, found, told of), so a hold already broken stays broken and the Marshal dead,
+  and one not yet broken still has to be fought. An errand in hand keeps its camp.
+- **The smoke test** waits out an arrow that misses (its five seconds of flight are a
+  minute or more of the clock in software rendering: the full v0.8 run failed there),
+  and a wait that times out now says what it was waiting for and who was about.
+  Every check and suite is timed; the times of each suite, and where each spends
+  them, are in CLAUDE.md ("Verifying a change"): about an hour and a half in all,
+  the desktop suite alone 65 minutes and the settlers 15.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
