@@ -228,12 +228,15 @@ Rules of thumb:
   captain, `MARSHAL_CAMP`); Éowyn's maps each province of the woods (`m-<province>`:
   old places there and its settlement's site), and once it is free and mapped
   the ranger leads its settlers home from their boat (`s-<province>`, `whenFreed`).
+  A farmstead she is shown for a family (a homestead) is fetched the same way, by her
+  errand `family`, once its province is free (since v0.8.2).
   New told tasks should feed one of those threads, not stand alone (no counts of
   fires or places for their own sake). Faramir and Éowyn offer errands only when
   they have no told task to offer.
 - **Settlements** (`world/settlements.js`, `systems/settlement.js`): the only stored
-  facts are `state.settled` (settlers led home), `state.homesteads` (farms promised
-  to a family) and `state.escort` (settlers on the way, where they wait). A
+  facts are `state.settled` (settlers led home, and homestead families since v0.8.2),
+  `state.homesteads` (farms promised to a family) and `state.escort` (settlers on the
+  way, where they wait). `placeBySite` finds a settlement or a homestead by its site. A
   settlement's stage is the count of its people's errands done (`quests.count[site]`);
   what stands, what is sown and what is sold all follow from it. Call `settle()` in
   main.js after anything that may change them: it rebuilds what changed and clears
@@ -294,7 +297,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.8.1`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.8.2`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add

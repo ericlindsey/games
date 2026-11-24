@@ -144,15 +144,17 @@ function plotsFor(site, n) {
  * province (due west of Moonhallow is the Southwood's shore, where nobody
  * looking in the Moonwood would find them).
  */
-function landingZ(p, s) {
+function landingZ(p, s, used = []) {
   const lm = p.landing && LANDMARKS.find((l) => l.id === p.landing);
   if (lm) return lm.z;
+  const clear = (z) => used.every((u) => Math.abs(u - z) > 22); // (since v0.8.2: no two boats side by side)
   for (let d = 0; d < 800; d += 4) {
     for (const z of d ? [s.z - d, s.z + d] : [s.z]) {
       // a few metres inside the border, so they are not standing on it
-      if ([z - 12, z, z + 12].every((q) => provinceAt(bankX(q) + 7, q) === p.province) && heightAt(bankX(z) + 7, z) > 0.8) return z;
+      if (clear(z) && [z - 12, z, z + 12].every((q) => provinceAt(bankX(q) + 7, q) === p.province) && heightAt(bankX(z) + 7, z) > 0.8) return z;
     }
   }
+  for (let d = 0; d < 800; d += 4) for (const z of [s.z - d, s.z + d]) if (clear(z) && heightAt(bankX(z) + 7, z) > 0.8) return z; // (a province with no shore of its own: the bank due west)
   return s.z;
 }
 
@@ -169,13 +171,34 @@ export const SETTLEMENTS = PLAN.map((p) => {
 export const settlementBySite = Object.fromEntries(SETTLEMENTS.map((s) => [s.site, s]));
 export const settlementIn = Object.fromEntries(SETTLEMENTS.map((s) => [s.province, s]));
 
-/** Every other farmstead may become a homestead: { site, province, x, z, plot, crop }. */
-export const HOMESTEADS = SITES.filter((s) => s.kind === 'farm' && !settlementBySite[s.id]).map((s) => {
+/**
+ * The families who take a homestead, by the name of whoever heads them (our own
+ * names, in the plain way of Gondor's country folk), one for every farmstead.
+ */
+const FAMILIES = ['Haldor', 'Berel', 'Corlan', 'Dervin', 'Ethrin', 'Falmar', 'Gwindel', 'Harnel', 'Ostrel', 'Joren', 'Brenor', 'Lorran',
+  'Marec', 'Nimrel', 'Orleth', 'Perrin', 'Radan', 'Sorel', 'Tamar', 'Valdin', 'Wenna', 'Aldreth', 'Caradan', 'Elwen', 'Fendril', 'Gerreth'];
+/** How many come over the River to a homestead (since v0.8.2: they used to be there already, two of them). */
+export const FAMILY_SIZE = 5;
+
+/**
+ * Every other farmstead may become a homestead: { site, province, x, z, plot, crop,
+ * houses, family, name, kind, landing, boat }. Since v0.8.2 its family comes over
+ * the River like the settlers, with a boat of their own on the shore of its
+ * province (never beside another), and the ranger leads them in.
+ */
+const usedLandings = SETTLEMENTS.map((s) => s.landing.z);
+export const HOMESTEADS = SITES.filter((s) => s.kind === 'farm' && !settlementBySite[s.id]).map((s, i) => {
   const pid = provinceAt(s.x, s.z);
   const crop = settlementIn[pid]?.crops[0] ?? 'poppySeed'; // they sow what their neighbours sow
-  return { site: s.id, province: pid, x: s.x, z: s.z, plot: plotsFor(s, 1)[0] ?? null, crop, houses: keptHouses(s) };
+  const z = landingZ({ province: pid }, s, usedLandings);
+  usedLandings.push(z);
+  const family = FAMILIES[i % FAMILIES.length];
+  return { site: s.id, province: pid, x: s.x, z: s.z, plot: plotsFor(s, 1)[0] ?? null, crop, houses: keptHouses(s),
+    family, name: `${family}\u2019s farm`, kind: 'farm', homestead: true, ...mooring(z) };
 });
 export const homesteadBySite = Object.fromEntries(HOMESTEADS.map((h) => [h.site, h]));
+/** A settlement or a homestead, by its site: whichever people live (or will live) there. */
+export const placeBySite = (site) => settlementBySite[site] ?? homesteadBySite[site] ?? null;
 
 /** The place a site is known by on the ground: { x, z, kind, houses } from oldworks.js. */
 export const siteOf = (id) => siteById[id];

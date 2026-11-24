@@ -109,7 +109,22 @@ body.touch #prompt kbd { display: none; }
 #dialogue-options { display: flex; flex-wrap: wrap; gap: 8px; }
 #dialogue-options button { font-size: 15px; text-align: left; }
 .map-panel { padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; max-height: 100%; }
-#map-canvas { max-height: calc(100vh - 130px); max-height: calc(100dvh - 130px); max-width: calc(100vw - 48px); border: 1px solid var(--ink-soft); background: var(--parchment-dark); }
+/* (since v0.8.2) the map is a window on the land, as large as the screen allows: dragged about, zoomed with the buttons below it */
+#map-view { width: min(calc(100vw - 48px), 1100px); height: calc(100vh - 130px); height: calc(100dvh - 130px); border: 1px solid var(--ink-soft);
+  background: var(--parchment-dark); overflow: hidden; touch-action: none; flex: 0 1 auto; min-height: 120px; }
+#map-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#map-foot { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+#map-buttons { display: flex; gap: 8px; align-items: center; }
+#map-in, #map-out { min-width: 44px; font-size: 20px; line-height: 1; padding: 0.3em 0.5em; }
+#map-in:disabled, #map-out:disabled { opacity: 0.4; }
+/* a phone on its side: the hint beside the buttons, so the map has the height */
+@media (orientation: landscape) and (max-height: 520px) {
+  .map-panel { padding: 6px; gap: 6px; }
+  #map-view { height: calc(100vh - 80px); height: calc(100dvh - 80px); }
+  #map-foot { flex-direction: row; justify-content: space-between; gap: 12px; }
+  #map-hint { text-align: left; font-size: 12px; }
+  #map-title { font-size: 15px; }
+}
 .menu-panel { padding: 18px 22px; width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; max-height: 100%; overflow-y: auto; }
 .menu-panel h2 { margin: 0 0 4px; font-weight: normal; text-align: center; letter-spacing: 0.05em; }
 .menu-panel .row { display: flex; align-items: center; gap: 6px; }
@@ -185,7 +200,7 @@ body.panel-open #btn-aim, body.panel-open #hitmark { display: none !important; }
 #dialogue-picture figcaption { text-align: center; font-size: 12px; font-style: italic; color: var(--ink-soft); }
 .row-item.owned .what { opacity: 0.45; }
 #map-hint { font-size: 13px; font-style: italic; color: var(--ink-soft); text-align: center; max-width: 420px; }
-#map-canvas { cursor: pointer; }
+#map-canvas { cursor: grab; }
 .version { margin-top: 22px; font-size: 12px; letter-spacing: 0.1em; opacity: 0.5; }
 
 /* ---- Tall, narrow screens (a phone held upright) ----

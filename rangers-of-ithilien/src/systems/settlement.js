@@ -11,13 +11,15 @@
 //   3  the second field sown (their second crop); they sell that seed too
 //   4  every house mended, the market cross set up again, a garden
 //
-// A homestead (a farmstead Éowyn was shown, `state.homesteads`) is lived in
-// once its province is free: its house roofed and one field sown.
+// A homestead (a farmstead Éowyn was shown, `state.homesteads`) is promised to a
+// family; once its province is free she sends for them, and (since v0.8.2) the
+// ranger leads them in from their boat as for a settlement (`state.settled`
+// holds its site then). Lived in, its house is roofed and one field sown.
 
-import { SETTLEMENTS, settlementBySite, settlementIn, HOMESTEADS, homesteadBySite, yardsOf } from '../world/settlements.js';
+import { SETTLEMENTS, settlementBySite, settlementIn, HOMESTEADS, homesteadBySite, placeBySite, FAMILY_SIZE, yardsOf } from '../world/settlements.js';
 import { provinceStatus } from './provinces.js';
 
-export { SETTLEMENTS, settlementBySite, settlementIn, HOMESTEADS, homesteadBySite };
+export { SETTLEMENTS, settlementBySite, settlementIn, HOMESTEADS, homesteadBySite, placeBySite, FAMILY_SIZE };
 /** The last stage: a settlement whose people have nothing more to ask. */
 export const STAGE_MAX = 4;
 
@@ -48,9 +50,14 @@ export function housesMended(state, site) {
   return st >= 4 ? n : st >= 2 ? Math.min(n, 6) : Math.min(n, 3);
 }
 
-/** Homesteads lived in now: those Éowyn was shown, in a free province. */
+/** Homesteads lived in now: those Éowyn was shown whose family the ranger has led home. */
 export function homesteadsLived(state) {
-  return (state.homesteads ?? []).filter((id) => homesteadBySite[id] && provinceStatus(state, homesteadBySite[id].province).freed);
+  return (state.homesteads ?? []).filter((id) => homesteadBySite[id] && state.settled.includes(id));
+}
+
+/** Homesteads whose family waits to be sent for: promised, in a free province, and not yet home (the first in the order promised, or null). */
+export function familyWaiting(state) {
+  return (state.homesteads ?? []).find((id) => homesteadBySite[id] && !state.settled.includes(id) && provinceStatus(state, homesteadBySite[id].province).freed) ?? null;
 }
 
 /** Every plot cleared and sown now: [{ rect, crop, site }]. */

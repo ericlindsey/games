@@ -77,24 +77,37 @@ export class DialoguePanel {
   }
 }
 
+/**
+ * How close the map may come (screen pixels to the metre), and where it opens:
+ * since v0.8.2 it opens on the ranger, near enough to read on a phone held on its
+ * side (it showed the whole land, which there was a strip a few fingers wide).
+ */
+const ZOOM = { open: 0.62, max: 2.1, step: 1.5 }; // (the land is drawn from a sample every 10 m: much closer and it is only a blur)
+
 export class MapPanel {
   constructor(onClose) {
     this.root = $('map');
+    this.view = $('map-view');
     this.canvas = $('map-canvas');
     this.open = false;
     this.base = null;
     this.onClose = onClose;
     $('map-close').onclick = () => this.close();
+    $('map-in').onclick = () => this.zoomBy(ZOOM.step);
+    $('map-out').onclick = () => this.zoomBy(1 / ZOOM.step);
     /** If set, called with world (x, z) when the map is clicked (used by the testing page). */
     this.onPick = null;
     /** Called with a travel place ({ name, x, z }) when one is clicked on the map. */
     this.onTravel = null;
     this.places = [];
+    // what is in view: screen pixels to the metre, and the world point at the top left
+    this.scale = 0; this.ox = 0; this.oz = 0;
+    this.chosen = null; // the zoom the ranger last chose (kept while the game runs)
     this.canvas.addEventListener('click', (e) => {
-      const r = this.canvas.getBoundingClientRect();
-      const x = ((e.clientX - r.left) / r.width) * WORLD.width, z = ((e.clientY - r.top) / r.height) * WORLD.length;
+      if (this.dragged) return; // (the end of a drag, not a click)
+      const { x, z } = this.worldAt(e.clientX, e.clientY);
       if (this.onPick) { this.onPick(x, z); return; }
-      const reach = 18 * (WORLD.length / r.height); // about 18 screen pixels
+      const reach = 18 / this.scale; // about 18 screen pixels
       let best = null, bd = reach;
       for (const p of this.places) {
         const d = Math.hypot(p.x - x, p.z - z);
@@ -102,7 +115,102 @@ export class MapPanel {
       }
       if (best && this.onTravel) this.onTravel(best);
     });
+    // dragged about with a finger or the mouse; two fingers pinch; the wheel zooms where it points
+    const down = new Map();
+    let pinch = null;
+    this.canvas.addEventListener('pointerdown', (e) => {
+      down.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.canvas.setPointerCapture?.(e.pointerId);
+      if (down.size === 1) { this.dragged = false; this.travel = 0; }
+      if (down.size === 2) { const [a, b] = [...down.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), scale: this.scale }; }
+    });
+    this.canvas.addEventListener('pointermove', (e) => {
+      const was = down.get(e.pointerId);
+      if (!was) return;
+      const now = { x: e.clientX, y: e.clientY };
+      down.set(e.pointerId, now);
+      if (down.size === 2 && pinch) {
+        const [a, b] = [...down.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        this.dragged = true;
+        if (pinch.d > 10) this.zoomTo(pinch.scale * (d / pinch.d), (a.x + b.x) / 2, (a.y + b.y) / 2);
+        return;
+      }
+      const dx = now.x - was.x, dy = now.y - was.y;
+      this.travel += Math.hypot(dx, dy);
+      if (this.travel > 6) this.dragged = true;
+      this.ox -= dx / this.scale; this.oz -= dy / this.scale;
+      this.redraw();
+    });
+    const up = (e) => {
+      down.delete(e.pointerId);
+      if (down.size < 2) pinch = null;
+      if (!down.size) setTimeout(() => { this.dragged = false; }, 0); // (after the click that ends it)
+    };
+    this.canvas.addEventListener('pointerup', up);
+    this.canvas.addEventListener('pointercancel', up);
+    this.canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      this.zoomTo(this.scale * Math.pow(ZOOM.step, -Math.sign(e.deltaY) / 2), e.clientX, e.clientY);
+    }, { passive: false });
+    window.addEventListener('keydown', (e) => {
+      if (!this.open) return;
+      if (e.key === '+' || e.key === '=') this.zoomBy(ZOOM.step);
+      else if (e.key === '-' || e.key === '_') this.zoomBy(1 / ZOOM.step);
+    });
+    window.addEventListener('resize', () => { if (this.open) { this.fitView(); this.redraw(); } });
     this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
+  }
+
+  /** The world point under a point on the screen. */
+  worldAt(cx, cy) {
+    const r = this.canvas.getBoundingClientRect();
+    return { x: this.ox + (cx - r.left) / this.scale, z: this.oz + (cy - r.top) / this.scale };
+  }
+  /** Where on the screen a world point is drawn now (for the tests). */
+  screenAt(x, z) {
+    const r = this.canvas.getBoundingClientRect();
+    return { x: r.left + (x - this.ox) * this.scale, y: r.top + (z - this.oz) * this.scale };
+  }
+  /** The farthest out the map goes: the whole land in view. */
+  get fitScale() { return Math.min(this.vw / WORLD.width, this.vh / WORLD.length); }
+  /** Measure the view (it is sized by the stylesheet) and size the canvas to it, sharp on the screen it is on. */
+  fitView() {
+    this.vw = Math.max(50, this.view.clientWidth); this.vh = Math.max(50, this.view.clientHeight);
+    this.dpr = Math.min(window.devicePixelRatio || 1, 3);
+    this.canvas.width = Math.round(this.vw * this.dpr); this.canvas.height = Math.round(this.vh * this.dpr);
+  }
+  /** Keep the land in view: it may not be dragged off, and when it is smaller than the view it sits in the middle. */
+  clamp() {
+    this.scale = Math.max(this.fitScale, Math.min(ZOOM.max, this.scale));
+    const w = this.vw / this.scale, h = this.vh / this.scale;
+    this.ox = w >= WORLD.width ? (WORLD.width - w) / 2 : Math.max(0, Math.min(WORLD.width - w, this.ox));
+    this.oz = h >= WORLD.length ? (WORLD.length - h) / 2 : Math.max(0, Math.min(WORLD.length - h, this.oz));
+  }
+  /** Look at a world point, at the zoom in hand. */
+  centre(x, z) {
+    this.ox = x - this.vw / this.scale / 2; this.oz = z - this.vh / this.scale / 2;
+    this.redraw();
+  }
+  /** Zoom to `scale`, keeping the world point under the screen point (cx, cy) where it is (the middle if not given). */
+  zoomTo(scale, cx, cy) {
+    if (!this.open) return;
+    const r = this.canvas.getBoundingClientRect();
+    const sx = cx === undefined ? this.vw / 2 : cx - r.left, sy = cy === undefined ? this.vh / 2 : cy - r.top;
+    const wx = this.ox + sx / this.scale, wz = this.oz + sy / this.scale;
+    this.scale = Math.max(this.fitScale, Math.min(ZOOM.max, scale));
+    this.chosen = this.scale;
+    this.ox = wx - sx / this.scale; this.oz = wz - sy / this.scale;
+    this.redraw();
+  }
+  zoomBy(k) { this.zoomTo(this.scale * k); }
+  /** Draw again at the next frame (dragging asks many times a frame). */
+  redraw() {
+    this.clamp();
+    $('map-in').disabled = this.scale >= ZOOM.max - 1e-6;
+    $('map-out').disabled = this.scale <= this.fitScale + 1e-6;
+    if (this.pending) return;
+    this.pending = requestAnimationFrame(() => { this.pending = 0; if (this.open) this.draw(); });
   }
 
   /** The land itself, drawn once: 20 m to the pixel, tinted like an old chart. */
@@ -161,17 +269,35 @@ export class MapPanel {
    */
   show(state, player, places = [], inFight = false, opts = {}) {
     this.places = places;
+    this.shown = { state, player, opts };
     const hint = $('map-hint'), title = $('map-title');
     title.hidden = !opts.title;
     title.textContent = opts.title ?? '';
+    const touch = document.body.classList.contains('touch');
     hint.textContent = opts.scouted ? 'The red rings are camps his scouts have seen. They are copied onto your map.'
       : !places.length ? 'The old places you find are marked here. You can travel to them by the old ways.'
-      : inFight ? 'Not while the enemy has seen you.' : 'Click an old place or a settlement to travel there, or Henneth Ann\u00fbn to go home.';
+      : inFight ? 'Not while the enemy has seen you.' : `${touch ? 'Tap' : 'Click'} an old place or a settlement to travel there, or Henneth Ann\u00fbn to go home.`;
     if (!this.base) this.drawBase();
-    const scale = 0.4; // canvas pixels per metre (600 by 1200 for the whole land)
+    this.root.hidden = false;
+    this.open = true;
+    // opened on the ranger (Faramir's, on what his scouts have seen), as near as last chosen
+    this.fitView();
+    this.scale = this.chosen ?? Math.max(ZOOM.open, this.fitScale);
+    const on = opts.scouted?.length ? { x: opts.scouted.reduce((a, c) => a + c.x, 0) / opts.scouted.length, z: opts.scouted.reduce((a, c) => a + c.z, 0) / opts.scouted.length } : { x: player.pos.x, z: player.pos.z };
+    this.clamp();
+    this.centre(on.x, on.z);
+  }
+
+  /** The map as it stands, the part in view. */
+  draw() {
+    const { state, player, opts } = this.shown, places = this.places;
+    const scale = this.scale; // screen pixels per metre; the view is moved by a shift, so marks and words keep their size
     const cv = this.canvas, W = WORLD.width * scale, H = WORLD.length * scale;
-    cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#dccfa9'; // (beyond the land, when it is zoomed out smaller than the view)
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, -this.ox * scale * this.dpr, -this.oz * scale * this.dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.base, 0, 0, W, H);
 
@@ -193,7 +319,11 @@ export class MapPanel {
 
     // the provinces: freed ones washed green, borders, and their names
     const status = PROVINCES.map((p) => provinceStatus(state, p.id));
-    if (status.some((s) => s.freed)) ctx.drawImage(this.freedWash(status.map((s) => s.freed)), 0, 0, W, H);
+    if (status.some((s) => s.freed)) {
+      const key = status.map((s) => (s.freed ? 1 : 0)).join(''); // (made again only when another province is freed: a drag draws every frame)
+      if (this.washKey !== key) { this.wash = this.freedWash(status.map((s) => s.freed)); this.washKey = key; }
+      ctx.drawImage(this.wash, 0, 0, W, H);
+    }
     for (const b of this.borders) line(b, 'rgba(120,40,30,0.55)', 2.2, [1, 4, 7, 4]);
 
     ctx.font = 'italic 600 15px Palatino, Georgia, serif';
@@ -296,9 +426,6 @@ export class MapPanel {
     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(5.5, 6); ctx.lineTo(0, 3); ctx.lineTo(-5.5, 6); ctx.closePath();
     ctx.fill(); ctx.stroke();
     ctx.restore();
-
-    this.root.hidden = false;
-    this.open = true;
   }
 
   close() {

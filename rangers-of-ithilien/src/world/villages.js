@@ -15,7 +15,7 @@ import { addSolid, addCircle } from './collision.js';
 import { makeFigure, animateFigure } from '../entities/figure.js';
 import { rng } from '../util/noise.js';
 import { yardsOf } from './settlements.js';
-import { SETTLEMENTS, settlementBySite, homesteadBySite, stageOf, housesMended, cropsSown, homesteadsLived, STAGE_MAX } from '../systems/settlement.js';
+import { SETTLEMENTS, HOMESTEADS, settlementBySite, homesteadBySite, FAMILY_SIZE, stageOf, housesMended, cropsSown, homesteadsLived, STAGE_MAX } from '../systems/settlement.js';
 
 const siteById = Object.fromEntries(SITES.map((s) => [s.id, s]));
 const PLASTER = [0xe6e0cf, 0xddd5c0, 0xe9e4d6], THATCH = [0xb39556, 0xa88a4c, 0xbfa063], TIMBER = 0x5a4530, DOOR = 0x4a3524, STONE = 0x9a9484;
@@ -354,6 +354,18 @@ function settlerLook(s, i) {
   return FOLK[i % FOLK.length];
 }
 const isChild = (i) => i === 4 || i === 8;
+/**
+ * (since v0.8.2) A homestead's family, as they come off their boat: whoever heads
+ * them and their wife or husband, two children, and a grown son who pushes the cart.
+ */
+const FAMILY = [FOLK[0], FOLK[1], FOLK[3], FOLK[2], FOLK[4]];
+const familyChild = (i) => i === 2 || i === 3;
+/** Who is in a party come over the River: how many, and how each looks and stands. */
+function party(site) {
+  const s = settlementBySite[site];
+  if (!s) return { many: FAMILY_SIZE, look: (i) => FAMILY[i % FAMILY.length], small: familyChild };
+  return { many: s.kind === 'hamlet' ? 12 : 7, look: (i) => settlerLook(s, i), small: isChild };
+}
 
 export class Villages {
   constructor(scene, shadows = true) {
@@ -418,6 +430,9 @@ export class Villages {
       const sent = state.quests.active.includes('s-' + s.province) || state.quests.done.includes('s-' + s.province) || state.settled.includes(s.site);
       if (sent && !this.boats.has(s.site)) this.buildBoat(s);
     }
+    // (since v0.8.2) and a homestead family's, once they have been sent for
+    const fetching = new Set(state.quests.errands.filter((e) => e.objective.type === 'settled').map((e) => e.objective.site));
+    for (const h of HOMESTEADS) if ((fetching.has(h.site) || state.settled.includes(h.site)) && !this.boats.has(h.site)) this.buildBoat(h);
     return sown;
   }
 
@@ -448,7 +463,7 @@ export class Villages {
     };
     const came = this.arrivals.get(id);
     this.arrivals.delete(id);
-    const n = s ? (hamlet ? 12 : 7) : 2;
+    const n = came ? came.people.length : party(id).many;
     for (let i = 0; i < n; i++) {
       const role = s && i === 0 ? 'reeve' : s && i === 1 ? 'trader' : null;
       const c = came?.people[i];
@@ -457,8 +472,9 @@ export class Villages {
         f = c.fig; x = c.x; z = c.z; small = c.small;
         f.props.sack.visible = false; // (put down: they are home)
       } else {
-        small = s ? isChild(i) : false;
-        f = equip(folk(s ? settlerLook(s, i) : FOLK[(i + Math.floor(site.x)) % FOLK.length], small ? 0.66 : 0.95 + rand() * 0.08));
+        const who = party(id);
+        small = who.small(i);
+        f = equip(folk(who.look(i), small ? 0.66 : 0.95 + rand() * 0.08));
         const post = role && posts[role], a = rand() * 6.28, r = rand() * home.r;
         x = post ? post.x : home.x + Math.cos(a) * r; z = post ? post.z : home.z + Math.sin(a) * r;
       }
@@ -554,11 +570,11 @@ export class Villages {
     if (this.escort && this.escort.site !== site) this.endEscort();
     if (!site) return;
     if (!this.escort) {
-      const s = settlementBySite[site], many = s.kind === 'hamlet' ? 12 : 7, people = [];
+      const who = party(site), many = who.many, people = [];
       const rand = rng(site.length * 97 + Math.round(at.z));
       for (let i = 0; i < many; i++) {
-        const small = isChild(i);
-        const f = equip(folk(settlerLook(s, i), small ? 0.66 : 0.95 + rand() * 0.08), { sackColor: SACKS[i % SACKS.length] });
+        const small = who.small(i);
+        const f = equip(folk(who.look(i), small ? 0.66 : 0.95 + rand() * 0.08), { sackColor: SACKS[i % SACKS.length] });
         const pusher = i === many - 1;
         f.props.sack.visible = !pusher && !small;
         // standing about in a loose crowd, inland of where they wait, a step apart

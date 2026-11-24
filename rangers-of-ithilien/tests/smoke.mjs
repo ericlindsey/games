@@ -579,9 +579,10 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.keyboard.press('KeyM');
   await page.waitForSelector('#map:not([hidden])');
   check((await page.textContent('#map-hint')).includes('travel'), 'the map says old places can be travelled to');
-  const mbox = await page.locator('#map-canvas').boundingBox();
-  const dest = await page.evaluate(() => ({ x: dest.x / roi.WORLD.width, z: dest.z / roi.WORLD.length }));
-  await page.mouse.click(mbox.x + mbox.width * dest.x, mbox.y + mbox.height * dest.z);
+  // (since v0.8.2 the map opens zoomed in on the ranger, and is dragged about: look at the place first)
+  const at = await page.evaluate(() => { roi.map.centre(dest.x, dest.z); return roi.map.screenAt(dest.x, dest.z); });
+  await page.waitForTimeout(300);
+  await page.mouse.click(at.x, at.y);
   const went = await page.waitForFunction(() => Math.hypot(roi.player.pos.x - dest.x, roi.player.pos.z - dest.z) < 25, null, { timeout: 30000 }).then(() => true, () => false);
   check(went && await page.isHidden('#map'), 'clicking a found old place on the map goes there');
 
@@ -669,7 +670,20 @@ await run('desktop', { viewport: { width: 1280, height: 720 } }, async (page) =>
   await page.keyboard.press('KeyM');
   await page.waitForSelector('#map:not([hidden])');
   check(await page.evaluate(() => document.getElementById('map-canvas').width > 100), 'map opens');
+  const opened = await page.evaluate(() => {
+    const m = roi.map, r = m.canvas.getBoundingClientRect(), p = m.screenAt(roi.player.pos.x, roi.player.pos.z);
+    return { scale: m.scale, fit: m.fitScale, off: Math.hypot(p.x - (r.left + r.width / 2), p.y - (r.top + r.height / 2)), inView: p.x > r.left && p.x < r.right && p.y > r.top && p.y < r.bottom };
+  });
+  check(opened.scale >= 0.6 && opened.scale > opened.fit * 1.5 && opened.inView, `the map opens zoomed in (${opened.scale.toFixed(2)} px a metre; the whole land is ${opened.fit.toFixed(2)}) with the ranger in view (${opened.off.toFixed(0)} px from the middle)`);
   await shot(page, 'map');
+  await page.click('#map-in');
+  const zin = await page.evaluate(() => roi.map.scale);
+  await page.click('#map-out'); await page.click('#map-out');
+  const zout = await page.evaluate(() => roi.map.scale);
+  check(Math.abs(zin / opened.scale - 1.5) < 0.01 && zout < opened.scale, `the + and \u2212 buttons zoom in and out (${opened.scale.toFixed(2)} -> ${zin.toFixed(2)} -> ${zout.toFixed(2)})`);
+  // (each click is half a minute in software rendering: the rest of the way out is asked of the panel itself)
+  check(await page.evaluate(() => { roi.map.zoomTo(0.01); return Math.abs(roi.map.scale - roi.map.fitScale) < 1e-6 && document.getElementById('map-out').disabled; }), 'zoomed right out, the whole land is in view, and \u2212 goes no further');
+  await shot(page, 'map-whole');
   await page.keyboard.press('KeyM');
   check(await page.isHidden('#map'), 'map closes');
 
@@ -857,6 +871,28 @@ await run('phone (touch)', { ...devices['Pixel 7 landscape'] }, async (page) => 
   await page.waitForTimeout(600);
   check(Math.abs((await page.evaluate(() => roi.rig.yaw)) - yaw0) > 0.1, 'dragging on the right turns the camera');
 
+  // (since v0.8.2) the map, on a phone on its side: large, opened on the ranger, zoomed by its buttons, dragged by a finger
+  await page.tap('#btn-map');
+  await page.waitForSelector('#map:not([hidden])');
+  const pm = await page.evaluate(() => { const r = roi.map.view.getBoundingClientRect(); return { h: r.height, w: r.width, ih: innerHeight, scale: roi.map.scale, cx: r.left + r.width / 2, cy: r.top + r.height / 2,
+    sx: roi.player.pos.x < roi.WORLD.width / 2 ? -1 : 1, sz: roi.player.pos.z < roi.WORLD.length / 2 ? -1 : 1 }; }); // (dragged toward the middle of the land, which is never against an edge)
+  check(pm.h > pm.ih * 0.7 && pm.scale >= 0.6, `the map fills the screen (${pm.w.toFixed(0)} by ${pm.h.toFixed(0)} of ${pm.ih} high), zoomed in (${pm.scale.toFixed(2)} px a metre)`);
+  await shot(page, 'phone-map');
+  const zb = await page.locator('#map-in').boundingBox(), cb = await page.locator('#map-close').boundingBox();
+  check(zb && cb && zb.y + zb.height <= pm.ih && cb.y + cb.height <= pm.ih, 'its zoom and Close buttons are on screen, below it');
+  await page.tap('#map-in');
+  check(Math.abs(await page.evaluate(() => roi.map.scale) / pm.scale - 1.5) < 0.01, 'tapping + zooms in');
+  await page.tap('#map-out');
+  const o0 = await page.evaluate(() => ({ x: roi.map.ox, z: roi.map.oz }));
+  await touch('touchStart', pm.cx, pm.cy);
+  for (let k = 1; k <= 4; k++) await touch('touchMove', pm.cx + pm.sx * k * 20, pm.cy + pm.sz * k * 15);
+  await touch('touchEnd', pm.cx + pm.sx * 80, pm.cy + pm.sz * 60);
+  await page.waitForTimeout(300);
+  const o1 = await page.evaluate(() => ({ x: roi.map.ox, z: roi.map.oz }));
+  check(Math.hypot(o1.x - o0.x, o1.z - o0.z) > 20 && (await page.isVisible('#map')), `a finger drags the map about (${Math.hypot(o1.x - o0.x, o1.z - o0.z).toFixed(0)} m), and a drag is not a tap`);
+  await page.tap('#map-close');
+  check(await page.isHidden('#map'), 'and it closes');
+
   // One attack button: it picks the mark and the weapon.
   check(await page.isVisible('#btn-attack') && await page.isVisible('#btn-heal'), 'attack and heal buttons are shown');
   await page.evaluate(() => { const c = roi.quests.NEAREST_CAMP; roi.teleport(c.x + 16, c.z, -Math.PI / 2); });
@@ -926,6 +962,8 @@ await run('phone upright (touch)', { ...devices['iPhone 13'] }, async (page) => 
   await page.waitForSelector('#map:not([hidden])');
   const close = await page.locator('#map-close').boundingBox();
   check(close && close.y + close.height <= await page.evaluate(() => innerHeight), 'the map\'s Close button is on screen');
+  const zoom = await page.locator('#map-in').boundingBox();
+  check(zoom && zoom.y + zoom.height <= await page.evaluate(() => innerHeight), 'and its zoom buttons');
   await shot(page, 'phone-upright-map');
 });
 
@@ -1040,7 +1078,43 @@ await run('settlers', { viewport: { width: 1100, height: 700 } }, async (page) =
   const ate = await page.evaluate(() => { const s = roi.state; s.health = 50; s.items.orcBread = 3; roi.combat.heal(true); return { bread: s.items.orcBread, health: s.health }; });
   check(ate.bread === 2 && ate.health === 60, 'out of a fight, the heal button eats one orc bread a touch, not as many as the wound needs');
 
-  // the barrow: its mound is a floor, and the cut before its door is clear
+  // (since v0.8.2) a family promised a farm comes over the River too, and is led in from its own boat:
+  // the farm in the Moonwood nearest the shore, its province freed, and Éowyn with no told task to offer
+  const fam = await page.evaluate(() => {
+    const s = roi.state, Q = roi.quests;
+    for (const c of roi.provinces.PROVINCE_CAMPS.ithil) if (!s.cleared.includes(c.id)) s.cleared.push(c.id);
+    for (const q of Object.values(Q.byId)) if (q.giver === 'eowyn' && !s.quests.done.includes(q.id)) { s.quests.done.push(q.id); s.quests.active = s.quests.active.filter((a) => a !== q.id); }
+    s.quests.errands = s.quests.errands.filter((e) => e.giver !== 'eowyn');
+    s.homesteads.push('farm1');
+    const e = Q.errandFrom('eowyn', s);
+    if (e?.errand !== 'family') return { kind: e?.errand ?? null };
+    Q.acceptErrand(s, e);
+    roi.settle(); roi.refreshHud();
+    return { kind: e.errand, offer: e.offer, boat: roi.villages.boats.has('farm1'), lived: roi.villages.places.has('farm1') };
+  });
+  check(fam.kind === 'family' && /boat/.test(fam.offer ?? ''), `with the province free, \u00c9owyn sends the ranger to bring the family in (${fam.kind})`);
+  check(fam.boat && !fam.lived, 'their boat is at the shore, and the farm stands empty until they come');
+  await page.evaluate(() => { const h = roi.homesteads.farm1; roi.teleport(h.landing.x + 3, h.landing.z, -Math.PI / 2); });
+  await page.waitForFunction(() => roi.state.escort?.site === 'farm1' && roi.state.escort.following, null, { timeout: 60000 });
+  await shot(page, 'family-boat');
+  const farm = await page.evaluate(async () => {
+    const s = roi.state, h = roi.homesteads.farm1;
+    const step = () => new Promise((r) => requestAnimationFrame(r));
+    const who = roi.villages.escort.people, many = who.length, small = who.filter((q) => q.small).length, cart = !!roi.villages.escort.cart;
+    for (let n = 0; n < 2500 && !s.settled.includes('farm1'); n++) {
+      const p = roi.player.pos, dx = h.x - p.x, dz = h.z - p.z, d = Math.hypot(dx, dz);
+      if (d > 1) roi.player.place(p.x + (dx / d) * 0.3, p.z + (dz / d) * 0.3, Math.atan2(dx, dz));
+      await step();
+    }
+    const pl = roi.villages.places.get('farm1');
+    const e = s.quests.errands.find((x) => x.objective.site === 'farm1');
+    return { many, small, cart, settled: s.settled.includes('farm1'), handed: !!pl && pl.people.length === many && pl.people.every((q) => who.some((w) => w.fig === q.fig)),
+      done: !!e && roi.quests.isComplete(e, s), travel: roi.travelPlaces().some((t) => t.id === 'site:farm1') };
+  });
+  check(farm.many === 5 && farm.small === 2 && farm.cart, `the family are five (${farm.many}), two of them children, with a handcart`);
+  check(farm.settled && farm.handed && farm.done, 'led to their farm they settle in, the same five who walked there, and the task is done');
+  check(farm.travel, 'and their farm can be travelled to');
+
   const barrow = await page.evaluate(async () => {
     const r = roi.relics.find((x) => x.kind === 'barrow');
     roi.teleport(r.x, r.z - 1, 0);
@@ -1193,8 +1267,10 @@ await run('testing page', { viewport: { width: 1280, height: 720 } }, async (pag
   check(await page.evaluate(() => roi.state.renown === 1), 'and set renown');
   await page.click('#dev [data-a="mapgo"]', { timeout: 180000 });
   await page.waitForSelector('#map:not([hidden])', { timeout: 180000 });
-  const box = await page.locator('#map-canvas').boundingBox();
-  await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.6);
+  // (since v0.8.2 the map shows part of the land: pick the spot 0.4 across and 0.6 down the land, brought into view)
+  const spot = await page.evaluate(() => { const x = 0.4 * roi.WORLD.width, z = 0.6 * roi.WORLD.length; roi.map.centre(x, z); return roi.map.screenAt(x, z); });
+  await page.waitForTimeout(300);
+  await page.mouse.click(spot.x, spot.y);
   await page.waitForFunction(() => Math.abs(roi.player.pos.x - 0.4 * roi.WORLD.width) < 30 && Math.abs(roi.player.pos.z - 0.6 * roi.WORLD.length) < 40, null, { timeout: 30000 });
   check(await page.isHidden('#map'), 'clicking the map travels there');
   await shot(page, 'dev');
