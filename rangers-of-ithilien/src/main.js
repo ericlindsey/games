@@ -36,7 +36,7 @@ import { Combat } from './systems/combat.js';
 import * as inv from './systems/inventory.js';
 import * as quests from './systems/quests.js';
 import { addHonour, HONOUR } from './systems/renown.js';
-import { SETTLEMENTS, settlementIn, settlementBySite, homesteadBySite, clearedGround, stageOf, seedForSale, STAGE_MAX } from './systems/settlement.js';
+import { SETTLEMENTS, settlementIn, settlementBySite, homesteadBySite, placeBySite, homesteadsLived, clearedGround, stageOf, seedForSale, STAGE_MAX } from './systems/settlement.js';
 import { rng } from './util/noise.js';
 import { Hud } from './ui/hud.js';
 import { DialoguePanel, MapPanel, MenuPanel, PackPanel, TradePanel } from './ui/panels.js';
@@ -312,8 +312,8 @@ async function boot() {
   function provinceNews(pid, before, after) {
     const name = provinceById[pid].name;
     if (after.freed && !before.freed) {
-      hud.toast(`${name} is free`, `The hold is broken and the land is ours again. Faramir will want to hear it from you${settlementIn[pid] ? ', and Éowyn can send for its settlers' : ''}.`, 'great');
-      settle(); // (a farm promised to a family is lived in now)
+      const sendFor = settlementIn[pid] || state.homesteads.some((id) => homesteadBySite[id].province === pid && !state.settled.includes(id));
+      hud.toast(`${name} is free`, `The hold is broken and the land is ours again. Faramir will want to hear it from you${sendFor ? ', and Éowyn can send for its settlers' : ''}.`, 'great');
     } else if (after.holdCleared && !before.holdCleared) {
       const left = after.need - after.cleared;
       hud.toast(`The hold of ${name} is broken`, `${left} more camp${left === 1 ? '' : 's'} broken here, and ${name} is free.`);
@@ -342,7 +342,8 @@ async function boot() {
     { id: 'home', name: 'Henneth Ann\u00fbn', x: HA.x - 14, z: HA.z, home: true },
     ...RUINS.filter((p) => state.discovered.includes(p.id)),
     // and every place the settlers have made home: arrive on its green (or before a farm's door), clear of the houses
-    ...SETTLEMENTS.filter((t) => state.settled.includes(t.site)).map((t) => { const a = villages.arrivalAt(t.site); return { id: 'site:' + t.site, name: t.name, x: t.x, z: t.z, ax: a.x, az: a.z }; }),
+    ...[...SETTLEMENTS.filter((t) => state.settled.includes(t.site)), ...homesteadsLived(state).map((id) => homesteadBySite[id])]
+      .map((t) => { const a = villages.arrivalAt(t.site); return { id: 'site:' + t.site, name: t.name, x: t.x, z: t.z, ax: a.x, az: a.z }; }),
   ];
   const travelTo = (p) => {
     if (enemies.inCombat()) { hud.toast('', 'Not while the enemy has seen you.'); return; }
@@ -383,8 +384,8 @@ async function boot() {
     const s = settlementBySite[site];
     if (!s) { // a homestead
       const h = homesteadBySite[site];
-      return { name: 'The farmer', title: `A farmstead in ${provinceById[h.province].name.replace(/^The /, 'the ')}`, start: 'hello', nodes: { hello: {
-        text: 'Ranger! Come in, come in; or no, you will want to be off. We have the roof on, and the field sown, thanks to you and the Lady. Come back at harvest, and there will be a place at the table.',
+      return { name: h.family, title: `${h.name}, in ${provinceById[h.province].name.replace(/^The /, 'the ')}`, start: 'hello', nodes: { hello: {
+        text: 'Ranger! Come in, come in; or no, you will want to be off. We have the roof on, and the field sown, thanks to you and the Lady. You brought us up from the River; come back at harvest, and there will be a place at the table.',
         options: [{ label: 'Farewell.' }] } } };
     }
     const st = stageOf(state, site);
@@ -565,8 +566,17 @@ async function boot() {
   };
 
   // ---- the settlers on their way home ----
-  /** The settlement whose people the ranger has been sent to bring in, if any. */
-  const escortSite = () => SETTLEMENTS.find((s) => state.quests.active.includes('s-' + s.province) && !state.settled.includes(s.site)) ?? null;
+  /**
+   * The settlement (or since v0.8.2 the homestead) whose people the ranger has been
+   * sent to bring in, if any: the first task in hand to lead someone home.
+   */
+  const escortSite = () => {
+    for (const id of state.quests.active) {
+      const o = quests.questOf(state, id)?.objective;
+      if (o?.type === 'settled' && !state.settled.includes(o.site) && placeBySite(o.site)) return placeBySite(o.site);
+    }
+    return null;
+  };
   let escortNear = Infinity;
   /** Settlers wait at their boat (or where they were left) until the ranger comes; then follow, until they are home. */
   const tendEscort = () => {
@@ -582,13 +592,13 @@ async function boot() {
       if (escortNear < 6 && !enemies.inCombat()) {
         e.following = true;
         villages.setEscort(s.site, null, true);
-        hud.toast(`The settlers of ${s.name}`, 'They take up their bundles and follow you. Lead them home, and do not leave them behind.', 'task');
+        hud.toast(s.homestead ? `${s.family}\u2019s family` : `The settlers of ${s.name}`, 'They take up their bundles and follow you. Lead them home, and do not leave them behind.', 'task');
         hud.setTracker(quests.trackers(state));
       }
     } else if (escortNear > 45) {
       e.following = false;
       villages.setEscort(s.site, null, false);
-      hud.toast('', 'The settlers have lost sight of you, and wait where they are. Go back for them.', 'warn');
+      hud.toast('', `The ${s.homestead ? 'family have' : 'settlers have'} lost sight of you, and wait where they are. Go back for them.`, 'warn');
       hud.setTracker(quests.trackers(state));
     } else if (villages.escort.people.some((q) => Math.hypot(q.x - s.x, q.z - s.z) < 24)) {
       state.settled.push(s.site);
@@ -848,7 +858,7 @@ async function boot() {
 
   // For tests and for poking at the world from the console.
   const api = {
-    ready: true, state, player, rig, input, camps, villages, settle, settlements: SETTLEMENTS, ground, grass, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
+    ready: true, state, player, rig, input, camps, villages, map, settle, settlements: SETTLEMENTS, homesteads: homesteadBySite, ground, grass, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
     landmarks: LANDMARKS, sites: SITES, relics: RELICS, HA, WORLD,
     provinces: { PROVINCES, PROVINCE_CAMPS, HOLDS, provinceAt, status: provinceStatus },
     teleport(x, z, yaw = player.yaw, y = undefined) {

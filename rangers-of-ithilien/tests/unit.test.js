@@ -227,7 +227,7 @@ test('a save round-trips', () => {
   assert.equal(store.load(), null);
   const s = newState();
   s.player = { x: 1234.5, y: 30, z: 2345.5, heading: 1.2 };
-  assert.equal(s.version, 9);
+  assert.equal(s.version, 10);
   assert.equal(s.settings.fps, false, 'the frame-rate counter starts off');
   s.items = { draught: 2, orcTrinket: 3 }; s.equipped.body = 'mailShirt'; s.equipped.helm = 'leatherCap'; s.silver = 77; s.quests.done = ['f1']; s.health = 61.5; s.picked = ['h3_4'];
   s.honour = 140; s.renown = 4; s.wear = { rangerSword: 0.5 }; s.honed = { rangerBow: 1 }; s.skills = { repair: true }; s.told = ['c9']; s.stats.bands = 2;
@@ -937,7 +937,7 @@ test('each province of the woods: freed, mapped, then its settlers led home; the
   assert.deepEqual(q.progress(garden.objective, s), { have: 1, need: 6 });
 });
 
-test('a farmstead found for Éowyn takes a family once its province is free', async () => {
+test('a farmstead found for Éowyn takes a family, led in from their boat once its province is free', async () => {
   const q = await import('../src/systems/quests.js');
   const st = await import('../src/systems/settlement.js');
   const { PROVINCE_CAMPS } = await import('../src/world/provinces.js');
@@ -954,9 +954,41 @@ test('a farmstead found for Éowyn takes a family once its province is free', as
   assert.deepEqual(s.homesteads, [farm]);
   const pid = st.homesteadBySite[farm].province;
   assert.deepEqual(st.homesteadsLived(s), [], 'not until its province is free');
+  assert.equal(st.familyWaiting(s), null, 'nor are they sent for');
   s.cleared.push(...PROVINCE_CAMPS[pid].map((c) => c.id));
+  assert.deepEqual(st.homesteadsLived(s), [], 'free, they still wait over the River');
+  assert.equal(st.familyWaiting(s), farm);
+  // (since v0.8.2) her next errand is to bring them in, before any other
+  const f = q.errandFrom('eowyn', s);
+  assert.equal(f.errand, 'family');
+  assert.deepEqual(f.objective, { type: 'settled', site: farm });
+  const h = st.homesteadBySite[farm];
+  assert.ok(f.offer.includes(h.family) && f.offer.includes(`${st.FAMILY_SIZE} of them`), f.offer);
+  q.acceptErrand(s, f);
+  assert.deepEqual(q.targetOf(f.objective, s), h.landing, 'the tracker points at their boat');
+  assert.ok(q.questOf(s, f.id).remind.includes('shore'));
+  s.escort = { site: farm, x: 500, z: 900, following: true };
+  assert.deepEqual(q.targetOf(f.objective, s), { x: h.x, z: h.z }, 'and, while they follow, at their farm');
+  s.escort = null; s.settled.push(farm);
+  assert.ok(q.isComplete(q.questOf(s, f.id), s));
+  assert.ok(q.turnIn(s, f.id));
   assert.deepEqual(st.homesteadsLived(s), [farm]);
-  if (st.homesteadBySite[farm].plot) assert.ok(st.sownPlots(s).some((p) => p.site === farm), 'with a field sown');
+  assert.equal(st.familyWaiting(s), null);
+  if (h.plot) assert.ok(st.sownPlots(s).some((p) => p.site === farm), 'with a field sown');
+  assert.equal(q.errandFrom('eowyn', s)?.errand === 'family', false, 'and she goes back to her other errands');
+});
+
+test('every homestead family has a boat of its own, afloat, never beside another', async () => {
+  const { HOMESTEADS, SETTLEMENTS } = await import('../src/world/settlements.js');
+  const { heightAt } = await import('../src/world/terrain.js');
+  const all = [...SETTLEMENTS, ...HOMESTEADS];
+  for (const h of HOMESTEADS) {
+    assert.ok(h.family && h.name.includes(h.family), h.site);
+    assert.ok(heightAt(h.boat.x, h.boat.z) < -0.6, `${h.site}'s boat floats`);
+    assert.ok(heightAt(h.landing.x, h.landing.z) > 0.5, `${h.site}'s family wait on dry ground`);
+    for (const o of all) if (o !== h) assert.ok(Math.abs(o.landing.z - h.landing.z) > 20, `${h.site} and ${o.site} land apart`);
+  }
+  assert.equal(new Set(HOMESTEADS.map((h) => h.family)).size, HOMESTEADS.length, 'each family has its own name');
 });
 
 test('the Marshal holds the Morgul Marches', async () => {
@@ -1106,6 +1138,13 @@ test('v0.8.1: the Marshal holds the war-camp by the Cross-roads; old saves credi
   assert.deepEqual(old.broken, ['c9']);
   assert.deepEqual(old.discovered, ['henneth', 'camp:c9', 'camp:c63']);
   assert.deepEqual(old.told, ['c63']);
+  // v9 -> v10: a family already on their farm stays there, as led home; one whose province is not free waits for their boat
+  const { PROVINCE_CAMPS } = await import('../src/world/provinces.js');
+  const { homesteadBySite } = await import('../src/world/settlements.js');
+  const pid = homesteadBySite.farm5.province, other = Object.keys(homesteadBySite).find((id) => homesteadBySite[id].province !== pid);
+  const v9 = migrate({ version: 9, cleared: PROVINCE_CAMPS[pid].map((c) => c.id), homesteads: ['farm5', other] });
+  assert.deepEqual(v9.settled, ['farm5']);
+  assert.deepEqual(migrate({ version: 10, cleared: PROVINCE_CAMPS[pid].map((c) => c.id), homesteads: ['farm5'] }).settled, [], 'a 0.8.2 save is left as it is');
   const now = migrate({ version: 9, cleared: ['c63'] });
   assert.deepEqual(now.cleared, ['c63'], 'a save from 0.8.1 is left as it is');
 });

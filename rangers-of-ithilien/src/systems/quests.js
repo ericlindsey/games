@@ -17,7 +17,7 @@ import { CAMP_PROVINCE, PROVINCES, provinceById } from '../world/provinces.js';
 import { herbSites } from '../world/herbSites.js';
 import { addItem, removeItem, count, owns } from './inventory.js';
 import { addHonour } from './renown.js';
-import { SETTLEMENTS, settlementBySite, stageOf, arrived, STAGE_MAX, homesteadBySite } from './settlement.js';
+import { SETTLEMENTS, settlementBySite, stageOf, arrived, STAGE_MAX, homesteadBySite, placeBySite, familyWaiting, FAMILY_SIZE } from './settlement.js';
 
 export const byId = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
 
@@ -149,7 +149,7 @@ const placeById = (id) => (id ? LANDMARKS.find((l) => l.id === id) ?? PLACES.fin
  * they wait if the ranger left them on the way, or, while they follow, home.
  */
 export function escortTarget(state, site) {
-  const s = settlementBySite[site], e = state.escort;
+  const s = placeBySite(site), e = state.escort;
   if (e && e.site === site) return e.following ? { x: s.x, z: s.z } : { x: e.x, z: e.z };
   return s.landing;
 }
@@ -238,8 +238,11 @@ export function errandFrom(giver, state) {
   if (offerFrom(giver, state)) return null;
   if (giver === 'faramir' && !state.quests.done.includes('f1')) return null; // the nearest fire first
   const E = ERRANDS[giver], n = state.quests.count[giver] ?? 0;
-  for (let k = 0; k < E.kinds.length; k++) {
-    const kind = E.kinds[(n + k) % E.kinds.length];
+  // (since v0.8.2) a family promised a farm in a province now free comes before any other errand of hers
+  const waiting = giver === 'eowyn' ? familyWaiting(state) : null;
+  const kinds = waiting ? ['family'] : E.kinds;
+  for (let k = 0; k < kinds.length; k++) {
+    const kind = kinds[(n + k) % kinds.length];
     const built = (giver === 'faramir' ? buildFaramir : buildEowyn)(kind, n, state, E);
     if (!built) continue;
     const { params, objective, extra, homestead } = built;
@@ -319,6 +322,14 @@ function buildEowyn(kind, n, state, E) {
     if (!kinds.length) return null;
     const k = kinds[n % kinds.length], set = `kind:${k}@${pid}`;
     return { params: { title: RELIC_KINDS[k][0], kindPlural: KIND_PLURALS[k] ?? k, where: inWords(pid) }, objective: { type: 'seek', set, count: 1, base: foundIn(state, set) } };
+  }
+  if (kind === 'family') { // bring a homestead's family in from their boat
+    const h = homesteadBySite[familyWaiting(state)];
+    if (!h) return null;
+    return {
+      params: { family: h.family, many: FAMILY_SIZE, where: directionWords(h.x, h.z), landing: directionWords(h.landing.x, h.landing.z), province: inWords(h.province) },
+      objective: { type: 'settled', site: h.site },
+    };
   }
   if (kind === 'site') {
     // a farmstead for a family: in a free province if one has a farm not yet found, else where Faramir is working
@@ -415,7 +426,7 @@ export function remindText(q, state) {
   const o = q.objective;
   if (o.type === 'gather' && TROPHY_HINTS[o.item]) return text + ' ' + TROPHY_HINTS[o.item];
   if (o.type === 'bands') return text + ' They come down out of the north, mostly. Stand off the road a little, where you can see a long way along it.';
-  if (o.type === 'settled') return text + ` Their boat is at the shore ${directionWords(settlementBySite[o.site].landing.x, settlementBySite[o.site].landing.z)}; their new home lies ${directionWords(settlementBySite[o.site].x, settlementBySite[o.site].z)}.`;
+  if (o.type === 'settled') { const s = placeBySite(o.site); return text + ` Their boat is at the shore ${directionWords(s.landing.x, s.landing.z)}; their new home lies ${directionWords(s.x, s.z)}.`; }
   const t = hintTarget(o, state);
   if (!t) return text;
   const s = settlementBySite[q.giver]; // the settlers give directions from their green

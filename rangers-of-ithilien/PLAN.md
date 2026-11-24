@@ -1390,6 +1390,38 @@ From a playtest of v0.7.7.
   them, are in CLAUDE.md ("Verifying a change"): about an hour and a half in all,
   the desktop suite alone 65 minutes and the settlers 15.
 
+### v0.8.2: the map zoomed in; homestead families come by boat
+
+From a playtest of v0.8.1 on a phone.
+- **The map opens zoomed in on the ranger.** It drew the whole land into whatever
+  height there was, so on a phone held on its side it was a strip a few fingers wide.
+  Now it is a window as large as the screen allows (`#map-view`; on a short landscape
+  screen the hint sits beside the buttons to give it the height), opening at 0.62
+  screen pixels to the metre (or the whole land, if that is nearer), centred on the
+  ranger, or for Faramir's map on the camps his scouts have seen. **+ and −** under it
+  zoom by half again (up to 2.1 px a metre, where the land, sampled every 10 m, begins to blur; out to the whole land), as do the + and −
+  keys, the mouse wheel (about the pointer) and two fingers; one finger or the mouse
+  drags it, and a drag is never taken for a click. The zoom last chosen is kept while
+  the game runs. Only what is in view is drawn, at the screen's own sharpness: the
+  marks and names keep their size at any zoom (the old 600 by 1200 canvas was scaled
+  down by the page, and its words with it). `MapPanel.centre`, `screenAt` and
+  `worldAt` are for the tests; `roi.map` is the panel.
+- **A homestead's family is led in from their boat.** Éowyn's "A farm for a family"
+  used to put two people on the farm the moment its province was free. Now, once it
+  is promised and its province free, her next errand (before any other of hers,
+  though still after her told tasks) is `family`: "<name>'s family" (each farmstead
+  has a family named for whoever heads it, `family` in world/settlements.js), five of
+  them (`FAMILY_SIZE`: two grown, two children, a grown son with the handcart), waiting
+  by their own boat on the shore of the farm's province (never within 22 m of another
+  boat; a province with no shore of its own lands them due west). It is the settlers'
+  escort over again (`objective: settled`, `state.escort`, `escortSite()` in main.js
+  now takes the first task in hand that leads anyone home). Home, the five are the
+  family who live there (it was two, made on the spot), the farmer speaks by name, and
+  the farm can be travelled to. `state.settled` holds a homestead's site once its family
+  are home, and `homesteadsLived` reads that (it read the province's freedom).
+- Save version 10: a family already living on their farm in a v9 save (promised, and
+  the province free) stays there, as if led home.
+
 ### Known gaps to pick up
 
 - **Balance is still a guess**, now with one playtest behind it (three in a camp
@@ -1431,7 +1463,7 @@ From a playtest of v0.7.7.
 - The settlements have no trader beyond their seed and no rest (11.3's stages 2
   and 3 are partly built; travel to them came in v0.7.3), and the fells have no
   one to settle.
-- Homestead families say only a greeting; they ask nothing.
+- Homestead families say only a greeting; they ask nothing (since v0.8.2 they are led in from a boat).
 
 ## 11. M6: provinces, captains and settlement (design)
 

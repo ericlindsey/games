@@ -6,7 +6,8 @@ import { HA } from '../world/layout.js';
 import { ITEMS, SLOTS } from '../data/items.js';
 import { levelFor } from './renown.js';
 import { QUESTS } from '../data/quests.js';
-import { settlementBySite, homesteadBySite } from '../world/settlements.js';
+import { placeBySite, homesteadBySite } from '../world/settlements.js';
+import { provinceStatus } from './provinces.js';
 
 const TOLD = new Set(QUESTS.map((q) => q.id));
 
@@ -110,12 +111,12 @@ export function migrate(raw) {
   // v6 -> v7 (release 0.7) added the settlements and rebuilt the tasks round the
   // provinces. Everything carries over; tasks that are gone are dropped from hand
   // above, and the new ones read the progress already made.
-  s.settled = strings(raw.settled).filter((id) => settlementBySite[id]);
+  s.settled = strings(raw.settled).filter((id) => placeBySite(id)); // (a homestead's site too, since v0.8.2)
   s.homesteads = strings(raw.homesteads).filter((id) => homesteadBySite[id]);
   const e = raw.escort;
   // (before v0.7.3 Moonhallow's settlers waited on the Southwood's shore, at 87, 2247: they wait at their new landing now)
   const moved = e?.site === 'hamlet3' && Math.hypot(e.x - 87, e.z - 2247) < 20;
-  if (e && !moved && settlementBySite[e.site] && !s.settled.includes(e.site) && num(e.x) && num(e.z)) s.escort = { site: e.site, x: e.x, z: e.z, following: false };
+  if (e && !moved && placeBySite(e.site) && !s.settled.includes(e.site) && num(e.x) && num(e.z)) s.escort = { site: e.site, x: e.x, z: e.z, following: false };
   s.told = strings(raw.told);
   s.picked = strings(raw.picked);
   s.savedAt = num(raw.savedAt) ? raw.savedAt : 0;
@@ -126,6 +127,12 @@ export function migrate(raw) {
   if (raw.version < 9) {
     const swap = (id) => (id === 'c9' ? 'c63' : id === 'c63' ? 'c9' : id === 'camp:c9' ? 'camp:c63' : id === 'camp:c63' ? 'camp:c9' : id);
     for (const k of ['cleared', 'broken', 'told', 'discovered']) s[k] = s[k].map(swap);
+  }
+  // v9 -> v10 (release 0.8.2): a homestead's family is led in from their boat, like
+  // the settlers. A family already living on their farm (promised, and its province
+  // free) was there before the boats came: they stay, as led home.
+  if (raw.version < 10) {
+    for (const id of s.homesteads) if (!s.settled.includes(id) && provinceStatus(s, homesteadBySite[id].province).freed) s.settled.push(id);
   }
   return s;
 }

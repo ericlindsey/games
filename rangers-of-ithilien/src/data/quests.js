@@ -337,7 +337,9 @@ export const ERRANDS = {
   },
   eowyn: {
     // (since v0.7 no seed errands: the settlers ask for their own seed. A
-    // farmstead found for her is given to a family once its province is free.)
+    // farmstead found for her is given to a family; once its province is free
+    // she sends for them, and since v0.8.2 the ranger brings them in from their
+    // boat (`family`, offered before any other errand of hers while one waits).)
     kinds: ['site', 'kingsfoil', 'kind'],
     gifts: ['gambeson', 'ashBow', 'hornBow', 'blackMail'],
     text: {
@@ -355,9 +357,16 @@ export const ERRANDS = {
       }),
       site: (p) => ({
         title: 'A farm for a family',
-        offer: `A family has come over the River who would rather have land of their own than a house in a village. There is an old farmstead ${p.where}, in ${p.province}, that is not on my map. Find it for me, and ${p.free ? 'they will go and live there at once' : `when ${p.province} is free they will go and live there`}.`,
+        offer: `There is a family over the River who would rather have land of their own than a house in a village. There is an old farmstead ${p.where}, in ${p.province}, that is not on my map. Find it for me, and ${p.free ? 'I will send for them at once' : `when ${p.province} is free I will send for them`}.`,
         remind: `The old farmstead ${p.where}, in ${p.province}.`,
-        done: p.free ? 'Then it is theirs. They will be ploughing before the week is out; go and see them, when you pass.' : `Then it is theirs, as soon as ${p.province} is free. They will wait.`,
+        done: p.free ? 'Then it is theirs. I will send over the River for them tonight; ask me again in a little while, and I will tell you where their boat comes in.'
+          : `Then it is theirs, as soon as ${p.province} is free. They will wait, and when it is, I will send for them.`,
+      }),
+      family: (p) => ({
+        title: `${p.family}\u2019s family`,
+        offer: `${p.family}\u2019s family have come over the River for the farmstead you found me ${p.where}, in ${p.province}: ${p.many} of them, with a handcart and all they own. Their boat is drawn up on our shore ${p.landing}. Meet them there and bring them to their farm. Walk, and they will keep to your heels.`,
+        remind: `Meet ${p.family}\u2019s boat on the shore ${p.landing}, and lead the family to their farm in ${p.province}.`,
+        done: 'They are on their own land! They will be ploughing before the week is out. Go and see them, when you pass; they will want to thank you.',
       }),
     },
   },
