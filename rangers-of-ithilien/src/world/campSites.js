@@ -85,13 +85,21 @@ function generate() {
  * - A mine near the Harad Road had its hill toward the road, overhanging it.
  *   Such a mine is set back from the road and turned to face it (`face`, the
  *   way into the hill; camps.js), its fire and spoil out toward the road.
+ * - (v0.8.1) The Marshal's hold, the Morgul Marches' war-camp c63, stood far
+ *   back to the north-west, nearly 400 m from the Cross-roads. It changes places
+ *   in rank (not in ground) with c9, the small camp just west of the Cross-roads:
+ *   c9 is the war-camp now, and the hold (the strongest camp: provinces.js), set
+ *   a few metres east to keep its company clear of the stockade c8's; c63 is a
+ *   small camp. (save.js swaps the two in old saves, so deeds follow the hold.)
  */
-const MOVED = { c15: { x: 506, z: 2456 } };
+const MOVED = { c15: { x: 506, z: 2456 }, c9: { x: 1016, z: 2822 } };
+const RESIZED = { c9: 4, c63: 1 };
 const MINE_BACK = 34; // at least this far east of the road's line
 function amend(camps) {
   for (const c of camps) {
     const m = MOVED[c.id];
     if (m) { c.x = m.x; c.z = m.z; c.tier = dangerTier(m.x, m.z); }
+    if (RESIZED[c.id]) c.size = RESIZED[c.id];
     if (c.kind === 'mine' && c.x - haradRoadX(c.z) < 45) {
       c.x = Math.round(Math.max(c.x, haradRoadX(c.z) + MINE_BACK));
       c.face = 0; // into the hill: east, away from the road
