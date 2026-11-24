@@ -62,10 +62,10 @@ try {
     page.on('console', (m) => { if (m.type() === 'error' || /error|warning/i.test(m.text()) && /shader|webgl|program/i.test(m.text())) errors.push(`${v.name}: ${m.text()}`); });
     page.on('pageerror', (e) => errors.push(`${v.name}: ${e.message}`));
     await page.goto(base + 'index.html' + v.hash);
-    await page.waitForFunction(() => window.station, null, { timeout: 30000 });
+    await page.waitForFunction(() => window.station, null, { timeout: 120000 });
     if (v.eval) await page.evaluate(v.eval);
     await page.waitForTimeout(wait);
-    await page.screenshot({ path: join(out, `${v.name}.png`) });
+    await page.screenshot({ path: join(out, `${v.name}.png`), timeout: 240000 });
     console.log(`${v.name}.png`);
     await page.close();
   }

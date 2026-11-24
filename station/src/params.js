@@ -22,6 +22,8 @@ export const PARAMS = [
 
   { group: 'Sky', key: 'moonSize', label: 'Moon angular size', unit: '°', kind: 'lin', min: 2, max: 150, step: 1, def: 90, digits: 0 },
 
+  { group: 'View', key: 'quality', label: 'Render quality', unit: '', kind: 'steps', steps: [0, 1, 2], labels: ['Low', 'Medium', 'High'], def: 2, rebuild: true },
+  { group: 'View', key: 'walk', label: 'Walking speed', unit: 'm/s', kind: 'log', min: 1, max: 200, def: 10, digits: 1 },
   { group: 'View', key: 'warp', label: 'Time rate', unit: '×', kind: 'steps', steps: WARP_STEPS, def: 1 },
   { group: 'View', key: 'cabin', label: 'Cabin lights', unit: '%', kind: 'lin', min: 0, max: 100, step: 1, def: 35, digits: 0 },
   { group: 'View', key: 'exposure', label: 'Exposure', unit: '', kind: 'log', min: 0.1, max: 4, def: 1, digits: 2 },
@@ -58,6 +60,7 @@ export function clamp(def, v) {
 }
 
 export function format(def, v) {
+  if (def.labels) return def.labels[def.steps.indexOf(v)] ?? String(v);
   if (def.kind === 'steps') return v === 0 ? 'paused' : `${v}${def.unit}`;
   return `${v.toFixed(def.digits ?? 1)}${def.unit && def.unit !== '%' && def.unit !== '°' ? ' ' : ''}${def.unit}`;
 }

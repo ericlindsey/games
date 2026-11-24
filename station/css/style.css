@@ -49,6 +49,8 @@ button:hover { border-color: rgba(232, 237, 242, 0.45); }
 #panel .top { display: flex; justify-content: space-between; color: var(--dim); }
 #panel output { color: var(--ink); font-variant-numeric: tabular-nums; }
 #panel input[type=range] { width: 100%; margin: 4px 0 0; accent-color: var(--accent); height: 22px; }
+#home { color: var(--dim); text-align: center; padding: 6px; text-decoration: none; font-size: 12px; }
+#home:hover { color: var(--ink); }
 #panel footer { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--edge); }
 
 #help { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%);
@@ -65,3 +67,7 @@ button:hover { border-color: rgba(232, 237, 242, 0.45); }
 @media (max-width: 600px) {
   #readout { font-size: 11px; max-width: calc(100vw - 20px); top: calc(max(10px, env(safe-area-inset-top)) + 80px); }
 }
+
+#loading { position: fixed; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: 14px;
+  letter-spacing: 0.05em; pointer-events: none; }
+#loading.done { display: none; }
