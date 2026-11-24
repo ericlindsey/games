@@ -9,6 +9,7 @@ top-level folder and is fully self-contained.
 /                        repo root: README, LICENSE, this file
 /index.html              landing page for GitHub Pages, linking each game
 /rangers-of-ithilien/    open-world Three.js game (see its CLAUDE.md and PLAN.md)
+/station/                ring-station simulator in Three.js (see its CLAUDE.md and PLAN.md)
 ```
 
 ## Conventions for every game
