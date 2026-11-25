@@ -77,7 +77,8 @@ src/
   config.js           world size, seed, player and quality tunables
   data/               dialogue.js, quests.js, items.js, enemies.js (types and camp rosters): all pure data
   world/
-    layout.js         WHERE THINGS ARE: Henneth Annûn, landmarks, roads, streams (pure)
+    layout.js         WHERE THINGS ARE: Henneth Annûn, landmarks, roads, streams; the Ephel Dúath and the
+                      Morgul Vale (EPHEL, valeDepth), the White Mountains (pure)
     regions.js        region weights, danger tier (pure)
     terrain.js        heightAt(x, z); traces the streams; the basin and cut at Henneth Annûn (pure)
     oldworks.js       old farms and hamlets: houses, fields, lanes, planted rows (pure)

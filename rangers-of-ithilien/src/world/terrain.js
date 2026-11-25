@@ -22,7 +22,12 @@ function eastLand(x, z, bx) {
   // The Ephel Dúath: a wall along the east, with a gap where the Morgul road enters.
   const m = Math.min(x - (EPHEL.footX + 34 * noise2(z / 310, 7.3, S + 9)), 760);
   if (m > 0) {
-    const gap = 1 - smoothstep(40, 150, Math.abs(z - southRoadZ(x)));
+    const dRoad = Math.abs(z - southRoadZ(x));
+    let gap = 1 - smoothstep(40, 150, dRoad);
+    // (since v0.8.5) past where anyone walks, the Morgul Vale narrows between cliffs and
+    // ends under the mountains: a dark valley, not a pass open to the sky
+    const deep = smoothstep(EPHEL.cragFrom - 10, EPHEL.cragFrom + 80, x);
+    if (deep > 0) gap = lerp(gap, (1 - smoothstep(26, 100, dRoad)) * (1 - smoothstep(EPHEL.valeHead, EPHEL.valeHead + 170, x)), deep);
     const ridge = 0.8 + 0.45 * fbm(x / 200, z / 200, 3, S + 90);
     h += Math.pow(m / 520, 1.7) * 520 * ridge * (1 - 0.94 * gap);
     // (since v0.8.5) higher up, sharp crests and gullies: only beyond where anyone walks or anything stands

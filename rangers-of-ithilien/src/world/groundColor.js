@@ -8,7 +8,7 @@ import { forestDensity } from './forest.js';
 import { inField } from './oldworks.js';
 import { pathWear } from './paths.js';
 import { inCourt } from './relicSites.js';
-import { roadDistance, ROAD_HALF_WIDTH, bankX, southRoadZ, HA, gorgeZ } from './layout.js';
+import { roadDistance, ROAD_HALF_WIDTH, bankX, southRoadZ, HA, gorgeZ, EPHEL, valeDepth } from './layout.js';
 import { streamDistance } from './terrain.js';
 import { trodden } from './settlements.js';
 
@@ -67,7 +67,7 @@ export function groundColor(x, z, h, slope, out) {
   const rd = roadDistance(x, z);
   if (rd < ROAD_HALF_WIDTH + 2.5) {
     const wear = 0.55 + 0.35 * noise2(x / 6, z / 6, S + 430);
-    mix(out, C.road, (1 - smoothstep(ROAD_HALF_WIDTH - 1, ROAD_HALF_WIDTH + 2.5, rd)) * wear);
+    mix(out, C.road, (1 - smoothstep(ROAD_HALF_WIDTH - 1, ROAD_HALF_WIDTH + 2.5, rd)) * wear * (1 - smoothstep(EPHEL.valeHead - 60, EPHEL.valeHead + 40, x)));
   }
 
   // Wet margins and stream beds.
@@ -89,6 +89,12 @@ export function groundColor(x, z, h, slope, out) {
   if (x > 1230) {
     const morgul = 1 - smoothstep(60, 220, Math.abs(z - southRoadZ(x)));
     mix(out, C.darkRock, smoothstep(1275, 1410, x) * (0.75 + 0.25 * morgul));
+    // (since v0.8.5) the Morgul Vale is dark, darker toward its head
+    const vd = valeDepth(x, z);
+    if (vd > 0) {
+      const k = vd * (0.5 + 0.5 * smoothstep(EPHEL.cragFrom - 50, EPHEL.valeHead, x));
+      out[0] *= 1 - 0.64 * k; out[1] *= 1 - 0.6 * k; out[2] *= 1 - 0.52 * k;
+    }
   }
 }
 

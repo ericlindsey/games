@@ -78,7 +78,18 @@ export const ROAD_HALF_WIDTH = 4;
  * break into sharp crests and gullies (terrain.js), drawn finer than the rest of
  * the far land and with the crag texture (terrainMesh.js, surface.js).
  */
-export const EPHEL = { footX: 1268, cragFrom: 1400, cragFull: 1500 };
+export const EPHEL = { footX: 1268, cragFrom: 1400, cragFull: 1500, valeHead: 1700 };
+
+/**
+ * (since v0.8.5) 0..1: how deep in the Morgul Vale a point lies, between its walls
+ * and toward its head. Past where anyone walks the vale narrows between cliffs and
+ * ends under the mountains at `EPHEL.valeHead` (terrain.js); its rock is dark
+ * (groundColor.js) and nothing grows on its floor (`valeBarren`).
+ */
+export function valeDepth(x, z) {
+  return (1 - smoothstep(60, 200, Math.abs(z - southRoadZ(x)))) * smoothstep(EPHEL.footX - 40, EPHEL.valeHead - 100, x);
+}
+export const valeBarren = (x, z) => x > EPHEL.cragFrom - 10 && valeDepth(x, z) > 0.2;
 
 /** Distance from a point to the nearest road centre line. */
 export function roadDistance(x, z) {

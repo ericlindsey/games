@@ -184,6 +184,7 @@ light and movement. Concretely (v0.3):
   central woods, grey-green in the south, pale on the heath.
 - **Far horizons** (v0.8.5): the Ephel Dúath break into sharp crests and gullies
   above where anyone walks, rough with a crag texture rather than more polygons.
+  The Morgul Vale is a dark cleft between cliffs, closed by the mountains at its head.
   Westward over the Anduin, beyond the fog, the White Mountains run away under the
   sun, snow on their tops, Mindolluin at their head and the white city a pale fleck
   on its knee with a glint at the tower's top, only just to be made out.
@@ -1504,7 +1505,7 @@ From playing the home-screen app on an iPhone.
   button's height more than before; on its side it is as it was. The compass, place line and
   tasks follow it down. Still seen only in a simulation (`?standalone=47`), not on a phone.
 
-### v0.8.5: craggy mountains; the White Mountains and the city in the west
+### v0.8.5: craggy mountains; the Morgul Vale closed and dark; the White Mountains in the west
 
 Asked for: sharper, craggier mountains (by texture, not distant polygons), and to the
 west the sunset over the distant mountains of Gondor, with a glint of the white city.
@@ -1537,6 +1538,16 @@ west the sunset over the distant mountains of Gondor, with a glint of the white 
   west) as seen from Henneth Annûn and the middle of the land. From the cave's window,
   which looks due west, the range is at the left edge of the view and the city is out of
   it; the best views are from high ground and the river bank.
+- **The Morgul Vale** (asked for after: it looked like a pass open to the sky). It was a
+  notch cut clean through the range, its floor climbing to the backdrop's edge, with sky
+  behind. Now, past where anyone walks (x 1390 on), it narrows between cliffs 300 to 400 m
+  high (the floor about 50 m wide) and ends under the mountains at `EPHEL.valeHead`
+  (x 1700), whose head wall rises to 700 to 800 m and fills the view east. Its rock darkens
+  toward the head (`valeDepth` in layout.js, used by groundColor.js), the road fades out
+  before the head wall, and nothing grows on its floor past x 1390 (`valeBarren`, in
+  vegetation.js and grass.js). The sickly light up the vale is now a small green glow that
+  lightens the dark, over the floor near the head, not a pale ball. The ground the ranger
+  can reach, and everything placed, is as it was (checked as above).
 - The sun was left where it was (late afternoon, about 25° up). Setting it lower, on the
   range, would make the "sunset over the mountains" literal, but would change the light on
   the whole land: an open question for a playtest.

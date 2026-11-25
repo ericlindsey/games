@@ -14,7 +14,7 @@ import { pathWear } from './paths.js';
 import { campNear } from './campSites.js';
 import { inCourt } from './relicSites.js';
 import { inPlot } from './settlements.js';
-import { roadDistance, ROAD_HALF_WIDTH, HA, gorgeZ, inClearing, bankX } from './layout.js';
+import { roadDistance, ROAD_HALF_WIDTH, HA, gorgeZ, inClearing, bankX, valeBarren } from './layout.js';
 import { groundAt } from './collision.js';
 import { hash2 } from '../util/noise.js';
 import { finish } from '../util/slice.js';
@@ -250,6 +250,7 @@ export class Grass {
 
 /** The mouth of the hidden stair, and the very lip of the cliff at Henneth Annûn: no grass over them. */
 function noGrass(x, z) {
+  if (valeBarren(x, z)) return true;
   const h = HA.hatch;
   if (x > h.x0 - 1.5 && x < h.x1 + 1.5 && z > h.z0 - 1.5 && z < h.z1 + 1.5) return true;
   return x > HA.x - 1 && x < HA.x + 0.7 && z > HA.rock.minZ - 1 && z < HA.rock.maxZ + 1;
