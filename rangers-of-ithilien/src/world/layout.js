@@ -72,12 +72,51 @@ export function southRoadZ(x) {
 }
 export const ROAD_HALF_WIDTH = 4;
 
+/**
+ * The Ephel Dúath. Their foot wanders about `footX`; from `cragFrom` to
+ * `cragFull` (well past where anyone may walk, and anything is placed) they
+ * break into sharp crests and gullies (terrain.js), drawn finer than the rest of
+ * the far land and with the crag texture (terrainMesh.js, surface.js).
+ */
+export const EPHEL = { footX: 1268, cragFrom: 1400, cragFull: 1500, valeHead: 1700 };
+
+/**
+ * (since v0.8.5) 0..1: how deep in the Morgul Vale a point lies, between its walls
+ * and toward its head. Past where anyone walks the vale narrows between cliffs and
+ * ends under the mountains at `EPHEL.valeHead` (terrain.js); its rock is dark
+ * (groundColor.js) and nothing grows on its floor (`valeBarren`).
+ */
+export function valeDepth(x, z) {
+  return (1 - smoothstep(60, 200, Math.abs(z - southRoadZ(x)))) * smoothstep(EPHEL.footX - 40, EPHEL.valeHead - 100, x);
+}
+export const valeBarren = (x, z) => x > EPHEL.cragFrom - 10 && valeDepth(x, z) > 0.2;
+
 /** Distance from a point to the nearest road centre line. */
 export function roadDistance(x, z) {
   const dH = Math.abs(x - haradRoadX(z));
   const dS = x > bankX(z) - 30 ? Math.abs(z - southRoadZ(x)) : Infinity;
   return Math.min(dH, dS);
 }
+
+/**
+ * (since v0.8.5) Far off over the Anduin, never reached: the eastern end of the
+ * White Mountains, with Mindolluin at its head and the white city on its knee
+ * (world/whiteMountains.js). They are not to the land's scale, which would set
+ * the city almost on the far bank, but placed to stand where they should against
+ * the sky: south-west from Henneth Annûn, more to the west from the south of the
+ * land, with the range running away westward under the low sun.
+ * `ridge`: the crest from east to west, [x, z, height]. `city`: its middle, the
+ * radius of its outer wall, the height of its foot, of its topmost circle, and of
+ * the tower's top; it faces east (`face`, a unit x, z).
+ */
+export const WHITE_MOUNTAINS = {
+  ridge: [
+    [-2250, 4120, 150], [-2600, 4230, 230], [-2850, 4270, 420], [-3100, 4330, 600], [-3400, 4400, 470], [-3700, 4420, 520], [-4350, 4360, 480],
+    [-5150, 4520, 400], [-6050, 4440, 500], [-7050, 4620, 430], [-8150, 4500, 520], [-9350, 4690, 440],
+    [-10600, 4600, 470],
+  ],
+  city: { x: -2560, z: 3960, r: 72, foot: 40, top: 132, tower: 178, face: [0.9, -0.44] },
+};
 
 export const CAIR_ANDROS = { x: bankX(705) - ANDUIN_WIDTH / 2, z: 705, rx: 45, rz: 170 };
 

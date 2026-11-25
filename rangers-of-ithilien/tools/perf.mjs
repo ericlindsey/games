@@ -42,6 +42,7 @@ function measure(TOP) {
   for (const t of roi.grass.tiles.values()) { if (t.dense) kinds.set(t.dense, 'grass'); if (t.sparse) kinds.set(t.sparse, 'grass (far clumps)'); }
   kinds.set(roi.ground.backdrop, 'far ground');
   kinds.set(roi.ground.canopy, 'far forest roof');
+  if (roi.ground.mountains) kinds.set(roi.ground.mountains, 'far mountains');
   const named = (o) => { for (let p = o; p; p = p.parent) if (p.name) return p.name; return null; };
   const group = (o) => kinds.get(o) ?? named(o) ?? (o.isInstancedMesh ? 'other instanced' : 'other');
   const label = (o) => o.userData.species ?? group(o);

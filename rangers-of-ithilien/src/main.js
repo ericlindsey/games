@@ -15,6 +15,7 @@ import { PROVINCES, PROVINCE_CAMPS, HOLDS, provinceAt, provinceById, fullName, C
 import { provinceStatus, statusLine } from './systems/provinces.js';
 import { Ground } from './world/terrainMesh.js';
 import { Atmosphere } from './world/atmosphere.js';
+import { WhiteMountains } from './world/whiteMountains.js';
 import { Water } from './world/water.js';
 import { buildHennethAnnun } from './world/hennethAnnun.js';
 import { buildRuins } from './world/ruins.js';
@@ -74,7 +75,7 @@ async function boot() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = Number(params.get('exposure') ?? 1.35);
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 12000);
+  const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 16000); // far enough for the White Mountains (12 km off)
   const resize = () => {
     // (the canvas's own size: in a home-screen app it may reach below what the window reports, since v0.8.3)
     const w = renderer.domElement.clientWidth || innerWidth, h = renderer.domElement.clientHeight || innerHeight;
@@ -125,6 +126,8 @@ async function boot() {
   await say('Raising the mountains…');
   const atmosphere = new Atmosphere(scene, quality);
   label('sky');
+  const whiteMountains = new WhiteMountains(scene, atmosphere);
+  label('White Mountains');
   const ground = new Ground(scene, quality);
   ground.field.camera = camera; // plants are culled to what it can see
   { // the plants' shadow casters are shown only while the shadow map is drawn (vegetation.js)
@@ -831,6 +834,7 @@ async function boot() {
     const inside = refuge.isInside(player.pos);
     shade += ((inside ? 0 : forestDensity(player.pos.x, player.pos.z)) - shade) * Math.min(1, dt * 1.5);
     atmosphere.update(camera, player.pos, blight, dt, shade, inside);
+    whiteMountains.update(atmosphere.blight, time);
     motes.update(time, camera, player.pos.y, inside ? 0 : shade * (1 - blight));
     water.update(time);
     refuge.update(time, player.pos, camera);
@@ -890,7 +894,7 @@ async function boot() {
 
   // For tests and for poking at the world from the console.
   const api = {
-    ready: true, state, player, rig, input, camps, villages, map, settle, settlements: SETTLEMENTS, homesteads: homesteadBySite, ground, grass, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
+    ready: true, state, player, rig, input, whiteMountains, camps, villages, map, settle, settlements: SETTLEMENTS, homesteads: homesteadBySite, ground, grass, renderer, heightAt, save, refuge, enemies, combat, herbs, quests, inv,
     landmarks: LANDMARKS, sites: SITES, relics: RELICS, HA, WORLD,
     provinces: { PROVINCES, PROVINCE_CAMPS, HOLDS, provinceAt, status: provinceStatus },
     teleport(x, z, yaw = player.yaw, y = undefined) {

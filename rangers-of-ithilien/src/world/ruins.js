@@ -346,12 +346,5 @@ export function buildRuins(scene) {
   b.cyl(0, 7.5, 5, c.x, y + 12, c.z - 34, 0x7b6a5a, 4);
   scene.add(b.mesh(materials.stone));
 
-  // A sickly light far up the Morgul Vale.
-  const m = LANDMARKS.find((l) => l.id === 'morgul');
-  const glow = new THREE.Mesh(
-    new THREE.SphereGeometry(26, 10, 8),
-    new THREE.MeshBasicMaterial({ color: 0x9fe0b0, transparent: true, opacity: 0.35, fog: false, depthWrite: false }),
-  );
-  glow.position.set(m.x + 300, heightAt(m.x + 300, m.z) + 45, m.z + 6);
-  scene.add(glow);
+  // (since v0.8.5 there is no glowing ball up the Morgul Vale: its walls take a sickly green light instead, groundColor.js)
 }

@@ -12,7 +12,7 @@ import { addRock } from './rocks.js';
 import { heightAt, slopeAt, streamDistance } from './terrain.js';
 import { regionWeights } from './regions.js';
 import { forestDensity, thicketDensity } from './forest.js';
-import { inClearing, roadDistance } from './layout.js';
+import { inClearing, roadDistance, valeBarren } from './layout.js';
 import { plantedIn, houseDistance } from './oldworks.js';
 import { campNear } from './campSites.js';
 import { pathDistance } from './paths.js';
@@ -589,7 +589,7 @@ export function* vegetationSteps(cx, cz, quality) {
       if (inClearing(x, z) || streamDistance(x, z) < 5 || roadDistance(x, z) < 7 || houseDistance(x, z) < 6 || campNear(x, z, 9)) continue;
       if (pathDistance(x, z) < 3 || relicDistance(x, z) < 10 || inCourt(x, z) || inPlot(x, z, 5)) continue; // (nor in a field the settlers have cleared)
       const h = heightAt(x, z);
-      if (h < 0.8 || h > 150 || slopeAt(x, z) > 0.5) continue;
+      if (h < 0.8 || h > 150 || slopeAt(x, z) > 0.5 || valeBarren(x, z)) continue;
       regionWeights(x, z, w);
       if (w.foothill > 0.5 && H(gx, gz, 4) > 0.12) continue;
       // The deep woods are old forest: fewer great trees, but giants, far taller
@@ -617,7 +617,7 @@ export function* vegetationSteps(cx, cz, quality) {
       if (inClearing(x, z) || streamDistance(x, z) < 4 || roadDistance(x, z) < 6 || campNear(x, z, 8)) continue;
       if (pathDistance(x, z) < 2.4 || relicDistance(x, z) < 8 || inCourt(x, z) || inPlot(x, z, 2.5)) continue;
       const h = heightAt(x, z);
-      if (h < 1.2 || h > 150 || slopeAt(x, z) > 0.6) continue;
+      if (h < 1.2 || h > 150 || slopeAt(x, z) > 0.6 || valeBarren(x, z)) continue;
       regionWeights(x, z, w);
       if (w.fen > 0.5 || w.lawn > 0.6) continue;
       if (w.south > 0 && H(gx, gz, 42) < 0.72 * w.south) continue; // little grows under the giants
@@ -639,7 +639,7 @@ export function* vegetationSteps(cx, cz, quality) {
       if (!(thick > 0 && roll < thick * 0.9)) continue;
       if (campNear(x, z, 8) || inClearing(x, z)) continue;
       const h = heightAt(x, z);
-      if (h > 170 || slopeAt(x, z) > 0.7) continue;
+      if (h > 170 || slopeAt(x, z) > 0.7 || valeBarren(x, z)) continue;
       const t = 0.82 + 0.3 * H(gx, gz, 28);
       put(H(gx, gz, 24) < 0.55 ? 'tallHeather' : 'gorse', x, h - 0.2, z, H(gx, gz, 29) * 6.283, 0.85 + 0.5 * H(gx, gz, 27), t, t, t);
     }
@@ -657,7 +657,7 @@ export function* vegetationSteps(cx, cz, quality) {
       if (x > 1050 && thicketDensity(x, z) > 0.35) continue;
       if (inClearing(x, z) || roadDistance(x, z) < 4.5 || campNear(x, z, 4) || pathDistance(x, z) < 1.2 || inCourt(x, z) || inPlot(x, z, 0.5)) continue;
       const h = heightAt(x, z);
-      if (h < 0.05 || h > 180) continue;
+      if (h < 0.05 || h > 180 || valeBarren(x, z)) continue;
       regionWeights(x, z, w);
       let name = pick(COVER[pickRegion(H(gx, gz, 23))], H(gx, gz, 24));
       const wet = h < 1.4 || streamDistance(x, z) < 5;

@@ -9,6 +9,7 @@
 // small atlas of leaf clusters, cut out with an alpha test.
 
 import * as THREE from 'three';
+import { EPHEL } from './layout.js';
 
 /** Surface kinds, written per vertex by GeoBuilder (`b.kind = SURF.bark`). */
 export const SURF = {
@@ -253,7 +254,43 @@ function makeLeafAtlas() {
   return tex;
 }
 
-let detailTex = null, atlasTex = null, stoneTex = null;
+/**
+ * (since v0.8.5) Mountain crags, seen from far off: R is the height of the
+ * rock, ridged into knife-edged ribs with gullies between, running along v
+ * (which is up on a cliff face, seen from the side); G is its layering, broken
+ * bands across v. One tile covers tens of metres (see FRAG_COLOR), so the far
+ * mountains are rough without a polygon more.
+ */
+function makeCragTexture(size = 256) {
+  const data = new Uint8Array(size * size * 4);
+  const h1 = makeHash(211), h2 = makeHash(223), h3 = makeHash(227), h4 = makeHash(229);
+  for (let y = 0; y < size; y++) {
+    const v = y / size;
+    for (let x = 0; x < size; x++) {
+      const u = x / size, i = (y * size + x) * 4;
+      const warp = tileFbm(u, v, 4, 4, 3, h4) * 0.08;
+      const rib = 1 - Math.abs(tileFbm(u + warp, v, 9, 2, 4, h1));   // ribs and gullies running down the face
+      const rib2 = 1 - Math.abs(tileFbm(u, v + warp, 22, 4, 3, h2)); // and smaller ones between
+      const block = tileFbm(u, v, 6, 6, 4, h3);                       // broken buttresses
+      let hgt = 0.15 + 0.5 * rib * rib * rib + 0.2 * rib2 * rib2 + 0.25 * (block * 0.5 + 0.5);
+      const band = Math.sin((v * 7 + u * 2 + tileFbm(u, v, 3, 3, 3, h2) * 1.1) * Math.PI * 2); // beds, tilted and bent
+      const strata = 0.5 + 0.5 * band * (0.3 + 0.7 * sstep(-0.2, 0.5, tileFbm(u, v, 5, 5, 2, h3))); // and broken
+      const cl = (t) => Math.max(0, Math.min(255, Math.round(t * 255)));
+      data[i] = cl(hgt); data[i + 1] = cl(strata); data[i + 2] = 128; data[i + 3] = 255;
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+let detailTex = null, atlasTex = null, stoneTex = null, cragTex = null;
+export function cragTexture() { return (cragTex ||= makeCragTexture()); }
 export function detailTexture() { return (detailTex ||= makeDetailTexture()); }
 export function stoneTexture() { return (stoneTex ||= makeStoneTexture()); }
 export function leafAtlas() { return (atlasTex ||= makeLeafAtlas()); }
@@ -291,6 +328,8 @@ export const surfaceUniforms = {
   // brown: (x, z, radius, how blighted 0..1), eased back to green as a camp heals (camps.js).
   uCamps: { value: Array.from({ length: CAMP_TINTS }, () => new THREE.Vector4()) },
   uCampN: { value: 0 }, // how many of them are in use (the loop stops there; none, and it costs nothing)
+  // (since v0.8.5) The ground east of x turns to crags (cragTexture), fully by y: the Ephel Dúath.
+  uCragX: { value: new THREE.Vector2(EPHEL.footX + 30, EPHEL.cragFull) },
 };
 export function updateSurfaces(time) { surfaceUniforms.uTime.value = time; }
 
@@ -384,6 +423,8 @@ uniform vec4 uCamps[${CAMP_TINTS}];
 uniform int uCampN;
 uniform sampler2D uDetail;
 uniform sampler2D uStones;
+uniform sampler2D uCrag;
+uniform vec2 uCragX;
 uniform vec3 uMossColor;
 uniform float uMossAmt;
 uniform float uDetailAmt;
@@ -400,6 +441,8 @@ varying vec2 vLodKeep;
 float surfD;      // the grain at this point, about 0.5
 float surfBump;   // how strongly it raises the surface
 float surfLeaf;   // 1 on leaves: they glow a little, more with the sun behind them
+float cragW;      // how far this is mountain crag (0 none)
+float cragH;      // and the height of the crag here, about 0.5
 // Triplanar: the grain seen from each axis, weighted by how squarely the surface
 // faces it. A face that barely faces an axis (flat ground from the side, a trunk
 // from above) is not looked up at all; the rest share its weight. (Gradients are
@@ -419,6 +462,14 @@ float stoneTri(vec3 p, vec3 w) {
   if (w.x > TRI_SKIP) { c += textureGrad(uStones, p.zy, dx.zy, dy.zy).r * w.x; s += w.x; }
   if (w.y > TRI_SKIP) { c += textureGrad(uStones, p.xz, dx.xz, dy.xz).r * w.y; s += w.y; }
   if (w.z > TRI_SKIP) { c += textureGrad(uStones, p.xy, dx.xy, dy.xy).r * w.z; s += w.z; }
+  return c / s;
+}
+vec2 cragTri(vec3 p, vec3 w) {
+  vec3 dx = dFdx(p), dy = dFdy(p);
+  vec2 c = vec2(0.0); float s = 0.0;
+  if (w.x > TRI_SKIP) { c += textureGrad(uCrag, p.zy, dx.zy, dy.zy).rg * w.x; s += w.x; }
+  if (w.y > TRI_SKIP) { c += textureGrad(uCrag, p.xz, dx.xz, dy.xz).rg * w.y; s += w.y; }
+  if (w.z > TRI_SKIP) { c += textureGrad(uCrag, p.xy, dx.xy, dy.xy).rg * w.z; s += w.z; }
   return c / s;
 }
 vec3 surfPerturb(vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection) {
@@ -488,6 +539,17 @@ const FRAG_COLOR = /* glsl */`
     con = mix(0.55, 0.9, steep); bmp = mix(0.8, 3.2, steep);
     diffuseColor.rgb *= mix(vec3(1.0), vec3(0.92, 0.9, 0.86), steep);
   }
+  cragW = 0.0;
+  if (k == 9.0 && vSurfPos.x > uCragX.x) {
+    // The mountains: ribs and gullies of rock tens of metres across, and its layers.
+    cragW = smoothstep(uCragX.x, uCragX.y, vSurfPos.x) * (0.55 + 0.45 * smoothstep(0.12, 0.45, 1.0 - tn.y));
+    vec2 c1 = cragTri(vSurfPos * (1.0 / 150.0) + vec3(0.37, 0.0, 0.71), w);
+    vec2 c2 = cragTri(vSurfPos * (1.0 / 47.0), w);
+    cragH = c1.x * 0.62 + c2.x * 0.38;
+    float strata = mix(c1.y, c2.y, 0.35);
+    diffuseColor.rgb *= mix(1.0, (0.4 + 1.15 * cragH) * (0.93 + 0.14 * strata), cragW);
+    d = mix(d, 0.55, cragW * smoothstep(120.0, 400.0, distance(vSurfPos, cameraPosition))); // the fine grain only shimmers this far off
+  }
   con *= uDetailAmt;
   surfLeaf = (k == 3.0 || k == 4.0) ? 1.0 : 0.0;
   surfD = d;
@@ -552,6 +614,12 @@ const FRAG_NORMAL = /* glsl */`
     vec2 dH = vec2(dFdx(surfD), dFdy(surfD)) * surfBump * fade;
     normal = surfPerturb(-vViewPosition, normal, dH, faceDirection);
   }
+  if (cragW > 0.0) {
+    // crags at any distance: lit as the faces of the ground's own facets, not smoothed over
+    // (a bump from the crag texture itself speckles at this distance)
+    vec3 facet = normalize(cross(dFdx(vViewPosition), dFdy(vViewPosition)));
+    normal = normalize(mix(normal, facet, 0.6 * cragW));
+  }
 }
 #endif
 `;
@@ -580,6 +648,7 @@ export function surfaceMaterial(o = {}) {
   const uniforms = {
     uDetail: { value: detailTexture() },
     uStones: { value: stoneTexture() },
+    uCrag: { value: cragTexture() },
     uDefaultKind: { value: o.kind ?? SURF.plain },
     uSway: { value: o.wind ?? 0 },
     uMossAmt: { value: o.moss ?? 1 },

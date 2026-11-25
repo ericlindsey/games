@@ -8,7 +8,7 @@ import { groundColor, canopyColor } from './groundColor.js';
 import { forestDensity } from './forest.js';
 import { regionWeights } from './regions.js';
 const _w = {};
-import { HA } from './layout.js';
+import { HA, EPHEL } from './layout.js';
 import { noise2 } from '../util/noise.js';
 import { vegetationSteps, VegetationField } from './vegetation.js';
 import { finish } from '../util/slice.js';
@@ -157,15 +157,26 @@ export class Ground {
       };
       return mat;
     };
+    // (since v0.8.5) The mountains are drawn on a finer grid of their own, so their
+    // crests are sharp; the coarse backdrop stops where they begin. The fine grid's
+    // first column dips under the coarse one's last, so no crack shows at the seam.
+    const split = b.minX + Math.floor((EPHEL.footX - 80 - b.minX) / step) * step, fine = step / 2;
+    const backdropMat = cutHole(surfaceMaterial({ kind: SURF.ground }));
     this.backdrop = new THREE.Mesh(
-      gridGeometry(b.minX, b.minZ, nx, nz, step, (x, z) => heightAt(x, z) - 1.5, paintFarGround),
-      cutHole(surfaceMaterial({ kind: SURF.ground })),
+      gridGeometry(b.minX, b.minZ, nx, nz, step, (x, z) => heightAt(x, z) - 1.5, paintFarGround, (x) => x > split),
+      backdropMat,
+    );
+    const mx0 = split - fine;
+    this.mountains = new THREE.Mesh(
+      gridGeometry(mx0, b.minZ, (b.maxX - mx0) / fine, (b.maxZ - b.minZ) / fine, fine,
+        (x, z) => heightAt(x, z) - 1.5 - (x < split ? 4 : 0), paintFarGround),
+      backdropMat,
     );
     this.canopy = new THREE.Mesh(
       gridGeometry(0, 0, WORLD.width / 20, WORLD.length / 20, 20, canopyHeight, paintCanopy),
       cutHole(surfaceMaterial({ kind: SURF.leaf, side: THREE.DoubleSide })),
     );
-    scene.add(this.backdrop, this.canopy);
+    scene.add(this.backdrop, this.mountains, this.canopy);
   }
 
   setQuality(quality) {

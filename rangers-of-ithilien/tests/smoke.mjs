@@ -1379,6 +1379,23 @@ for (const q of ['medium', 'high']) {
     const drew = await page.waitForFunction(() => roi.renderer.info.render.triangles > 100000 && [...roi.grass.tiles.values()].some((t) => t.dense || t.sparse), null, { timeout: 600000 }).then(() => true, () => false);
     check(drew, `on ${q} the woods draw in full, with grass`);
     await shot(page, `quality-${q}`);
+    // (since v0.8.5) The White Mountains over the river, with the city on Mindolluin: in reach of the
+    // camera from every corner of the land, and in sight from above the Anduin.
+    const far = await page.evaluate(() => {
+      const wm = roi.whiteMountains, cam = roi.rig.camera, g = wm.mesh.geometry;
+      g.computeBoundingBox();
+      const b = g.boundingBox, W = roi.WORLD;
+      let worst = 0;
+      for (const [x, z] of [[0, 0], [W.width, 0], [0, W.length], [W.width, W.length]]) {
+        for (const bx of [b.min.x, b.max.x]) for (const bz of [b.min.z, b.max.z]) worst = Math.max(worst, Math.hypot(bx - x, bz - z));
+      }
+      roi.lookFrom(0, 40, 1500, wm.glint.position.x, wm.glint.position.y, wm.glint.position.z);
+      return { worst: Math.round(worst), far: cam.far, west: b.max.x < 0, scene: wm.mesh.parent === wm.glint.parent && !!wm.mesh.parent };
+    });
+    check(far.scene && far.west && far.worst < far.far, `the White Mountains stand west over the river, all within the camera's reach (${far.worst} m of ${far.far})`);
+    await page.waitForTimeout(3000);
+    await shot(page, `white-mountains-${q}`);
+    await page.evaluate(() => roi.lookFrom(null));
   });
 }
 

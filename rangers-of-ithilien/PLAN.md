@@ -182,6 +182,12 @@ light and movement. Concretely (v0.3):
   columns with bases and capitals, arches of wedge-shaped stones, chipped rubble.
 - **Fog is the art director**, as before: warm distance haze; golden in the
   central woods, grey-green in the south, pale on the heath.
+- **Far horizons** (v0.8.5): the Ephel Dúath break into sharp crests and gullies
+  above where anyone walks, rough with a crag texture rather than more polygons.
+  The Morgul Vale is a dark cleft between cliffs, closed by the mountains at its head.
+  Westward over the Anduin, beyond the fog, the White Mountains run away under the
+  sun, snow on their tops, Mindolluin at their head and the white city a pale fleck
+  on its knee with a glint at the tower's top, only just to be made out.
 - **Low sun**, fixed late afternoon, in the west. Filmic tone mapping (ACES) keeps
   the sunlit greens from blowing out and the shade readable. Shadows on medium and
   high; phones start on medium.
@@ -1498,6 +1504,57 @@ From playing the home-screen app on an iPhone.
   In the upright app `--safe-top` is now the status bar (at least 20 px) and 46 px, about a
   button's height more than before; on its side it is as it was. The compass, place line and
   tasks follow it down. Still seen only in a simulation (`?standalone=47`), not on a phone.
+
+### v0.8.5: craggy mountains; the Morgul Vale closed and dark; the White Mountains in the west
+
+Asked for: sharper, craggier mountains (by texture, not distant polygons), and to the
+west the sunset over the distant mountains of Gondor, with a glint of the white city.
+- **The Ephel Dúath** gain ridged noise (`crags` in terrain.js) from `EPHEL.cragFrom` to
+  `cragFull` (x 1400 to 1500, layout.js): knife-edged crests rise from the mountain, the
+  gullies between keep its old height (so the land at the world's edge is as high as it
+  was). Nothing is placed or walked out there (the ranger is barred past x 1360): every
+  camp, ruin, farm, path, herb, settlement and stream, and every height west of x 1380, was
+  checked to be unchanged. The mountains are drawn on a 16 m grid of their own
+  (`ground.mountains`; the rest of the backdrop stays at 32 m) so their crests are sharp,
+  and the ground shader turns to crag east of `uCragX` (surface.js): a generated crag
+  texture (ribs and gullies running down the faces, broken layers) at 150 m and 47 m, the
+  faces lit as the ground's own facets, and the fine grain faded with distance (it only
+  shimmered). A bump from the crag texture was tried and dropped: it speckles at a
+  kilometre. Cost: about 17k triangles more and one draw call.
+- **The White Mountains** (world/whiteMountains.js, `WHITE_MOUNTAINS` in layout.js): one
+  mesh, a strip along the crest from Mindolluin west for about 8.5 km (460 samples along,
+  17 across; about 15k triangles with the city), and the city: seven white circles
+  climbing Mindolluin's knee, facing east, and a slim tower; a sprite for the glint, which
+  comes and goes slowly and fades in the blight. They stand 4.5 to 12 km off, beyond the
+  fog, so they are drawn without it: their shader hazes them toward the sky's own horizon
+  colour (and its glow near the sun) by distance and more low down, so their feet are lost
+  in the haze, and more again in the blight. Snow lies on the summits. The camera now
+  reaches 16 km (was 12).
+- **Where they stand** is a compromise. The land is compressed (about 1:28 north-south), and
+  at that scale Minas Tirith would sit almost on the far bank. They are instead placed to
+  stand right against the sky: the city is south-west of Henneth Annûn (it is about that,
+  in the books' geography) and west-south-west from Osgiliath (where it should be due west),
+  and the range runs away westward, its far end under the fixed afternoon sun (18° south of
+  west) as seen from Henneth Annûn and the middle of the land. From the cave's window,
+  which looks due west, the range is at the left edge of the view and the city is out of
+  it; the best views are from high ground and the river bank.
+- **The Morgul Vale** (asked for after: it looked like a pass open to the sky). It was a
+  notch cut clean through the range, its floor climbing to the backdrop's edge, with sky
+  behind. Now, past where anyone walks (x 1390 on), it narrows between cliffs 300 to 400 m
+  high (the floor about 50 m wide) and ends under the mountains at `EPHEL.valeHead`
+  (x 1700), whose head wall rises to 700 to 800 m and fills the view east. Its rock darkens
+  toward the head and takes a dim, sickly green (`valeDepth` in layout.js, used by
+  groundColor.js), the road fades out before the head wall, and nothing grows on its floor
+  past x 1390 (`valeBarren`, in vegetation.js and grass.js). The glowing ball that stood far
+  up the vale (since the first prototype) is gone: it read as a disc however it was drawn,
+  and the green of the walls carries that light now. The ground the ranger
+  can reach, and everything placed, is as it was (checked as above).
+- The sun was left where it was (late afternoon, about 25° up). Setting it lower, on the
+  range, would make the "sunset over the mountains" literal, but would change the light on
+  the whole land: an open question for a playtest.
+- Smoke (quality medium and high) checks the range stands west of the river within the
+  camera's reach from every corner of the land, and shoots it from over the Anduin.
+  `tools/views/far.json` shoots the mountains, east and west.
 
 ### Known gaps to pick up
 
