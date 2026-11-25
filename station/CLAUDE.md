@@ -68,7 +68,11 @@ angular size; the view, the sunlight through the windows and the numbers
   Moon's mean albedo (`MOON_MAP_MEAN` in `sky.js`); slopes come from the
   elevation map; shadows are marched over the elevation map toward the sun
   (`terrainShadow`, soft over the sun's disc), so the terminator is real
-  terrain. Below the maps' resolution (~2.7 km colour, ~5.3 km elevation)
+  terrain. Map lookups work in ground distances, not map coordinates: the
+  pixel footprint and mip level come from kilometres, slopes from heights a
+  step east/west/north/south on the sphere, and the u gradient is shrunk by
+  cos(lat), so the equirectangular maps don't smear or pinch at the poles.
+  Below the maps' resolution (~2.7 km colour, ~5.3 km elevation)
   procedural craters and roughness fade in as you zoom. Local +x is 0°, 0°
   (the near side, facing Earth); +y is north. The maps load after start-up;
   until then, or if they fail, the old procedural Moon (seas, craters, rays)
