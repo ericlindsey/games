@@ -85,18 +85,26 @@ const float R_KM = 1737.4;
 #endif
 vec2 uvOf(vec3 p) { return vec2(atan(-p.z, p.x) / TAU + 0.5, asin(clamp(p.y, -1.0, 1.0)) / PI + 0.5); }
 // Terrain shadow: march from the point toward the sun over the elevation map,
-// steps growing from 2 km to ~600 km; the ray climbs at the sun's elevation and
-// the sphere falls away beneath it. Soft over the sun's 0.53° disc.
-float terrainShadow(vec3 p, float h0, vec3 Lhd, float tanE) {
+// steps growing to ~600 km; the ray climbs at the sun's elevation and the
+// sphere falls away beneath it. Soft over the sun's 0.53° disc. Heights are
+// read at no finer a mip than the pixel's own footprint (lodPix), the start
+// height included, so a blurred start never sits below sharp nearby rims; the
+// march starts a footprint away; and the shadow edge is never sharper than a
+// pixel. (Mixing a blurred start with sharp steps made false black blotches
+// near the limb, where a pixel spans many kilometres.)
+float terrainShadow(vec3 p, vec2 uv, float lodPix, float footKm, vec3 Lhd, float tanE) {
   float texKm = uHTexel.x * TAU * R_KM;
-  float grow = pow(300.0, 1.0 / float(SHADOW_STEPS));
-  float res = 1.0, s = 2.0;
+  float s = max(2.0, footKm);
+  float grow = pow(600.0 / s, 1.0 / float(SHADOW_STEPS));
+  float h0 = textureLod(uHeight, uv, lodPix).r;
+  float res = 1.0;
   for (int i = 0; i < SHADOW_STEPS; i++) {
     float th = s / R_KM;
     vec3 q = p * cos(th) + Lhd * sin(th);
     float ray = h0 + s * tanE + s * s / (2.0 * R_KM);
-    float hq = textureLod(uHeight, uvOf(q), log2(max(1.0, s * 0.3 / texKm))).r;
-    res = min(res, (ray - hq) / (s * 0.0093) + 0.5);
+    float lod = max(lodPix, log2(max(1.0, s * 0.3 / texKm)));
+    float hq = textureLod(uHeight, uvOf(q), lod).r;
+    res = min(res, (ray - hq) / (s * 0.0093 + 0.15 * footKm * max(tanE, 0.05)) + 0.5);
     if (res <= 0.0) break;
     s *= grow;
   }
@@ -202,7 +210,7 @@ void main() {
   float se = (hE - hW) / (2.0 * dd.x * TAU * R_KM * max(cos(lat), 0.02));
   float sn = (hN - hS) / (2.0 * dd.y * PI * R_KM);
   grad += se * vec3(-sin(lon), 0.0, -cos(lon)) + sn * vec3(-sin(lat) * cos(lon), cos(lat), sin(lat) * sin(lon));
-  if (sinE > -0.03) shadow *= terrainShadow(p, textureLod(uHeight, uv, lod).r, Lhd, tanE);
+  if (sinE > -0.03) shadow *= terrainShadow(p, uv, lod, foot * TAU * R_KM, Lhd, tanE);
   // finer than the maps: small craters and roughness, only once zoomed in that far
   float f = 600.0;
   for (int o = 0; o < 6; o++) {
