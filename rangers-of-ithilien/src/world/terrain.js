@@ -4,7 +4,7 @@
 import { fbm, noise2, smoothstep, lerp } from '../util/noise.js';
 import { WORLD } from '../config.js';
 import {
-  HA, bankX, ANDUIN_WIDTH, haradRoadX, southRoadZ, CAIR_ANDROS, LANDMARKS, gorgeZ, poolQ, stairTop,
+  HA, EPHEL, bankX, ANDUIN_WIDTH, haradRoadX, southRoadZ, CAIR_ANDROS, LANDMARKS, gorgeZ, poolQ, stairTop,
 } from './layout.js';
 import { fenWeight } from './regions.js';
 
@@ -20,16 +20,35 @@ function eastLand(x, z, bx) {
   let h = base + fbm(x / 270, z / 270, 4, S) * 24 * amp + fbm(x / 80, z / 80, 2, S + 50) * 4 * amp;
 
   // The Ephel Dúath: a wall along the east, with a gap where the Morgul road enters.
-  const m = Math.min(x - (1268 + 34 * noise2(z / 310, 7.3, S + 9)), 760);
+  const m = Math.min(x - (EPHEL.footX + 34 * noise2(z / 310, 7.3, S + 9)), 760);
   if (m > 0) {
     const gap = 1 - smoothstep(40, 150, Math.abs(z - southRoadZ(x)));
     const ridge = 0.8 + 0.45 * fbm(x / 200, z / 200, 3, S + 90);
     h += Math.pow(m / 520, 1.7) * 520 * ridge * (1 - 0.94 * gap);
+    // (since v0.8.5) higher up, sharp crests and gullies: only beyond where anyone walks or anything stands
+    const c = smoothstep(EPHEL.cragFrom, EPHEL.cragFull, x);
+    if (c > 0) {
+      const k = crags(x, z) - 0.22; // crests rise from it; the gullies between keep the mountain's own height
+      if (k > 0) h += k * 150 * c * (1 - 0.75 * gap) * Math.min(1, m / 320);
+    }
   }
 
   const fen = fenWeight(x, z);
   if (fen > 0) h = lerp(h, 0.3 + noise2(x / 22, z / 22, S + 5) * 0.75, fen * 0.93);
   return Math.max(h, 1.2 - fen * 2);
+}
+
+/**
+ * Ridged noise, 0..1: knife-edged crests where the noise crosses zero, and
+ * deeper gullies between, stretched a little north-south along the range.
+ */
+function crags(x, z) {
+  let s = 0, a = 1, n = 0, f = 1 / 210;
+  for (let i = 0; i < 4; i++) {
+    const v = 1 - Math.abs(noise2(x * f + i * 3.1, z * f * 0.7, S + 200 + i * 13));
+    s += v * v * a; n += a; a *= 0.48; f *= 2.13;
+  }
+  return s / n;
 }
 
 /** The lie of the land with the Anduin cut into it. No stamps, roads or streams. */

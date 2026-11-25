@@ -91,10 +91,12 @@ src/
     forest.js         forest density, heather thicket density (pure)
     groundColor.js    ground colour by place, height, slope (pure)
     collision.js      solids (boxes: wall + floor), circles (trunks), hollows (cave) (pure)
-    terrainMesh.js    near chunks, far backdrop, far forest roof
+    terrainMesh.js    near chunks, far backdrop (the Ephel Dúath on a finer grid of their own), far forest roof
     vegetation.js     all plant species, placed chunk by chunk; VegetationField draws them all (one mesh per species and form)
     water.js          the Anduin and stream ribbons
     atmosphere.js     sky, sun, fog; blight, under-canopy shade, cave dimming
+    whiteMountains.js the White Mountains far over the Anduin, Mindolluin and the white city with its
+                      glint: drawn past the fog, hazed in their own shader (layout.js WHITE_MOUNTAINS)
     motes.js          drifting motes of light under the trees
     hennethAnnun.js   the cave rock, the stair, the fall and pool
     ruins.js          named ruins and large landmarks
@@ -105,7 +107,8 @@ src/
     relics.js         builds the lesser ruins (each a LOD: the small things only near) and the waymarks on paths
     herbs.js          draws kingsfoil and the seed plants; gathering
     build.js          GeoBuilder (parts with a surface kind, smooth or faceted, leaf cards) and the shared materials
-    surface.js        generated detail textures and leaf atlas; the material patch (triplanar grain, bump, moss, wind, leaf glow, the cave's torchlight)
+    surface.js        generated detail textures, crag texture and leaf atlas; the material patch (triplanar grain, bump, moss, wind, leaf glow,
+                      the mountains' crags, the cave's torchlight)
     rocks.js          fractured rock geometry (boulders, outcrops, rubble, standing stones)
     grass.js          the field of grass blades around the ranger, built in tiles
   entities/           player.js (ranger + camera rig), enemies.js (spawning and AI),
@@ -308,7 +311,7 @@ Rules of thumb:
 ## Releasing
 
 - `index.html`'s import map lists every module with the release in its URL
-  (`?v=0.8.4`), and the stylesheet carries it too. Safari in particular will
+  (`?v=0.8.5`), and the stylesheet carries it too. Safari in particular will
   otherwise mix freshly fetched files with cached ones from the last release,
   and a module asking an old file for a new export stalls loading silently.
   **Bump `v` (everywhere in index.html) whenever a change is published**, and add
