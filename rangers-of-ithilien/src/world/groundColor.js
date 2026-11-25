@@ -19,7 +19,7 @@ const C = {
   central: hex(0x7aa64a), lawn: hex(0x8fbf55), south: hex(0x56843f), heath: hex(0xa3a264),
   heather: hex(0x94708f), river: hex(0x86a85c), fen: hex(0x6f8450), foothill: hex(0x8b8562),
   floor: hex(0x4b6a3a), meadow: hex(0x9dbb62), track: hex(0xb3a37c),
-  rock: hex(0x8f8877), darkRock: hex(0x5d5a61), mud: hex(0xa3966f), bed: hex(0x55604c),
+  rock: hex(0x8f8877), darkRock: hex(0x5d5a61), valeGlow: hex(0x4f7a5a), mud: hex(0xa3966f), bed: hex(0x55604c),
   road: hex(0xb9ae93), yard: hex(0x9a8462), canopy: hex(0x3f7436), canopySouth: hex(0x2f5c33), sick: hex(0x6b6f55),
 };
 
@@ -89,11 +89,12 @@ export function groundColor(x, z, h, slope, out) {
   if (x > 1230) {
     const morgul = 1 - smoothstep(60, 220, Math.abs(z - southRoadZ(x)));
     mix(out, C.darkRock, smoothstep(1275, 1410, x) * (0.75 + 0.25 * morgul));
-    // (since v0.8.5) the Morgul Vale is dark, darker toward its head
+    // (since v0.8.5) the Morgul Vale is dark, darker toward its head, its walls in a sickly green light
     const vd = valeDepth(x, z);
     if (vd > 0) {
       const k = vd * (0.5 + 0.5 * smoothstep(EPHEL.cragFrom - 50, EPHEL.valeHead, x));
-      out[0] *= 1 - 0.64 * k; out[1] *= 1 - 0.6 * k; out[2] *= 1 - 0.52 * k;
+      out[0] *= 1 - 0.7 * k; out[1] *= 1 - 0.56 * k; out[2] *= 1 - 0.62 * k;
+      mix(out, C.valeGlow, 0.3 * k);
     }
   }
 }

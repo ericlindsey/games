@@ -2,7 +2,7 @@
 // Everything is weathered pale stone built from simple blocks.
 
 import * as THREE from 'three';
-import { LANDMARKS, CAIR_ANDROS, EPHEL, bankX, southRoadZ } from './layout.js';
+import { LANDMARKS, CAIR_ANDROS, bankX, southRoadZ } from './layout.js';
 import { heightAt } from './terrain.js';
 import { addSolid, addCircle } from './collision.js';
 import { GeoBuilder, SURF, materials } from './build.js';
@@ -346,13 +346,5 @@ export function buildRuins(scene) {
   b.cyl(0, 7.5, 5, c.x, y + 12, c.z - 34, 0x7b6a5a, 4);
   scene.add(b.mesh(materials.stone));
 
-  // A sickly light far up the Morgul Vale, high on its northern side near the head
-  // (since v0.8.5: a glow that lightens the dark, not a pale ball).
-  const gx = EPHEL.valeHead - 80, gz = southRoadZ(gx) - 14;
-  const glow = new THREE.Mesh(
-    new THREE.SphereGeometry(11, 10, 8),
-    new THREE.MeshBasicMaterial({ color: 0x5fcf8a, transparent: true, opacity: 0.4, fog: false, depthWrite: false, blending: THREE.AdditiveBlending }),
-  );
-  glow.position.set(gx, heightAt(gx, gz) + 24, gz);
-  scene.add(glow);
+  // (since v0.8.5 there is no glowing ball up the Morgul Vale: its walls take a sickly green light instead, groundColor.js)
 }

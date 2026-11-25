@@ -1543,10 +1543,11 @@ west the sunset over the distant mountains of Gondor, with a glint of the white 
   behind. Now, past where anyone walks (x 1390 on), it narrows between cliffs 300 to 400 m
   high (the floor about 50 m wide) and ends under the mountains at `EPHEL.valeHead`
   (x 1700), whose head wall rises to 700 to 800 m and fills the view east. Its rock darkens
-  toward the head (`valeDepth` in layout.js, used by groundColor.js), the road fades out
-  before the head wall, and nothing grows on its floor past x 1390 (`valeBarren`, in
-  vegetation.js and grass.js). The sickly light up the vale is now a small green glow that
-  lightens the dark, over the floor near the head, not a pale ball. The ground the ranger
+  toward the head and takes a dim, sickly green (`valeDepth` in layout.js, used by
+  groundColor.js), the road fades out before the head wall, and nothing grows on its floor
+  past x 1390 (`valeBarren`, in vegetation.js and grass.js). The glowing ball that stood far
+  up the vale (since the first prototype) is gone: it read as a disc however it was drawn,
+  and the green of the walls carries that light now. The ground the ranger
   can reach, and everything placed, is as it was (checked as above).
 - The sun was left where it was (late afternoon, about 25° up). Setting it lower, on the
   range, would make the "sunset over the mountains" literal, but would change the light on
