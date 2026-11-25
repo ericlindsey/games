@@ -197,20 +197,30 @@ void main() {
   vec3 tint;
 #ifdef USE_MAPS
   vec2 uv = uvOf(p);
+  float lat = (uv.y - 0.5) * PI, lon = (uv.x - 0.5) * TAU;
+  // Footprints in ground terms. Toward the poles a map texel spans cos(lat) as
+  // much ground east-west as north-south, so the map is oversampled there in
+  // longitude. Shrinking the u gradient by cos(lat) stops the GPU from blowing
+  // up the mip level (and blurring latitude too) to cover a footprint that is
+  // long only in map space: that was the radial smear round the poles.
+  float cl = max(cos(lat), 1e-3);
   vec2 gx = dFdx(uv), gy = dFdy(uv);
   gx.x -= floor(gx.x + 0.5); gy.x -= floor(gy.x + 0.5);          // no seam where longitude wraps
+  gx.x *= cl; gy.x *= cl;
   tint = textureGrad(uColor, uv, gx, gy).rgb * uAlbScale;
-  // slopes from the elevation map, sampled no finer than a pixel
-  float foot = max(length(gx), length(gy));
-  vec2 dd = max(uHTexel, vec2(foot));
-  float lod = log2(max(1.0, foot / uHTexel.x));
-  float lat = (uv.y - 0.5) * PI, lon = (uv.x - 0.5) * TAU;
-  float hE = textureLod(uHeight, uv + vec2(dd.x, 0.0), lod).r, hW = textureLod(uHeight, uv - vec2(dd.x, 0.0), lod).r;
-  float hN = textureLod(uHeight, uv + vec2(0.0, dd.y), lod).r, hS = textureLod(uHeight, uv - vec2(0.0, dd.y), lod).r;
-  float se = (hE - hW) / (2.0 * dd.x * TAU * R_KM * max(cos(lat), 0.02));
-  float sn = (hN - hS) / (2.0 * dd.y * PI * R_KM);
-  grad += se * vec3(-sin(lon), 0.0, -cos(lon)) + sn * vec3(-sin(lat) * cos(lon), cos(lat), sin(lat) * sin(lon));
-  if (sinE > -0.03) shadow *= terrainShadow(p, uv, lod, foot * TAU * R_KM, Lhd, tanE);
+  float footKm = max(length(dFdx(p)), length(dFdy(p))) * R_KM;  // a pixel's size on the ground
+  float texKm = PI * R_KM * uHTexel.y;                           // an elevation texel, north-south
+  float stepKm = max(texKm, footKm);
+  float lod = log2(max(1.0, footKm / texKm));
+  // slopes from heights a step east, west, north and south on the sphere itself
+  // (not in map space, which pinches at the poles)
+  vec3 E = vec3(-sin(lon), 0.0, -cos(lon));
+  vec3 Nn = vec3(-sin(lat) * cos(lon), cos(lat), sin(lat) * sin(lon));
+  float dl = stepKm / R_KM;
+  float hE = textureLod(uHeight, uvOf(normalize(p + E * dl)), lod).r, hW = textureLod(uHeight, uvOf(normalize(p - E * dl)), lod).r;
+  float hN = textureLod(uHeight, uvOf(normalize(p + Nn * dl)), lod).r, hS = textureLod(uHeight, uvOf(normalize(p - Nn * dl)), lod).r;
+  grad += (hE - hW) / (2.0 * stepKm) * E + (hN - hS) / (2.0 * stepKm) * Nn;
+  if (sinE > -0.03) shadow *= terrainShadow(p, uv, lod, footKm, Lhd, tanE);
   // finer than the maps: small craters and roughness, only once zoomed in that far
   float f = 600.0;
   for (int o = 0; o < 6; o++) {

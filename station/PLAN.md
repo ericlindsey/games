@@ -7,7 +7,14 @@ curvature, the spin, the windows and the light feel like at a given size and
 gravity, in orbit low over the Moon (default: the Moon 90° across, half lit,
 with the Earth half lit too).
 
-## v0.3 (this version)
+## v0.3.1 (this version)
+
+- No false shadow blotches at the Moon's limb (shadow march filtered
+  consistently with the pixel's footprint).
+- No pinch at the Moon's poles: map sampling by ground distance, slopes from
+  steps on the sphere.
+
+## v0.3
 
 - The Moon is real: NASA's CGI Moon Kit colour (LROC) and elevation (LOLA),
   3.4 MB in all (4k colour only at High quality). Shadows are marched over the
@@ -87,4 +94,7 @@ with the Earth half lit too).
 - A Coriolis "feel" option: deflect dropped objects or the walker's path.
 - Solar arrays and radiators on the hub, docking at the axis.
 - Displace the Moon's limb by the elevation map.
+- Polar caps from real polar data (LOLA polar stereographic DEMs, LROC WAC
+  polar mosaics), blended in above ~80° latitude, if the pole ever needs more
+  than the global maps' ~5 km detail.
 - Day/night cycle presets (orbit position that eclipses Earth, etc.).
