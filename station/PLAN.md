@@ -7,7 +7,17 @@ curvature, the spin, the windows and the light feel like at a given size and
 gravity, in orbit low over the Moon (default: the Moon 90° across, half lit,
 with the Earth half lit too).
 
-## v0.2.1 (this version)
+## v0.3 (this version)
+
+- The Moon is real: NASA's CGI Moon Kit colour (LROC) and elevation (LOLA),
+  3.4 MB in all (4k colour only at High quality). Shadows are marched over the
+  real terrain, so the terminator shows real craters and ranges; procedural
+  craters fill in below the data's resolution when zoomed in.
+- The orbit is polar (the orbit plane contains the Moon's axis): the default
+  position, 330°, is over the north and far side; 90° is between Moon and
+  Earth, over the near side.
+
+## v0.2.1
 
 - Default station spins at 1 rpm for 1 g: 1,790 m across, a 5.6 km ring,
   100 m wide with a 20 m deck (56 ha of floor, two rows of trees a side).
@@ -64,8 +74,9 @@ with the Earth half lit too).
   (the Moon's centre) for visibility, so moonlit patches have sharp edges.
 - Inside, the spokes meet the ceiling as plain solid ceiling (no lift shaft).
 - At time rates above ~10× the spin strobes (it is drawn at the frame rate).
-- Moon terrain casts no shadows except inside craters (no long shadows from
-  hills or rims onto the plain beyond).
+- The Moon's limb is a smooth sphere: mountains don't break its outline.
+- Elevation is 5.3 km per texel: small craters' shadows come from procedural
+  detail, not data.
 - Leaves are solid clumps, not alpha-tested leaf cards, so crown edges are smooth.
 - On very small rings (under ~30 m) the hub and the ceiling crowd each other.
 
@@ -75,5 +86,5 @@ with the Earth half lit too).
 - Mirrors and external sunshades, as on classic designs, to aim sunlight in?
 - A Coriolis "feel" option: deflect dropped objects or the walker's path.
 - Solar arrays and radiators on the hub, docking at the axis.
-- Moon-surface self-shadowing at the terminator (crater shadows).
+- Displace the Moon's limb by the elevation map.
 - Day/night cycle presets (orbit position that eclipses Earth, etc.).

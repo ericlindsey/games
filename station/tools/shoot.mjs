@@ -24,7 +24,7 @@ const SUNNY = "station.spin = station.spinForHighest('sun') - 0.6";
 export const VIEWS = [
   { name: 'default', hash: '#warp=0', eval: SUNNY },
   { name: 'moon', hash: '#warp=0', eval: "station.spin = station.spinForHighest('moon'); station.aim('moon')" },
-  { name: 'earth', hash: '#warp=0', eval: "station.spin = station.spinForHighest('earth') + 0.25; station.aim('earth'); station.params.fov = 10" },
+  { name: 'earth', hash: '#warp=0', eval: "station.spin = station.spinForHighest('earth') - 0.35; station.aim('earth'); station.params.fov = 10" },
   { name: 'outside', hash: '#view=outside&warp=0', eval: 'station.spin = 1' },
   { name: 'big-ring', hash: '#diameter=1800&width=120&deck=25&warp=0', eval: SUNNY + '; station.player.pitch = 0.35' },
   { name: 'small-ring', hash: '#diameter=40&width=10&deck=4&gravity=0.3&warp=0', eval: SUNNY },
@@ -41,7 +41,7 @@ let views = args.views ? JSON.parse(await readFile(resolve(String(args.views)), 
 if (args.only) { const only = new Set(String(args.only).split(',')); views = views.filter((v) => only.has(v.name)); }
 await mkdir(out, { recursive: true });
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
 const server = createServer(async (req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   const file = join(ROOT, path.endsWith('/') ? path + 'index.html' : path);

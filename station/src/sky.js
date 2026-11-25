@@ -13,7 +13,7 @@
 // its children sit where the rotating station sees them.
 
 import * as THREE from 'three';
-import { MOON_R, EARTH_R, EARTH_DIST, SUN_ANG_RADIUS } from './physics.js';
+import { MOON_R, MOON_ALBEDO, EARTH_R, EARTH_DIST, SUN_ANG_RADIUS } from './physics.js';
 
 const NOISE = /* glsl */ `
 float hash13(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
@@ -68,6 +68,41 @@ uniform vec4 uRays[8];
 varying vec3 vObj; varying vec3 vNw; varying vec3 vPw;
 ${NOISE}
 const float TAU = 6.28318531;
+#ifdef USE_MAPS
+// Real data (NASA SVS CGI Moon Kit): LROC colour, LOLA elevation in km above
+// 1737.4 km, both equirectangular, centred on 0° longitude, north at v = 1.
+// Local +x is (0°, 0°), the centre of the near side; +y is north; east is -z.
+uniform sampler2D uColor; uniform sampler2D uHeight;
+uniform vec2 uHTexel; uniform float uAlbScale;
+const float PI = 3.14159265;
+const float R_KM = 1737.4;
+#if QUALITY > 1
+#define SHADOW_STEPS 40
+#elif QUALITY > 0
+#define SHADOW_STEPS 24
+#else
+#define SHADOW_STEPS 12
+#endif
+vec2 uvOf(vec3 p) { return vec2(atan(-p.z, p.x) / TAU + 0.5, asin(clamp(p.y, -1.0, 1.0)) / PI + 0.5); }
+// Terrain shadow: march from the point toward the sun over the elevation map,
+// steps growing from 2 km to ~600 km; the ray climbs at the sun's elevation and
+// the sphere falls away beneath it. Soft over the sun's 0.53° disc.
+float terrainShadow(vec3 p, float h0, vec3 Lhd, float tanE) {
+  float texKm = uHTexel.x * TAU * R_KM;
+  float grow = pow(300.0, 1.0 / float(SHADOW_STEPS));
+  float res = 1.0, s = 2.0;
+  for (int i = 0; i < SHADOW_STEPS; i++) {
+    float th = s / R_KM;
+    vec3 q = p * cos(th) + Lhd * sin(th);
+    float ray = h0 + s * tanE + s * s / (2.0 * R_KM);
+    float hq = textureLod(uHeight, uvOf(q), log2(max(1.0, s * 0.3 / texKm))).r;
+    res = min(res, (ray - hq) / (s * 0.0093) + 0.5);
+    if (res <= 0.0) break;
+    s *= grow;
+  }
+  return clamp(res, 0.0, 1.0);
+}
+#endif
 
 // value noise with its analytic gradient (xyz) in .yzw
 vec4 noised(vec3 x) {
@@ -148,14 +183,49 @@ void main() {
   vec3 Lhd = Lh / lh;
   float tanE = sinE / lh;
 
+  vec3 grad = vec3(0.0);
+  float shadow = 1.0;
+  float alb = 1.0;
+  vec3 tint;
+#ifdef USE_MAPS
+  vec2 uv = uvOf(p);
+  vec2 gx = dFdx(uv), gy = dFdy(uv);
+  gx.x -= floor(gx.x + 0.5); gy.x -= floor(gy.x + 0.5);          // no seam where longitude wraps
+  tint = textureGrad(uColor, uv, gx, gy).rgb * uAlbScale;
+  // slopes from the elevation map, sampled no finer than a pixel
+  float foot = max(length(gx), length(gy));
+  vec2 dd = max(uHTexel, vec2(foot));
+  float lod = log2(max(1.0, foot / uHTexel.x));
+  float lat = (uv.y - 0.5) * PI, lon = (uv.x - 0.5) * TAU;
+  float hE = textureLod(uHeight, uv + vec2(dd.x, 0.0), lod).r, hW = textureLod(uHeight, uv - vec2(dd.x, 0.0), lod).r;
+  float hN = textureLod(uHeight, uv + vec2(0.0, dd.y), lod).r, hS = textureLod(uHeight, uv - vec2(0.0, dd.y), lod).r;
+  float se = (hE - hW) / (2.0 * dd.x * TAU * R_KM * max(cos(lat), 0.02));
+  float sn = (hN - hS) / (2.0 * dd.y * PI * R_KM);
+  grad += se * vec3(-sin(lon), 0.0, -cos(lon)) + sn * vec3(-sin(lat) * cos(lon), cos(lat), sin(lat) * sin(lon));
+  if (sinE > -0.03) shadow *= terrainShadow(p, textureLod(uHeight, uv, lod).r, Lhd, tanE);
+  // finer than the maps: small craters and roughness, only once zoomed in that far
+  float f = 600.0;
+  for (int o = 0; o < 6; o++) {
+    float w = smoothstep(1.5 * px, 5.0 * px, 0.5 / f);
+    if (w <= 0.0) break;
+    vec4 n = noised(p * f + float(o) * 13.7);
+    grad += w * 0.06 * n.yzw;
+    f *= 2.17;
+  }
+  craters(p, 450.0, 0.8, px, Lhd, tanE, grad, alb, shadow);
+#if QUALITY > 0
+  craters(p, 1000.0, 0.9, px, Lhd, tanE, grad, alb, shadow);
+#endif
+#if QUALITY > 1
+  craters(p, 2200.0, 1.0, px, Lhd, tanE, grad, alb, shadow);
+#endif
+#else
   // seas and highlands
   float m = fbm3(p * 1.6 + 4.0) + 0.22 * p.x - 0.05;    // local +x faces Earth
   float mare = smoothstep(0.55, 0.64, m);
-  float alb = mix(0.16, 0.068, mare) * (0.8 + 0.4 * fbm3(p * 24.0)) * (0.9 + 0.2 * fbm3(p * 90.0));
-  vec3 tint = mix(vec3(1.0, 0.99, 0.97), mix(vec3(0.95, 0.97, 1.03), vec3(1.04, 1.0, 0.94), fbm3(p * 5.0 + 9.0)), mare);
+  alb = mix(0.16, 0.068, mare) * (0.8 + 0.4 * fbm3(p * 24.0)) * (0.9 + 0.2 * fbm3(p * 90.0));
+  tint = mix(vec3(1.0, 0.99, 0.97), mix(vec3(0.95, 0.97, 1.03), vec3(1.04, 1.0, 0.94), fbm3(p * 5.0 + 9.0)), mare);
 
-  vec3 grad = vec3(0.0);
-  float shadow = 1.0;
   // rolling terrain: rough highlands, smoother seas with wrinkle ridges
   float rough = mix(1.0, 0.3, mare);
   float f = 4.0;
@@ -210,6 +280,8 @@ void main() {
       if (d < 1.0) alb *= 1.15;
     }
   }
+
+#endif
 
   vec3 Ng = normalize(vNw);
   vec3 gw = uObjRot * grad;                         // object-space slope to world, tangent part
@@ -307,6 +379,51 @@ void main() {
 }
 `;
 
+// Mean linear luminance of moon_color_*.jpg (printed by tools/moon_maps.py);
+// the map is brightness-normalised, so it is scaled to the Moon's mean albedo.
+const MOON_MAP_MEAN = 0.5075;
+
+/** Decode moon_height_2k.webp (see tools/moon_maps.py) to a half-float texture of km, with mipmaps. */
+async function loadHeight(url) {
+  const blob = await (await fetch(url)).blob();
+  const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+  const W = bmp.width, H = bmp.height;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bmp, 0, 0);
+  const d = ctx.getImageData(0, 0, W, H).data;
+  let km = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    const row = (H - 1 - y) * W;                // image row 0 is north; texture v = 1 is north
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4, hi = d[i];
+      const lo = hi & 1 ? 255 - d[i + 1] : d[i + 1];
+      km[row + x] = ((hi * 256 + lo) * 8 - 10000) / 1000;
+    }
+  }
+  const half = (f) => { const o = new Uint16Array(f.length); for (let i = 0; i < f.length; i++) o[i] = THREE.DataUtils.toHalfFloat(f[i]); return o; };
+  const mipmaps = [];
+  let w = W, h = H;
+  for (;;) {
+    mipmaps.push({ data: half(km), width: w, height: h });
+    if (w === 1 && h === 1) break;
+    const nw = Math.max(1, w >> 1), nh = Math.max(1, h >> 1), next = new Float32Array(nw * nh);
+    for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) {
+      const x0 = Math.min(w - 1, x * 2), x1 = Math.min(w - 1, x * 2 + 1), y0 = Math.min(h - 1, y * 2), y1 = Math.min(h - 1, y * 2 + 1);
+      next[y * nw + x] = (km[y0 * w + x0] + km[y0 * w + x1] + km[y1 * w + x0] + km[y1 * w + x1]) / 4;
+    }
+    km = next; w = nw; h = nh;
+  }
+  const tex = new THREE.DataTexture(mipmaps[0].data, W, H, THREE.RedFormat, THREE.HalfFloatType);
+  tex.mipmaps = mipmaps;
+  tex.generateMipmaps = false;
+  tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 function mulberry32(seed) {
   return function () {
     seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
@@ -347,7 +464,7 @@ export class Sky {
     });
     this.moon = new THREE.Mesh(
       new THREE.SphereGeometry(1, 256, 128),
-      new THREE.ShaderMaterial({ uniforms: { ...common, uObjRot: { value: new THREE.Matrix3() }, uSunObj: { value: new THREE.Vector3() }, uRays: { value: rays } }, vertexShader: SPHERE_VERT, fragmentShader: MOON_FRAG, ...skyStencil }),
+      new THREE.ShaderMaterial({ uniforms: { ...common, uObjRot: { value: new THREE.Matrix3() }, uSunObj: { value: new THREE.Vector3() }, uRays: { value: rays }, uColor: { value: null }, uHeight: { value: null }, uHTexel: { value: new THREE.Vector2(1 / 2048, 1 / 1024) }, uAlbScale: { value: MOON_ALBEDO / MOON_MAP_MEAN } }, vertexShader: SPHERE_VERT, fragmentShader: MOON_FRAG, ...skyStencil }),
     );
     this.moon.scale.setScalar(MOON_R);
     this.moon.rotation.y = Math.PI / 2;    // local +X (the near side) toward the Earth (-Z)
@@ -425,9 +542,46 @@ export class Sky {
   setQuality(q) {
     if (this.quality === q) return;
     this.quality = q;
-    this.moon.material.defines = { QUALITY: q };
-    this.moon.material.needsUpdate = true;
+    this.applyMoonDefines();
     this.sun.material.uniforms.uGlow.value = q > 0 ? 0.35 : 1;
+    // High quality gets the 4k colour map; the others the 2k one
+    const want = q > 1 ? 4 : 2;
+    if (this.colorK !== want && !this.loadingK) this.loadMoonMaps(want);
+  }
+
+  applyMoonDefines() {
+    this.moon.material.defines = this.mapsReady ? { QUALITY: this.quality, USE_MAPS: '' } : { QUALITY: this.quality };
+    this.moon.material.needsUpdate = true;
+  }
+
+  /**
+   * Fetch the real Moon: colour (2k or 4k JPEG) and elevation (lossless WebP,
+   * decoded to half-float kilometres with CPU-built mipmaps). Until both arrive,
+   * or if they can't be loaded, the procedural Moon stands in.
+   */
+  async loadMoonMaps(k) {
+    this.loadingK = k;
+    try {
+      const base = new URL('../assets/moon/', import.meta.url);
+      const color = new THREE.TextureLoader().loadAsync(new URL(`moon_color_${k}k.jpg`, base).href);
+      const height = this.heightTex ? Promise.resolve(this.heightTex) : loadHeight(new URL('moon_height_2k.webp', base).href);
+      const [c, h] = await Promise.all([color, height]);
+      c.colorSpace = THREE.SRGBColorSpace;
+      c.wrapS = THREE.RepeatWrapping; c.wrapT = THREE.ClampToEdgeWrapping;
+      c.anisotropy = 8;
+      const u = this.moon.material.uniforms;
+      u.uColor.value?.dispose();
+      u.uColor.value = c;
+      u.uHeight.value = this.heightTex = h;
+      u.uHTexel.value.set(1 / h.image.width, 1 / h.image.height);
+      this.colorK = k;
+      this.mapsReady = true;
+      this.applyMoonDefines();
+    } catch (e) {
+      console.warn('Moon maps not loaded; using the procedural Moon.', e);
+    } finally {
+      this.loadingK = 0;
+    }
   }
 
   /** Point the sky camera the same way as the station camera. */
