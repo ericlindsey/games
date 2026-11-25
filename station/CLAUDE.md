@@ -62,12 +62,19 @@ angular size; the view, the sunlight through the windows and the numbers
   cabin light from above (a slider), light strips, lamp pools along the path,
   and a rough bounce term from sun on nearby glass; analytic AO in corners,
   under canopies, benches and lamps.
-- The Moon and Earth are procedural (noise, cellular craters with analytic
-  slopes). No map or image of the real Moon or Earth is used. Moon craters:
-  bowls when small; flat floors, terraced walls and central peaks when large;
-  each casts its own shadow near the terminator (`craterShadow`); eight young
-  craters throw rays; octaves too small to see at the current zoom fade out.
+- **The Moon is real data** (`assets/moon/`, see its CREDITS.md): NASA SVS CGI
+  Moon Kit colour (LROC) and elevation (LOLA), public domain, used at the
+  owner's request; credit shows in the settings panel. Colour is scaled to the
+  Moon's mean albedo (`MOON_MAP_MEAN` in `sky.js`); slopes come from the
+  elevation map; shadows are marched over the elevation map toward the sun
+  (`terrainShadow`, soft over the sun's disc), so the terminator is real
+  terrain. Below the maps' resolution (~2.7 km colour, ~5.3 km elevation)
+  procedural craters and roughness fade in as you zoom. Local +x is 0°, 0°
+  (the near side, facing Earth); +y is north. The maps load after start-up;
+  until then, or if they fail, the old procedural Moon (seas, craters, rays)
+  stands in. `tools/moon_maps.py` rebuilds the files from the kit's TIFFs.
   The Moon uses a Lommel-Seeliger/Lambert mix so it looks flat-lit like the real one.
+- The Earth is procedural (noise continents, clouds, ocean glint); no map.
 - Brightness is physical in ratio: sunlight 3.0 (shader units), moonlight from
   albedo × the Moon's projected solid angle × the half-phase factor.
   ACES tone mapping and an exposure slider.
@@ -90,8 +97,10 @@ src/
   sky.js            Moon, Earth, Sun, stars (own scene and camera)
   controls.js       thumb joystick, drag-to-look, WASD
   ui.js             settings panel built from PARAMS, readout text
+assets/moon/        real Moon maps (colour 2k/4k JPEG, elevation WebP) and their CREDITS.md
 tests/unit.test.mjs node --test tests/unit.test.mjs
 tools/shoot.mjs     screenshots of named views + console/shader error check
+tools/moon_maps.py  rebuilds assets/moon from the NASA kit (needs numpy, pillow, tifffile)
 ```
 
 When adding a module, add it to the import map in `index.html` and bump `v`
@@ -100,6 +109,8 @@ on every module there when releasing, so a cached old file never mixes in.
 ## Conventions
 
 - Static and build-free; Three.js is the only dependency. Ask before adding one.
+- Everything is generated in code except the Moon maps, which are NASA public
+  domain data the owner asked for. Keep that the only exception unless asked.
 - Parameters live in `PARAMS` only; the panel, the URL hash and the defaults all
   come from it. A parameter that changes geometry has `rebuild: true`; one that
   changes only layout uniforms (the glass sliders: window sizes) has
